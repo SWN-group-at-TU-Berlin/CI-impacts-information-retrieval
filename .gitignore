@@ -1,0 +1,17 @@
+# config and cache files
+.ipynb_checkpoints/
+ipython_config.py
+.pytest_cache/
+.ruff_cache/
+# uv
+.venv/
+uv.lock
+
+# logs and merge tool orig files
+*.orig
+*.log
+logs/
+
+# store trained models and models configs
+*.pkl
+*.joblib

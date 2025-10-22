@@ -1,0 +1,42 @@
+[project]
+name = "ci-impacts-llm"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Anna Buch", email = "anna.buch@tu-berlin.de"},
+]
+requires-python = ">=3.13"
+readme = "README.md"
+
+
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+# see, https://docs.astral.sh/ruff/rules
+lint.select = [
+    # defaults
+    "F",    # Pyflakes
+    "E",    # pycodestyle Error
+
+    # additional
+    "A",    # not shadow built-in functions
+    "I",    # isort imports
+    "N",    # check for PEP8 naming conventions
+    "W",    # pycodestyle Warning
+
+    # clean docstrings
+    "D201", "D207", "D208", "D209", "D210", "D214", "D215", "D300", "D403",
+
+    # auto-remove unused 'noqa' comments
+    "RUF100", "RUF101",
+]
+
+fix = true
+lint.ignore = ["C901", "E714", "I001"]
+exclude = [".venv", ".ipynb", "versioneer.py", "*_cache"]
+
