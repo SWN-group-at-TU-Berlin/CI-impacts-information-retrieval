@@ -16,8 +16,11 @@ Set up the project simply by running
 ````
 uv sync
 ````
-which creates a new virtual environment, stored in `.venv`
-
+which creates a new virtual environment, stored in `.venv`\
+Activate the environment by running
+````
+source .venv/bin/activate
+````
 
 
 ## References
