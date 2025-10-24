@@ -1,8 +1,10 @@
 # config and cache files
+__pycache__/
 .ipynb_checkpoints/
 ipython_config.py
 .pytest_cache/
 .ruff_cache/
+.env
 # uv
 .venv/
 uv.lock
@@ -14,4 +16,3 @@ logs/
 
 # store trained models and models configs
 *.pkl
-*.joblib
