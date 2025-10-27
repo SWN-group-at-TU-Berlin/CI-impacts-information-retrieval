@@ -22,6 +22,12 @@ Activate the environment by running
 source .venv/bin/activate
 ````
 
+### Generation of embeddings directly in Postgres DB
+
+We aim to test different multilingual embedding models based on the suggestions from [HuggingFace Embedding Leaderboard](https://huggingface.co/spaces/mteb/leaderboard). However, we apply first open-source, leightweighted models, such as from Ollama, to setup the pipeline and for creating a benchmark.\
+To facilitate the generation and management of the embedding vectors stored in the postgres DB, along with the original text sources, we are making use of the [`pgai` package](https://github.com/timescale/pgai/tree/main/docs). Its implementation enables to use a postgres DB efficiently for Retrieval-Augmented Generation (RAG). However, `pgai` should be executed within a docker container. We create the database in the container by making use of the [timescale DB](https://hub.docker.com/r/timescale/timescaledb), an open-source database designed to make SQL scalable for large, (time-series) data and complex queries. \
+The creation of the database within the container and to run a vectorizer which creates the embeddings, is done by following the steps described [here](https://github.com/timescale/pgai/blob/main/docs/vectorizer/quick-start.md). Make sure to have at least 20GB of free disk space and of course you need to have Docker installed.
+
 
 ## References
 
