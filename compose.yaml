@@ -1,4 +1,4 @@
-name: pgai 
+name: pgai
 services:
  vectordb:
    image: timescale/timescaledb-ha:pg17
