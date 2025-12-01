@@ -1,0 +1,11 @@
+{"label":"CI_TYPE","pattern":"road"}
+{"label":"CI_TYPE","pattern":"roads"}
+{"label":"CI_TYPE","pattern":"motorway"}
+{"label":"CI_TYPE","pattern":"motorways"}
+{"label":"CI_TYPE","pattern":"rail"}
+{"label":"CI_TYPE","pattern":"rails"}
+{"label":"CI_TYPE","pattern":"railway"}
+{"label":"CI_TYPE","pattern":"railways"}
+{"label":"CI_TYPE","pattern":"bridge"}
+{"label":"CI_TYPE","pattern":"bridges"}
+{"label":"LOC","pattern":[{"LOWER":"ahr"},{"LOWER":"valley"}]}
