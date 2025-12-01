@@ -6,6 +6,7 @@ __author__ = "Anna Buch, TU Berlin"
 __email__ = "anna.buch@tu-berlin.de"
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import subprocess
 
 
 class Settings(BaseSettings):
@@ -20,6 +21,14 @@ class Settings(BaseSettings):
 
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 50
+
+    # Use transformer model (roberta) for fast and precise NER recognition for english language [only with GPU]
+    # performance: https://spacy.io/models/en#en_core_web_trf
+    try:
+        subprocess.check_output("nvidia-smi")
+        SPACY_MODEL: str = "en_core_web_trf"
+    except Exception:
+        SPACY_MODEL: str = "en_core_web_lg"
 
 
 settings = Settings()
