@@ -1,11 +1,35 @@
-{"label":"CI_TYPE","pattern":"road"}
-{"label":"CI_TYPE","pattern":"roads"}
-{"label":"CI_TYPE","pattern":"motorway"}
-{"label":"CI_TYPE","pattern":"motorways"}
-{"label":"CI_TYPE","pattern":"rail"}
-{"label":"CI_TYPE","pattern":"rails"}
-{"label":"CI_TYPE","pattern":"railway"}
-{"label":"CI_TYPE","pattern":"railways"}
-{"label":"CI_TYPE","pattern":"bridge"}
-{"label":"CI_TYPE","pattern":"bridges"}
-{"label":"LOC","pattern":[{"LOWER":"ahr"},{"LOWER":"valley"}]}
+
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Rr]oad.*"}}]}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Hh]ighway.*"}}]}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Mm]otorway.*"}}]}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Rr]ail.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "[Rr]ailway"}}, {"TEXT": {"REGEX": "track.*"}}]}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Rr]ail.*"}}]}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Bb]ridge.*"}}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "electricity"}, {"LOWER": "distribution"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "electricity"}, {"LOWER": "infrastructure"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "electricity"}, {"LOWER": "network"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "electricity"}, {"LOWER": "services"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "electricity"}, {"LOWER": "supply"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "gas"}, {"LOWER": "distribution"}]}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Gg]as pipe.*"}}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "gas"}, {"LOWER": "supply"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "broadband"}, {"LOWER": "network"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "telecommunication"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "telecommunication"}, {"LOWER": "services"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "telecommunication"}, {"LOWER": "infrastructure"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "telecommunication"}, {"TEXT": {"REGEX": "mast.*$"}}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "drinking"}, {"LOWER": "water"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "groundwater"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "water"}, {"LOWER": "infrastructure"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "water"}, {"LOWER": "network"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "water"}, {"TEXT": {"REGEX": "supply.*"}}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "solid"}, {"LOWER": "waste"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "solid-waste"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "waste"}, {"TEXT": {"REGEX": "facilit.*"}}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "wastewater"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "healthcare"}, {"TEXT": {"REGEX": "facilit.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "[Hh]ospital.*"}}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "emergency"}, {"LOWER": "services"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "fire"}, {"TEXT": {"REGEX": "department.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "[Ss]chool.*"}}]}
