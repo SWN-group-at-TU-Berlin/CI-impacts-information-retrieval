@@ -5,18 +5,18 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "[Rr]ailway track.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Rr]ail.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Bb]ridge.*"}}]}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "transport*."}}, {"LOWER": "sector"}]}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "transport*."}}, {"LOWER": "infrastructure"}]}
-{"label":"CI_TYPE","pattern": [{"LOWER": "electricity"}, {"LOWER": "distribution"}]}
-{"label":"CI_TYPE","pattern": [{"LOWER": "electricity"}, {"LOWER": "infrastructure"}]}
-{"label":"CI_TYPE","pattern": [{"LOWER": "electricity"}, {"LOWER": "network"}]}
-{"label":"CI_TYPE","pattern": [{"LOWER": "electricity"}, {"LOWER": "services"}]}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "electric*."}}, {"LOWER": "sector"}]}
-{"label":"CI_TYPE","pattern": [{"LOWER": "electricity"}, {"LOWER": "supply"}]}
-{"label":"CI_TYPE","pattern": [{"LOWER": "power"}, {"TEXT": {"REGEX": "net.*"}}]}
-{"label":"CI_TYPE","pattern": [{"LOWER": "power"}, {"LOWER": "supply"}]}
-{"label":"CI_TYPE","pattern": [{"LOWER": "gas"}, {"LOWER": "distribution"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Tt]ransport.*"}}, {"LOWER": "sector"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Tt]ransport.*"}}, {"LOWER": "infrastructure"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ee]lectric.*"}}, {"LOWER": "sector"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ee]lectric.*"}}, {"LOWER": "distribution"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ee]lectric.*"}}, {"LOWER": "infrastructure"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ee]lectric.*"}}, {"LOWER": "net.*"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ee]lectric.* service.*?"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ee]lectric.*"}}, {"LOWER": "supply"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Pp]ower"}}, {"LOWER": "net.*"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Pp]ower"}}, {"LOWER": "supply"}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Gg]as pipe.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Gg]as"}}, {"LOWER": "distribution"}]}
 {"label":"CI_TYPE","pattern": [{"LOWER": "gas"}, {"LOWER": "supply"}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "IT*."}}, {"LOWER": "sector"}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "IT*."}}, {"LOWER": "infrastructure"}]}
