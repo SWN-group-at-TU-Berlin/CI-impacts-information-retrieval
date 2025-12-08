@@ -38,6 +38,13 @@ Every time when you push a commit, the hooks will be applied and will help to ma
 You can run these hooks also locally by executing `pre-commit run --all-files`.
 
 
+## Trouble shooting
+
+Issues when installing `unstructured` -->  probably `rust` installation is missing:
+* First try to install `rustup` via `curl`: `$ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh` , See for more info (here)[https://rust-lang.org/tools/install/]
+* Then install `unstructured` with an extension for all document types: `uv add unstructured[all-docs]`
+
+
 ## References
 
 *Koks, E. E., van Ginkel, K. C. H., van Marle, M. J. E., and Lemnitzer, A.: Brief communication: Critical infrastructure impacts of the 2021 mid-July western European flood event, Nat. Hazards Earth Syst. Sci., 22, 3831–3838, https://doi.org/10.5194/nhess-22-3831-2022, 2022.*
