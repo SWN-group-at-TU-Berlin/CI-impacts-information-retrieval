@@ -19,7 +19,6 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Tt]ransport.*"}}, {"LOWER": "sector"}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Tt]ransport.*"}}, {"LOWER": "infrastructure"}]}
 
-
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ee]lectric.*"}}, {"LOWER": "distribution"}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ee]lectric.*"}}, {"LOWER": "sector"}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ee]lectric.* supply"}}]}
@@ -34,6 +33,12 @@
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Gg]as pipe.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Gg]as"}}, {"LOWER": "distribution"}]}
 {"label":"CI_TYPE","pattern": [{"LOWER": "gas"}, {"LOWER": "supply"}]}
+
+{"label":"CI_TYPE","pattern": [{"LOWER": "dam"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "dams"}]}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Dd]ike.*"}}]}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Ll]eeve.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Rr]eservoir.*"}}]}
 
 {"label":"CI_TYPE","pattern": [{"LOWER": "water"}, {"LOWER": "distribution"}]}
 {"label":"CI_TYPE","pattern": [{"LOWER": "water"}, {"LOWER": "infrastructure"}]}
@@ -58,7 +63,6 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ww]aste.*water sector"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*waste.* treatment.*"}}]}
 {"label":"CI_TYPE","pattern": [{"LOWER": "wastewater"}]}
-
 
 {"label":"CI_TYPE","pattern": [{"LOWER": "cell"}, {"TEXT": {"REGEX": "tower.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "IT*."}}, {"LOWER": "sector"}]}
