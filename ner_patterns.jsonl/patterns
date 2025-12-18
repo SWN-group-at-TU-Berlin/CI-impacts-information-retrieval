@@ -27,12 +27,21 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ee]lectric.* net.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ee]lectric.* plant.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ee]lectric.* service.*"}}]}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Pp]ower plant.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Pp]ower net.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Pp]ower supply"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Gg]as pipe.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Gg]as"}}, {"LOWER": "distribution"}]}
 {"label":"CI_TYPE","pattern": [{"LOWER": "gas"}, {"LOWER": "supply"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Pp]ower plant.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Nn]uclear plant.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ss]olar farm.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ss]olar park.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ss]olar panel.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ww]ind farm.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ww]ind park.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Cc]harging station.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Pp]etrol station.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ff]illing station.*"}}]}
 
 {"label":"CI_TYPE","pattern": [{"LOWER": "dam"}]}
 {"label":"CI_TYPE","pattern": [{"LOWER": "dams"}]}
@@ -68,6 +77,7 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "IT*."}}, {"LOWER": "sector"}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "IT*."}}, {"LOWER": "infrastructure"}]}
 {"label":"CI_TYPE","pattern": [{"LOWER": "broadband"}, {"LOWER": "network"}]}
+{"label":"CI_TYPE","pattern": [{"LOWER": "data"}, {"TEXT": {"REGEX": "center.*"}}]}
 {"label":"CI_TYPE","pattern": [{"LOWER": "telecommunication"}, {"LOWER": "services"}]}
 {"label":"CI_TYPE","pattern": [{"LOWER": "telecommunication"}, {"LOWER": "sector"}]}
 {"label":"CI_TYPE","pattern": [{"LOWER": "telecommunication"}, {"LOWER": "infrastructure"}]}
