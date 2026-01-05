@@ -1,6 +1,3 @@
-
-
-
 ## STEP 1: 
 
 You are an expert analyst assistant and should use ONLY the provided context to answer the following question:
