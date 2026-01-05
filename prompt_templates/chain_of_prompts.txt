@@ -1,0 +1,57 @@
+
+
+
+## STEP 1: 
+
+You are an expert analyst assistant and should use ONLY the provided context to answer the following question:
+
+Question: "{{ question_1 }}"
+    
+Context:
+{% for item in context %}
+- {{ item.text }} (Citation: {{ item.citation }})
+{% endfor %}
+
+Evaluate and improve your answer based on the information about critical infrastructure (CI) types (column: "ci_entity") and their geolocations (column: "geo_entity") mentioned in CI locations.
+
+CI locations:
+{% for item in context %}
+- ("ci_entity" and "geo_entity":\n {{ item.ci_locations[["ci_entity", "geo_entity"]] }})
+{% endfor %}
+
+
+
+## STEP 2: 
+
+Then use the output from the first question to answer the following question:
+
+Question: "{{ question_2 }}"
+
+Provide in the field "impacts_to_other_infrastructure_assets" information about cascading impacts to other infrastructure assets mentioned in the context.
+If no information about cascading impacts to other infrastructure assets is found, then return for this field a "NAN" value.
+
+Provide in the field "societal_impact" information about societal consequences of the infrastructure failures mentioned in the context.
+If no information about societal consequences is found, then return for this field a "NAN" value.
+
+Provide in the field "economic_impact" information about economic consequences of the infrastructure failures mentioned in the context.
+If no information about economic consequences is found, then return for this field a "NAN" value.
+
+Then, evaluate and improve your answer.
+
+
+Extend the valid JSON from the first step with fields about "societal_impact", "economic_impact", "impacts_to_other_infrastructure_assets".
+The final valid JSON should have the following list format:
+[{
+    "infrastructure_type": "...",
+    "damage": "...",
+    "location": "...",
+    "impacts_to_other_infrastructure_assets": "...",
+    "societal_impact": "...",
+    "economic_impact": "..."
+}]
+
+Each nested dictionary describes one failure case.
+DO NOT add commentary or text outside the JSON.
+
+
+Answer:
