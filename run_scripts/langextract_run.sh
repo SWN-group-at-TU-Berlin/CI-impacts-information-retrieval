@@ -9,12 +9,14 @@
 #SBATCH --mail-type=END,FAIL
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=5   # 2
-## SBATCH --gpus=1
-#SBATCH --mem=5G  # 32768
-#SBATCH --time=00:15:00 # 01:00:00
+#SBATCH --gpus=1
+#SBATCH --mem=10G
+#SBATCH --time=10:00:00 
 
 
 module purge
+# module load nvidia/cuda/12.2 # check if  performance changes when CUDA module is not loaded
+
 
 # VENV_PATH="./ollama_venv" # original env created in setup script only for ollama
 VENV_PATH="./CI-impacts-information-retrieval/.venv"  # uv
@@ -36,7 +38,7 @@ fi
 
 echo
 echo "######################################"
-echo "Configuring ollama"
+echo "Configuring Ollama"
 echo "######################################"
 echo
 export PATH=${PATH}:${PWD}/${OLLAMA_DIR}/usr/bin
