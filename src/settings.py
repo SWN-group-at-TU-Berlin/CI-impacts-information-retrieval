@@ -9,13 +9,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 import subprocess
 
 
-class Settings(BaseSettings):
+# class Settings(BaseSettings):
+class Settings(): # TODO test if pydantic_core._pydantic_core.ValidationError is solved when loading src/settings.py
     # paths
     PATH_SRC: str = "./src"
     ## store logs and data outside of the repository
-    PATH_LOGS: str = "../logs/"
+    PATH_LOGS: str = "./logs/"
     PATH_DATA: str = "../data/"
-
+    PATH_PROMPTS: str = "prompt_templates/"
+    
+  
     HUGGINGFACE_TOKEN: str
     model_config = SettingsConfigDict(env_file=".env")  # load HUGGINGFACE_TOKEN
 
