@@ -1,17 +1,17 @@
 #!/bin/bash
 #SBATCH --qos=normal
-#SBATCH --partition=TestAndBuild
+#SBATCH --partition=gpu
 #SBATCH --job-name=ollama-run
 #SBATCH --account=swn
 #SBATCH --output=./logs/ollama-run.%j.%N.out 
 #SBATCH --error=./logs/ollama-run.%j.%N.err
 #SBATCH --mail-user=anna.buch@tu-berlin.de
 #SBATCH --mail-type=END,FAIL
-#SBATCH --nodes 1
-#SBATCH --cpus-per-task=2 # 5
-### # --gpus=1
-#SBATCH --mem=3G #5G # 32768
-#SBATCH --time=00:10:00 # 01:00:00
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=5   # 2
+## SBATCH --gpus=1
+#SBATCH --mem=5G  # 32768
+#SBATCH --time=00:15:00 # 01:00:00
 
 
 module purge
@@ -29,7 +29,7 @@ if [ -d "$VENV_PATH" ]; then
     echo "Virtual environment exists, activating"
     source "${VENV_PATH}"/bin/activate
 else
-    echo "Please sbatch the setup script before running this."
+    echo "Run batch-ollama-setup.sh first."
     exit 1
 fi
 
@@ -45,12 +45,10 @@ export OLLAMA_MODELS=${PWD}/${OLLAMA_DIR}/models
 
 # Avoid port conflicts
 export OLLAMA_GAME_PORT=$((21000 + ($RANDOM % 500)))
-export OLLAMA_HOST=127.0.0.1:${OLLAMA_GAME_PORT}
-
+export OLLAMA_HOST=http://127.0.0.1:${OLLAMA_GAME_PORT} 
+# NOTE: make sure to have protocol scheme "http://" and that Ollama port is pointing to localhost
 
 echo "Ollama host is ${OLLAMA_HOST}"
-
-ollama_port="127.0.0.1:${OLLAMA_GAME_PORT}"  # arg for .py, NOTE: need to be string
 
 echo
 echo "######################################"
@@ -67,17 +65,9 @@ sleep 10
 
 echo "Starting script"
 source .venv/bin/activate
-echo $ollama_port
-# when ollama_port is int/str: langextract_run.py: error: unrecognized arguments: --ollama_port=127.0.0.1:21170 --model llama3
-# uv run python notebooks/langextract_run.py "--ollama_port=${ollama_port}" "--host_port ${OLLAMA_HOST}" "--model=llama3"
-
-uv run python notebooks/langextract_run.py "--host_port ${OLLAMA_HOST}" "--model_name llama3"
-
-# uv run python ./notebooks/langextract_run.py "--host_port ${OLLAMA_HOST}" "--model llama3" # langextract_run.py: error: unrecognized arguments: --model llama3
-# uv run python ./notebooks/langextract_run.py "${ollama_port}" "--host_port ${OLLAMA_HOST}" "--model llama3"
-# python3 notebooks/langextract_run.py "--host_port ${OLLAMA_HOST}" "--model llama3" # unrecognized arguments: --model llama3
-
+uv run python notebooks/langextract_run.py --host_port ${OLLAMA_HOST} --model_name llama3
 popd
+
 
 echo
 echo "######################################"

@@ -51,22 +51,21 @@ from langchain_docling import DoclingLoader
 from huggingface_hub import login
 import torch
 
-from pdfminer.high_level import extract_text
-from docling_core.types.doc.document import TextItem
-from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
-from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import (
-    PdfPipelineOptions,
-    AcceleratorOptions,
-    AcceleratorDevice,
-)
-from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
-from docling.document_converter import DocumentConverter, FormatOption
+# from pdfminer.high_level import extract_text
+# from docling_core.types.doc.document import TextItem
+# from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+# from docling.datamodel.base_models import InputFormat
+# from docling.datamodel.pipeline_options import (
+#     PdfPipelineOptions,
+#     AcceleratorOptions,
+#     AcceleratorDevice,
+# )
+# from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
+# from docling.document_converter import DocumentConverter, FormatOption
 
-print("loading settings ..")
-sys.path.append("./")
-from src.settings import settings as s
-from src.document_cleaning import remove_references, remove_headers_footers
+print("Loading settings ..")
+# sys.path.append("./")
+# import src.settings as s
 
 torch.manual_seed(42)
 
@@ -77,19 +76,19 @@ os.environ["HF_HOME"] = (
 )
 
 # default ollama model
-MODEL_CHOICE = "llama3" #"llama3.2:1b"  # The smallest llama model
+MODEL_CHOICE = "llama3" # "llama3.2:1b"- the smallest llama model
 
 
 ## NOTE: make sure to set project root as working dir
-DOCS_DIR = s.PATH_DATA + "text_sources/"
-PARSED_TEXT_DIR = s.PATH_DATA + "parsed_documents/"
+DOCS_DIR = "../data/text_sources/"
+PARSED_TEXT_DIR = "../data/parsed_documents/"
 md_dir = Path(PARSED_TEXT_DIR)
 md_dir.mkdir(parents=True, exist_ok=True)
 
-OUTPUT_LX_DIR = s.PATH_DATA + "langextract_output/"
+OUTPUT_LX_DIR = "../data/langextract_output/"
 os.makedirs(OUTPUT_LX_DIR, exist_ok=True)
 
-
+print("\ntrying to load user args")
 # load user arguments Ollama server and model
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -110,276 +109,8 @@ host_port = args.host_port
 model_name = args.model_name
 
 
-# %%
-print("Try loading spaCy model from .cache ...")
-try: 
-    nlp = spacy.load(s.SPACY_MODEL)
-
-except (OSError, ValueError):
-    print(f"spaCy language model '{s.SPACY_MODEL}' not found. Downloading ...")
-
-    # except SyntaxError as e:
-    print("Try loading spaCy model for remote environment")
-    subprocess.check_call(["uv", "pip", "install", "spacy-transformers"])
-    subprocess.check_call(["uv", "run", "python", "-m", "spacy", "download", s.SPACY_MODEL])
-    nlp = spacy.load(s.SPACY_MODEL)
-
-
-
-# %% [markdown]
-# # Document cleaning
-
-# %%
-# Docling pipeline configs
-accelerator_options = AcceleratorOptions(
-    num_threads=4, device=AcceleratorDevice.AUTO
-)  # use GPU + multi-threading
-pipeline_options = PdfPipelineOptions()
-pipeline_options.do_ocr = True
-pipeline_options.do_table_structure = (
-    True  # identify tables as such just not to have them in the TextItems later
-)
-pipeline_options.accelerator_options = accelerator_options
-pipeline_options.force_backend_text = True
-
-
-
-# %%
-# setup converter for PDF and markdown
-converted = DocumentConverter(
-    allowed_formats=[InputFormat.PDF, InputFormat.MD],
-    format_options={
-        InputFormat.PDF: FormatOption(
-            pipeline_cls=StandardPdfPipeline,
-            pipeline_options=pipeline_options,
-            backend=PyPdfiumDocumentBackend,
-        ),
-    },
-)
-
-# %%
-
-
-# %%
-print( "Number of documents to process:", len(os.listdir(DOCS_DIR)) )
-
-
-# convert the different layouts of the pdf files into unified markdown format incl. sub/section titles, tables, caption text etc
-for pdf_filename in os.listdir(DOCS_DIR):
-    if pdf_filename.endswith(".pdf"):
-
-        md_filename = f"{Path(pdf_filename).stem}.md"
-
-        pdf_filepath = os.path.join(DOCS_DIR, Path(pdf_filename))
-        md_filepath = os.path.join(PARSED_TEXT_DIR, Path(md_filename))
-        cleaned_md_filepath = md_filepath.replace(".md", "_cleaned.md")
-
-        if os.path.exists(md_filepath):
-            print(
-                f"Markdown file '{md_filepath}' already exists. Skipping conversion and cleaning."
-            )
-            continue
-
-        start_time = time.time()
-        print(f"\nFetching: {pdf_filename}")
-
-        print("Remove reference section")
-        pdf_text = extract_text(pdf_filepath)
-        pdf_text_no_references = remove_references(pdf_text)
-
-        # FIXME remove workaround of saving pdf as markdown and reading it again as Docling.Document
-        with open(md_filepath, "w", encoding="utf-8") as f:
-            f.write(pdf_text_no_references)
-
-        # FIXME with DocLoader
-        # loader = DoclingLoader(md_filepath)
-        # md_text = loader.load()
-        print("Converting Markdown to text...")
-        md_text = converted.convert(md_filepath)
-
-        print("Removing headers and footers\n")
-        md_text_cleaned = remove_headers_footers(md_text)
-
-        print("Removing URLs") # LangExtract tries to open these URLs when they occur in the document text        
-        # text_items = [x for x in md_text_cleaned.document.texts if isinstance(x, TextItem)]
-        # for i in range(len(text_items)):
-        #     re.sub(r"http\S+", "", text_items[1].orig) # TODO make as func
-
-        # md_text_cleaned = re.sub(r"http\S+", "", md_text_cleaned.document.texts) # TODO make as func
-        
-        # if doc[i].page_content.strip():          # skip paragraph when it is empty
-                #     continue
-
-        print(f"Saving parsed and cleaned document as markdown to: {cleaned_md_filepath}")
-        md_text_cleaned.document.save_as_markdown(cleaned_md_filepath)
-
-        end_time = time.time() - start_time
-        print(f"Parsing and cleaning done. Time elapsed: {end_time:.2f} seconds.")
-
-
-# visual check of removed items
-# TODO make as document_cleaning function: print removed items with largest number of chars first
-# ## NOTE. high number of chars == more pontetially actual text body
-
-# text_items_removed = sorted(text_items_to_drop_visualization, key=lambda x: -x[0])
-# for i in text_items_removed[:50]:
-#     print(i) # -->  also subsection titles were removed partly
-
-
-
-
 # %% [markdown]
 # # LLama with LangExtract
-
-# %%
-
-
-# %% [markdown]
-# ##  Test Llama 3 loaded with Ollama and applied in LangExtract
-# 
-# Note. decided for llama instead of Mistral or GPT-J, as the former is probably quite similar in its performance (and easy to setup in Ollama) and the later is too much outdated compared to Llama 3
-# 
-# 
-# Langextract does not support Meta models (eg llama) directly only via Ollama, thus we need an API key first to start our Ollama server :)
-# 
-# Steps to do to when we want to run Ollamas llama/mistral model inside a docker container. Benfits are it makes the installation independent of the local machine + later facilitates distributability of our software
-# * Setup ollama for docker + GPU setings by installing [nvidia container toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#installation ) which we need to run Ollama model with my GPU inside a docker container
-# * then configure docker to use nvidita driver via using nvidia toolkit - if possible in rootless mode which means your containers and docker daemon can be run without root user privileges (`nvidia-ctk runtime configure --runtime=docker --config=$HOME/.config/docker/daemon.json`). Then restart your docker daemon (for detailed documentation, see [here](https://medium.com/cyberark-engineering/how-to-run-llms-locally-with-ollama-cb00fa55d5de ) and [here](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#configuration)): 
-# ```
-# nvidia-ctk runtime configure --runtime=docker --config=$HOME/.config/docker/daemon.json
-# systemctl --user restart docker
-# sudo nvidia-ctk config --set nvidia-container-cli.no-cgroups --in-place
-# ```  
-# 
-# * start the container: `docker run -d --gpus=all -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama`, if needed with superuser rights. Note. the first ollama refers to the container name, the second to the client name- See also [here](https://hub.docker.com/r/ollama/ollama)
-# * check if the ollama server is running on REST API, by checking message for `http://localhost:11434/` in your web browser
-# * Then pull the model you want to use , e.g `ollama pull llama3` and the `ollama serve` (see, [here](https://github.com/google/langextract?tab=readme-ov-file#api-key-setup-for-cloud-models)), When you use ollama in a container use: `docker exec -it <containername> ollama pull llama3` , then `docker exec -it <containername> ollama serve`  . In case you get the info that the server port(here 11434) is already in use, check the processes on this port (`sudo lsof -i :11434`) and kill it, maybe you also need to stop ollama server: `systemctl stop ollama` and/or reload the daemon (see similar issue discussed [here](https://github.com/ollama/ollama/issues/707))
-# * In case a container with an image already exists: simply run `docker compose up -d`
-# 
-# * Lastly, implement pulled model in LangExtract framework:
-# ```
-# # test with local model from Ollama
-# result = lx.extract(
-#     text_or_documents=input_text,
-#     prompt_description=prompt,
-#     examples=examples,
-#     model_id="llama3",  # Automatically selects Ollama provider
-#     model_url="http://localhost:11434",  # where our Ollama server is running 
-#     fence_output=False,
-#     use_schema_constraints=False
-# )
-# ```
-# 
-# Note:
-# * In the examples above, the model runs on localhost, port: 11434
-# * Optional: pull model and run in terminal, e.g. llama-3, in container named ollama. `docker exec -it ollama ollama run llama3`
-# * Get your Ollama key [here](https://signin.ollama.com/?client_id=client_01JX0QMHD43PFFCCNXH82A6K8B&redirect_uri=https%3A%2F%2Follama.com%2Fauth%2Fcallback&authorization_session_id=01KC98BGZP7TJNPGYZE1P27SC6)
-# * check which models are available in Ollama. `$ curl https://ollama.com/api/tags` or via [Ollama documentation](https://ollama.com/library/)
-# 
-# For more info see also: 
-# * Batch processing and long texts or about functioning of langExtract: [Weights & Biases ](https://wandb.ai/wandb_fc/genai-research/reports/LangExtract-Transform-text-into-structured-data-with-AI--VmlldzoxNDI1OTMyNw#:~:text=LangExtract%20is%20open%2Dsource%20and,without%20requiring%20any%20fine%2Dtuning)
-# 
-
-# %% [markdown]
-# ### Prompt and few-shot examples
-# 
-
-# %%
-# # 1. Define the prompt and extraction rules
-# prompt = textwrap.dedent(
-#     """
-#     Extract information from the context about the affected infrastructure_type, its damage, its geolocation, as well as about cascading impacts to other infrastructure assets.
-#     Extract also information about the societal or economic impacts which resulted from the disrupted infrastructure.
-
-#     Use the exact text for extractions. DO NOT paraphrase or overlap entities.
-#     Provide meaningful attributes for each entity to add context.
-
-#     Provide in the field "damage" the type of damage to the specific infrastructure.
-#     If no information about the damage type is found, then return for this field a "NAN" value.
-        
-#     Provide in the field "impacts_to_other_infrastructure_assets" information about cascading impacts to other infrastructure assets mentioned in the context.
-#     If no information about cascading impacts to other infrastructure assets is found, then return for this field a "NAN" value.
-    
-#     Provide in the field "societal_impact" information about societal consequences of the infrastructure failures mentioned in the context.
-#     If no information about societal consequences is found, then return for this field a "NAN" value.
-    
-#     Provide in the field "economic_impact" information about economic consequences of the infrastructure failures mentioned in the context.
-#     If no information about economic consequences is found, then return for this field a "NAN" value.
-    
-#     Finally, evaluate and improve your answer.
-    
-#     """
-# )
-
-# # 2. Provide some high-quality examples to guide the model
-# few_shot_examples = [
-#     lx.data.ExampleData(
-#         text="More than 130 km of motorways were closed directly after the event, of which 50 km were still closed two months later, with an estimated repair cost of EUR100 million (Hauser, 2021). ",
-#         extractions=[
-#             lx.data.Extraction(
-#                 extraction_class="infrastructure_type",
-#                 extraction_text="motorways",
-#                 attributes={"time": "directly after the event"},
-#             ),
-#             lx.data.Extraction(
-#                 extraction_class="economic_impact",
-#                 extraction_text="EUR100 million",
-#                 attributes={"type": "repair cost"},
-#             ),
-#         ],
-#     ),
-#     lx.data.ExampleData(
-#         text="Of the 112 bridges in the flooded 40 km of the Ahr valley (Rhineland-Palatinate), 62 bridges were destroyed, 13 were severely damaged and only 35 were in operation a month after the flood event (MDR, 2021).",
-#         extractions=[
-#             lx.data.Extraction(
-#                 extraction_class="infrastructure_type",
-#                 extraction_text="bridges",
-#                 attributes={"damage type": "destroyed", "number": "62"},
-#             ),
-#             lx.data.Extraction(
-#                 extraction_class="geolocation",
-#                 extraction_text="Ahr valley",
-#                 attributes={"region": "Rhineland-Palatinate"},
-#             ),
-#         ],
-#     ),
-#     lx.data.ExampleData(
-#         text=" In total, at least 220 casualties have been reported, with insured loss estimates of approximately EUR 150 million–EUR 250 million in the Netherlands (Verbond voor Verzekeraars, 2022), "
-#         "EUR 2.2 billion in Belgium (Assuralia, 2022) and EUR 8.2 billion (GDV, 2022) in Germany. "
-#         "The event caused major damages to residential and commercial structures and to many critical infrastructure (CI) assets. ",
-#         extractions=[
-#             lx.data.Extraction(
-#                 extraction_class="economic_impact",
-#                 extraction_text="EUR 150 million–EUR 250 million",
-#                 attributes={
-#                     "type": "insured loss estimates",
-#                     "geolocation": "Netherlands",
-#                     "citation": "Verbond voor Verzekeraars, 2022",
-#                 },
-#             ),
-#             lx.data.Extraction(
-#                 extraction_class="economic_impact",
-#                 extraction_text="EUR 2.2 billion",
-#                 attributes={
-#                     "type": "insured loss estimates",
-#                     "geolocation": "Belgium",
-#                     "citation": "Assuralia, 2022",
-#                 },
-#             ),
-#             lx.data.Extraction(
-#                 extraction_class="economic_impact",
-#                 extraction_text="EUR 8.2 billion",
-#                 attributes={
-#                     "type": "insured loss estimates",
-#                     "geolocation": "Germany",
-#                     "citation": "GDV, 2022",
-#                 },
-#             ),
-#         ],
-#     ),
-# ]
-
-# %%
 
 
 # %%
@@ -760,13 +491,12 @@ for i, FILE_PATH in enumerate(docs_list):
                 prompt_description=prompt,
                 examples=few_shot_examples,
                 model_id= model_name,  # Automatically selects Ollama provider
-                
-                model_url=os.getenv("OLLAMA_HOST", f"localhost:{host_port}"),  # make explicit where Ollama server is running 
+                model_url=os.getenv("OLLAMA_HOST", f"http://localhost:{host_port}"),
                 # model_url=os.getenv("OLLAMA_HOST", "http://localhost:11434"),  # make explicit where Ollama server is running 
                 # language_model_type=lx.inference.OllamaLanguageModel,
                 temperature=0.2,
                 extraction_passes=1,  # decrease recall -> faster processing
-                # max_workers=4,   # 4 parallel threads
+                # max_workers=4,   # invalid option for ollama
                 max_char_buffer=1024,      # adapt to max. token sequence length of model
             )
             responses.append(response)
