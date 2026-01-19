@@ -4,7 +4,7 @@
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Mm]otorway.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Rr]ail.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "[Rr]ailway track.*"}}]}
-{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Ss]ation.*"}}]}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Ss]tation.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Mm]etro line.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Mm]etro station.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Bb]ridge.*"}}]}
@@ -33,11 +33,18 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ee]lectric.* service.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Pp]ower net.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Pp]ower supply"}}]}
-{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Gg]as pipe.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Gg]as pipe.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Hh]ydrocarbon"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Hh]ydrocarbon pipe.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^LNG"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ll]iquefied [Nn]atural [Gg]as"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Gg]as"}}, {"LOWER": "distribution"}]}
-{"label":"CI_TYPE","pattern": [{"LOWER": "gas"}, {"LOWER": "supply"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Gg]as"}}, {"LOWER": "supply"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Gg]as"}}, {"LOWER": "storage"}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Pp]ower plant.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Nn]uclear plant.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Nn]uclear reactors.*"}}]}
+
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ss]olar farm.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ss]olar park.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ss]olar panel.*"}}]}
@@ -49,8 +56,8 @@
 
 {"label":"CI_TYPE","pattern": [{"LOWER": "dam"}]}
 {"label":"CI_TYPE","pattern": [{"LOWER": "dams"}]}
-{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Dd]ike.*"}}]}
-{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^[Ll]eeve.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Dd]ike.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Ll]eeve.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Rr]eservoir.*"}}]}
 
 {"label":"CI_TYPE","pattern": [{"LOWER": "water"}, {"LOWER": "distribution"}]}

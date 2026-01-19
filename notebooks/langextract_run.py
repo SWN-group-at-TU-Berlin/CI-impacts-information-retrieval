@@ -75,6 +75,7 @@ os.environ["HF_HOME"] = (
     # "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/"
 )
 
+<<<<<<< HEAD
 # default ollama model
 MODEL_CHOICE = "llama3" # "llama3.2:1b"- the smallest llama model
 
@@ -89,6 +90,12 @@ OUTPUT_LX_DIR = "../data/langextract_output/"
 os.makedirs(OUTPUT_LX_DIR, exist_ok=True)
 
 print("\ntrying to load user args")
+=======
+
+print("Loading user args")
+MODEL_CHOICE = "llama3" # default ollama model
+
+>>>>>>> fc2199c (updated with LX_hpc files and additional ner patterns from 14-langextrct branch)
 # load user arguments Ollama server and model
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -109,6 +116,23 @@ host_port = args.host_port
 model_name = args.model_name
 
 
+<<<<<<< HEAD
+=======
+
+## NOTE: make sure to set project root as working dir
+# Input paths
+DOCS_DIR = "../data/text_sources/"
+PARSED_TEXT_DIR = "../data/parsed_documents/"
+md_dir = Path(PARSED_TEXT_DIR)
+md_dir.mkdir(parents=True, exist_ok=True)
+
+# LangExtract output filepath
+OUTPUT_LX_DIR = "../data/langextract_output/"
+os.makedirs(OUTPUT_LX_DIR, exist_ok=True)
+
+
+
+>>>>>>> fc2199c (updated with LX_hpc files and additional ner patterns from 14-langextrct branch)
 # %% [markdown]
 # # LLama with LangExtract
 
@@ -427,10 +451,13 @@ few_shot_examples = [
 #
 
 
+<<<<<<< HEAD
 filename= f"{model_name.replace(':', '_')}_all_documents.jsonl"
 OUTPUT_LX_FILEPATH = Path(OUTPUT_LX_DIR, filename)
 
 
+=======
+>>>>>>> fc2199c (updated with LX_hpc files and additional ner patterns from 14-langextrct branch)
 # filename = "Koks et al 2022 Brief communication_cleaned.md"
 # FILE_PATH = Path(PARSED_TEXT_DIR, filename)
 # filename_stem = FILE_PATH.stem
@@ -443,6 +470,16 @@ docs_list = glob(PARSED_TEXT_DIR + "*_cleaned.md")
 print(f"Found {len(docs_list)} cleaned documents ready for LangExtract.")
 
 
+<<<<<<< HEAD
+=======
+## name 
+lx_response_filename= f"{model_name.replace(':', '_')}_{len(docs_list)}_documents.jsonl"
+OUTPUT_LX_FILEPATH = Path(OUTPUT_LX_DIR, lx_response_filename)
+
+
+
+
+>>>>>>> fc2199c (updated with LX_hpc files and additional ner patterns from 14-langextrct branch)
 responses_all_docs = []
 responses_doc_ids = [] 
 
@@ -497,12 +534,25 @@ for i, FILE_PATH in enumerate(docs_list):
                 temperature=0.2,
                 extraction_passes=1,  # decrease recall -> faster processing
                 # max_workers=4,   # invalid option for ollama
+<<<<<<< HEAD
                 max_char_buffer=1024,      # adapt to max. token sequence length of model
             )
             responses.append(response)
         except ValueError as e:
             print(f"Error when applying LangExtract on document {filename_stem}: {e}")
             print("Probably one of the few-shot examples does not match")
+=======
+                max_char_buffer=512, # not increase due to TImeOutError:       # adapt to max. token sequence length of model
+            )
+            responses.append(response)
+        except ValueError as e:
+            print(f"Error when applying LangExtract on document {filename_stem}, text block {i}: {e}")
+            print("Probably one of the few-shot examples does not match.")
+            pass
+        except (lx.resolver.ResolverParsingError, lx.core.exceptions.FormatParseError) as e:
+            print(f"Error when applying LangExtract on document {filename_stem}, text block {i}: {e}")
+            print("Probably content does not contain an 'extractions' key.")
+>>>>>>> fc2199c (updated with LX_hpc files and additional ner patterns from 14-langextrct branch)
             pass
         
     # identifiers (i.e. document titles)
@@ -525,7 +575,11 @@ else:
     print(f"Saving LangExtract output to {OUTPUT_LX_FILEPATH}")
     lx.io.save_annotated_documents(
         responses_all_docs_unnested,
+<<<<<<< HEAD
         output_name=filename,
+=======
+        output_name=lx_response_filename,
+>>>>>>> fc2199c (updated with LX_hpc files and additional ner patterns from 14-langextrct branch)
         output_dir=OUTPUT_LX_FILEPATH.parent,
     )
 

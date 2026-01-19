@@ -8,11 +8,13 @@
 #SBATCH --mail-user=anna.buch@tu-berlin.de
 #SBATCH --mail-type=END,FAIL
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=5   # 2
-#SBATCH --gpus=1
+#SBATCH --cpus-per-task=5   # test if performance change when using less cpus
+#SBATCH --gpus=3   #  test if performance change between 1 or 3 (max) gpus per node
 #SBATCH --mem=10G
-#SBATCH --time=10:00:00 
+#SBATCH --time=15:00:00
 
+# performance check
+# ~ 6h processing time: 2 nodes,  5 cpus per task, 4 gpus, 
 
 module purge
 # module load nvidia/cuda/12.2 # check if  performance changes when CUDA module is not loaded

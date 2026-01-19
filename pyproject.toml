@@ -15,7 +15,6 @@ dependencies = [
     "deepspeed>=0.18.2",
     "docling>=2.34.0",
     "fastchat>=0.1.0",
-    "flash-attn>=2.8.3",
     "fschat[model-worker,webui]>=0.2.36",
     "instructor>=1.12.0",
     "ipykernel>=7.1.0",
@@ -28,6 +27,7 @@ dependencies = [
     "nltk>=3.9.2",
     "numpy>=2.3.4",
     "ollama>=0.5.4",
+    "pandas>=2.3.3",
     "pgai[vectorizer-worker]>=0.12.1",
     "pgvector>=0.4.1",
     "pip>=25.3",
@@ -41,9 +41,10 @@ dependencies = [
     "torch>=2.9.0",
     "transformers>=4.57.1",
     "unstructured[all-docs]>=0.18.18",
-    "vllm>=0.1.2",
 ]
 
+## "vllm>=0.1.2"
+##    "flash-attn>=2.8.3",
 
 
 
