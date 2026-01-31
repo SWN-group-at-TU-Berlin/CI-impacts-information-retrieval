@@ -73,6 +73,19 @@ select = [
     # auto-remove unused 'noqa' comments
     "RUF100", "RUF101",
 ]
-ignore = ["C901", "E714", "I001"]
-# fix = true
+
+ignore = [
+    # too complex function
+    "C901",
+
+    # bare except
+    "E714",
+
+    "I001",
+
+    # line too long
+    "E501"
+]
+
+fixable = ["ALL"]
 exclude = [".venv", ".ipynb", "versioneer.py", "*_cache"]
