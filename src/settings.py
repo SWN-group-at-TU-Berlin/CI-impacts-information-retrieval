@@ -65,6 +65,9 @@ class Settings():
 
     if hostname.stdout == "a-buch-ThinkPad-X1-Extreme-Gen-4i":
         print("Running on local machine")
+
+        # set working dir
+        os.chdir("/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/")
     
         # HF directory
         HF_HOME_DIR: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/"
