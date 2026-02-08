@@ -3,12 +3,11 @@
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Hh]ighway.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Mm]otorway.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Rr]ail.*"}}]}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "[Rr]ailway track.*"}}]}
-{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Ss]ation.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Rr]ailway track.*"}}]}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Ss]tation.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Mm]etro line.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Mm]etro station.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Bb]ridge.*"}}]}
-{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Ii]nland waterway.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Aa]irport.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Aa]viation.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Aa]viation industry"}}]}
@@ -19,7 +18,7 @@
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Mm]aritime infrastructure"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Ww]aterway.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Ii]nland waterway.*?"}}]}
-{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": "^IWW.*?"}}]}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*IWW.*?"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Tt]ransport.*"}}, {"LOWER": "sector"}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Tt]ransport.*"}}, {"LOWER": "infrastructure"}]}
 
@@ -33,11 +32,19 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Ee]lectric.* service.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Pp]ower net.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Pp]ower supply"}}]}
-{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Gg]as pipe.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Gg]as pipe.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Hh]ydrocarbon"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Hh]ydrocarbon pipe.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*LNG"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Ll]iquefied [Nn]atural [Gg]as"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Gg]as"}}, {"LOWER": "distribution"}]}
-{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".*[Gg]as supply"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Gg]as"}}, {"LOWER": "supply"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Gg]as"}}, {"LOWER": "storage"}]}
+
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Pp]ower plant.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Nn]uclear plant.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Nn]uclear reactors.*"}}]}
+
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Ss]olar farm.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Ss]olar park.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Ss]olar panel.*"}}]}
@@ -94,13 +101,14 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Cc]hemic.* industr.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Rr]efiner.*"}}]}
 
-{"label":"CI_TYPE","pattern": [{"LOWER": "education"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Ee]ducation.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Ss]chool.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Cc]linic.*"}}]}
-{"label":"CI_TYPE","pattern": [{"LOWER": "emergency"}]}
-{"label":"CI_TYPE","pattern": [{"LOWER": "emergency"}, {"LOWER": "services"}]}
-{"label":"CI_TYPE","pattern": [{"LOWER": "health"}]}
-{"label":"CI_TYPE","pattern": [{"LOWER": "healthcare"}]}
-{"label":"CI_TYPE","pattern": [{"LOWER": "healthcare"}, {"TEXT": {"REGEX": "facilit.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Ee]ducation.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Ee]mergency.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Ee]mergency.*"}}, {"LOWER": "services"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Hh]ealth.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Hh]ealthcare.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Hh]ealthcare.* facilit.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Hh]ospital.*"}}]}
-{"label":"CI_TYPE","pattern": [{"LOWER": "medical"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Mm]edical.*"}}]}
