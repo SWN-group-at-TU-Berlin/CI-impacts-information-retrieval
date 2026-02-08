@@ -60,6 +60,7 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Ww]ater supply.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Dd]rinking water.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Gg]roundwater.*"}}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*[Ww]astewater.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*water.* treatment.*"}}]}
 {"label":"CI_TYPE","pattern": [{"LOWER": "drainage"}, {"TEXT": {"REGEX": "system.*"}}]}
 {"label":"CI_TYPE","pattern": [{"LOWER": "drainage"}, {"TEXT": {"REGEX": "network.*"}}]}
