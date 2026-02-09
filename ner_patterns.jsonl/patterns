@@ -55,8 +55,8 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ff]illing station.*"}}]}
 
 
-{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Dd]am"}}]}
-{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Dd]ams"}}]}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Dd]am "}}]}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Dd]ams "}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Dd]ike.*"}}]}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Ll]eeve.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Rr]eservoir.*"}}]}
@@ -88,7 +88,7 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".*waste.* treatment.*"}}]}
 
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]ell tower.*"}}]}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* IT*. sector.*"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* IT*. sector.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* IT*. infrastructure.*"}}]}
 
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Bb]roadband network.*"}}]}
@@ -107,7 +107,7 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]linic.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]ducation.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.*"}}]}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.* services"}]}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.* services"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ealth.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ealthcare.*"}}]}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ealthcare.* facilit.*"}}]}
