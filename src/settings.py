@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 import subprocess
 
 # local or remote machine 
-hostname = subprocess.run(['hostname'])
+hostname = subprocess.run(['hostname'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
 
 class Settings():
 # class Settings(BaseSettings):
@@ -63,19 +63,20 @@ class Settings():
     except Exception:
         SPACY_MODEL: str = "en_core_web_lg"
 
-    if hostname.stdout == "a-buch-ThinkPad-X1-Extreme-Gen-4i":
+    if hostname == "a-buch-ThinkPad-X1-Extreme-Gen-4i":
         print("Running on local machine")
 
         # set working dir
         os.chdir("/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/")
     
         # HF directory
-        HF_HOME_DIR: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/"
-
+        HF_HOME_DIR: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/hub"
+        HF_TOKEN_PATH: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/token"
+        
         # settings for CUDA and PYTORCH
         os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
         os.environ["CUDA_VISIBLE_DEVICES"]="0"   #  nvidia gpu
-        os.environ["PYTORCH_CUDA_ALLOC_CONF"]="expandable_segments:True"
+        os.environ["PYTORCH_CUDA_ALLOC_CONF"]="expandable_segments:True" ## improve memory allocation
         # # %env TORCH_CUDA_ARCH_LIST=8.6
 
         # settings for distributed computing
@@ -88,7 +89,7 @@ class Settings():
     # elif re.findall("node*|gpu*", hostname) ==TRUE:  # TODO adapt pattern search
     else:
         print("Running on TUB Cluster")
-        HF_HOME_DIR: str = "/beegfs/home/users/a/a-buch/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror"
+        HF_HOME_DIR: str = "/beegfs/home/users/a/a-buch/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/hub"
         HF_TOKEN_PATH: str = "/beegfs/home/users/a/a-buch/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/token"
 
     # else:
