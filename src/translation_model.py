@@ -7,6 +7,7 @@ __email__ = "anna.buch@tu-berlin.de"
 
 
 import os
+from annotated_types import doc
 import langdetect
 
 from huggingface_hub import login
@@ -31,15 +32,15 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
     See the language codes here: https://developers.google.com/admin-sdk/directory/v1/languages
     For the 3-character language codes, you can google for the code!
     """
-    # construct our model name
-    model_name = f"Helsinki-NLP/opus-mt-{src_language}-{dst_language}"
-
 
     print("Login with HF TOKEN ...")    
     login(token=os.environ["HUGGINGFACE_TOKEN"])
 
+    # construct our model name
+    model_name = f"Helsinki-NLP/opus-mt-{src_language}-{dst_language}"
+
     base_dir =  s.HF_HOME_DIR 
-    model_dir = base_dir # is already .._mirror/hub/ 
+    model_dir = base_dir 
     print(model_dir)
 
     bnb_config = BitsAndBytesConfig(
@@ -85,7 +86,7 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
             use_fast=True,
             cache_dir=model_dir,
         )
-  
+
     ## reduce further memory usage
     model = model.to(device)
     model.use_checkpointing = True
@@ -95,39 +96,58 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
 
 
 
-def translate_2_english(src_text: str) -> str:
-    """Translate any text in supported languages to english using a Helsinki NLP model"""
+def translate_2_english(src_language_doc: str, doc: list[str]) -> list[str]:
+    """Translate Docling Document in supported languages to English using Helsinki NLP models"""
 
     dst_language = "en"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
-    # detect language type and availability 
-    src_language = langdetect.detect(src_text)
-    print(f"Detected language: {src_language}")
-
-    supported_languages = ["en", "fr", "de", "es", "it", "nl"]
-    if src_language not in supported_languages:
-        raise ValueError(f"Unsupported source language: {src_language}")
 
     # load appropriate Helsinki model and tokenizer
-    model, tokenizer = init_helsinki_nlp(src_language, dst_language)
-
-    # tokenize the input text and move to the appropriate device
-    inputs = tokenizer.encode(src_text, return_tensors="pt", max_length=512, truncation=True)
-    inputs = inputs.to(device)
-
-    # generate the translation output using greedy search
-    greedy_outputs = model.generate(inputs)
-
-    # decode the output and ignore special tokens
-    print(tokenizer.decode(greedy_outputs[0], skip_special_tokens=True))
-
-    # generate the translation output using beam search
-    beam_outputs = model.generate(inputs, num_beams=3)
-
-    # decode the output and ignore special tokens
-    dst_text = tokenizer.decode(beam_outputs[0], skip_special_tokens=True)
-
-    return dst_text
+    model, tokenizer = init_helsinki_nlp(src_language_doc, dst_language)
 
 
+    for j, chunk in enumerate(doc):
+
+        src_text = chunk.page_content
+
+        # detect language type for each chunk 
+        src_language = langdetect.detect(chunk.page_content)
+        print(f"Detected language for chunk {j}: {src_language}")
+
+        supported_languages = ["fr", "de", "es", "it", "nl"]  # TODO make as global var in config file
+
+        if src_language == dst_language:
+            print(f"Source and destination language in chunk {j} are identical. No translation needed.")
+            # write back to document
+            doc[j].page_content =  src_text.replace("\n", " ")
+            continue
+
+        elif src_language not in supported_languages:
+            #raise ValueError(f"Unsupported source language: {src_language}")
+            print(f"Unsupported source language: {src_language}. Defaulting to English.")
+            print("Continue with Text-2-Data workflow without translation")
+            doc[j].page_content =  src_text.replace("\n", " ")
+            continue
+
+        # tokenize the input text and move to the appropriate device
+        inputs = tokenizer.encode(src_text, return_tensors="pt", max_length=512, truncation=True)
+        inputs = inputs.to(device)
+
+        # generate the translation output using greedy search
+        greedy_outputs = model.generate(inputs)
+
+        # decode the output and ignore special tokens
+        print("Source text", src_text)
+        print("Translated text:", tokenizer.decode(greedy_outputs[0], skip_special_tokens=True))
+
+        # generate the translation output using beam search
+        beam_outputs = model.generate(inputs, num_beams=3)
+
+        # decode the output and ignore special tokens
+        dst_text = tokenizer.decode(beam_outputs[0], skip_special_tokens=True)
+
+        # write back to document
+        doc[j].page_content =  dst_text.replace("\n", " ")
+
+
+    return doc
