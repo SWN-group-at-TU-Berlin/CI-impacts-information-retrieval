@@ -8,8 +8,28 @@ Context:
 {% endfor %}
 
 
-Provide in the field "damage" a short description of the damage to the infrastructure asset mentioned in the context. 
-Use for example phrases like [partly closed, outages, largely destroyed, heavily destroyed, contaminated, severely damaged, largely destroyed, due to water/debris/risk aquaplaning on road, dam failure, closures, derailed, impassable, debris, destroyed, indirectly affected (through disrupted road and rail traffic), disrupted, blocked (through trees, roofs), damaged, affected, little to no]
+Provide in the field "damage" a very short description of the damage to the infrastructure asset mentioned in the context. 
+Try to use just two or three words to describe the damage and be as specific as possible.
+Use phrases from the list below to describe the damage:
+- affected
+- damaged
+- severely damaged
+- disrupted
+- blocked
+- destroyed
+- largely destroyed
+- heavily destroyed
+- partly closed
+- outages 
+- contaminated
+- water or debris
+- water or debris on road
+- dam failure
+- closures
+- derailed, 
+- impassable
+- indirectly affected
+
 If no information about the damage type is found, then return for this field a "NAN" value.
 
 
