@@ -33,8 +33,8 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
     For the 3-character language codes, you can google for the code!
     """
 
-    print("Login with HF TOKEN ...")    
-    login(token=os.environ["HUGGINGFACE_TOKEN"])
+    # print("Login with HF TOKEN ...")    
+    # login(token=os.environ["HUGGINGFACE_TOKEN"])
 
     # construct our model name
     model_name = f"Helsinki-NLP/opus-mt-{src_language}-{dst_language}"
@@ -77,7 +77,8 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_name,
             cache_dir=model_dir,
-            local_files_only=True,  # tp_plan="auto" # set tensor parallel model (ie. splits model on multiple GPU)
+            local_files_only=False,  # set to False to enable downloading if model is not found locally, even when it exists
+            # tp_plan="auto" # set tensor parallel model (ie. splits model on multiple GPU)
             dtype="auto",
             quantization_config=bnb_config,
         )
@@ -96,8 +97,8 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
 
 
 
-def translate_2_english(src_language_doc: str, doc: list[str]) -> list[str]:
-    """Translate Docling Document in supported languages to English using Helsinki NLP models"""
+def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str] | str:
+    """Translate Docling Document of any supported languages to English using Helsinki NLP models"""
 
     dst_language = "en"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -105,29 +106,62 @@ def translate_2_english(src_language_doc: str, doc: list[str]) -> list[str]:
     # load appropriate Helsinki model and tokenizer
     model, tokenizer = init_helsinki_nlp(src_language_doc, dst_language)
 
+    # TODO condense try except blocks when handling string input
+    # ISSUE: when doc is list[doc] then translation per chunk is needed, but when doc is single string then direct translation
+    
+    if isinstance(doc, list):  # doc == docling object
 
-    for j, chunk in enumerate(doc):
+        for j, chunk in enumerate(doc):
 
-        src_text = chunk.page_content
+            src_text = chunk.page_content
+
+            # detect language type for each chunk 
+            src_language = langdetect.detect(src_text)
+            print(f"Detected language for chunk {j}: {src_language}")
+
+            supported_languages = ["fr", "de", "es", "it", "nl"]  # TODO make as global var in config file
+
+            if (src_language == dst_language) or (src_language not in supported_languages):
+                print(f"Source and destination language in chunk {j} are identical or unsupported. No translation needed.")
+                # write back to document  # TODO condense try except blocks when handling string input
+                doc[j].page_content =  src_text.replace("\n", " ")
+
+            # tokenize the input text and move to the appropriate device
+            inputs = tokenizer.encode(src_text, return_tensors="pt", max_length=512, truncation=True)
+            inputs = inputs.to(device)
+
+            # generate the translation output using greedy search
+            greedy_outputs = model.generate(inputs)
+
+            # decode the output and ignore special tokens
+            print(" Source text: ", src_text)
+            print(" Translated text: ", tokenizer.decode(greedy_outputs[0], skip_special_tokens=True))
+
+            # generate the translation output using beam search
+            beam_outputs = model.generate(inputs, num_beams=3)
+
+            # decode the output and ignore special tokens
+            dst_text = tokenizer.decode(beam_outputs[0], skip_special_tokens=True)
+
+            # write back to document
+            doc[j].page_content =  dst_text.replace("\n", " ")
+
+
+    if isinstance(doc, str):
+        print("Input document is a string (not DoclingObject). Wrapping it in a list for processing.")
+        print("Continue with translation of text string")
+        
+        src_text = doc
 
         # detect language type for each chunk 
-        src_language = langdetect.detect(chunk.page_content)
-        print(f"Detected language for chunk {j}: {src_language}")
+        src_language = langdetect.detect(src_text)
 
         supported_languages = ["fr", "de", "es", "it", "nl"]  # TODO make as global var in config file
-
-        if src_language == dst_language:
-            print(f"Source and destination language in chunk {j} are identical. No translation needed.")
+        if (src_language == dst_language) or (src_language not in supported_languages):
+            print(f"Source and destination language for text are identical or unsupported. Skipping translation.")
             # write back to document
-            doc[j].page_content =  src_text.replace("\n", " ")
-            continue
+            doc = src_text.replace("\n", " ")
 
-        elif src_language not in supported_languages:
-            #raise ValueError(f"Unsupported source language: {src_language}")
-            print(f"Unsupported source language: {src_language}. Defaulting to English.")
-            print("Continue with Text-2-Data workflow without translation")
-            doc[j].page_content =  src_text.replace("\n", " ")
-            continue
 
         # tokenize the input text and move to the appropriate device
         inputs = tokenizer.encode(src_text, return_tensors="pt", max_length=512, truncation=True)
@@ -137,8 +171,8 @@ def translate_2_english(src_language_doc: str, doc: list[str]) -> list[str]:
         greedy_outputs = model.generate(inputs)
 
         # decode the output and ignore special tokens
-        print("Source text", src_text)
-        print("Translated text:", tokenizer.decode(greedy_outputs[0], skip_special_tokens=True))
+        print("Source text: ", src_text)
+        print("Translated text: ", tokenizer.decode(greedy_outputs[0], skip_special_tokens=True))
 
         # generate the translation output using beam search
         beam_outputs = model.generate(inputs, num_beams=3)
@@ -147,7 +181,6 @@ def translate_2_english(src_language_doc: str, doc: list[str]) -> list[str]:
         dst_text = tokenizer.decode(beam_outputs[0], skip_special_tokens=True)
 
         # write back to document
-        doc[j].page_content =  dst_text.replace("\n", " ")
-
+        doc = dst_text.replace("\n", " ")
 
     return doc
