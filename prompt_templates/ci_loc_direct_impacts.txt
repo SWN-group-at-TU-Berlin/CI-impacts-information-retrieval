@@ -8,8 +8,21 @@ Context:
 {% endfor %}
 
 
+Provide in the field "infrastructure_type" information about the affected critical infrastructure type mentioned in the context.
+Focus on following infrastructure types: energy, transportation, water, telecommunication, IT, waste treatment, healthcare and education.
+Try to use one to three words to describe the affected infrastructure type and be as specific as possible.
+If no information about the infrastructure type is found, then return for this field a "NAN" value. 
+DON'T create new items about affected infrastructure that weren’t there.
+
+
+Provide in the field "location" information about the location of the affected infrastructure mentioned in the context.
+Try to use one to three words to describe the location of the affected infrastructure and be as specific as possible.
+If no information about the location of the affected infrastructure is found, then return for this field a "NAN" value. 
+DON'T create new items about the location that weren’t there.
+
+
 Provide in the field "damage" a very short description of the damage to the infrastructure asset mentioned in the context. 
-Try to use just two or three words to describe the damage and be as specific as possible.
+Try to use one to three words to describe the damage to the affected infrastructure and be as specific as possible.
 Use phrases from the list below to describe the damage:
 - affected
 - damaged
@@ -30,8 +43,8 @@ Use phrases from the list below to describe the damage:
 - impassable
 - indirectly affected
 
-If no information about the damage type is found, then return for this field a "NAN" value.
-
+If no information about the damage type is found, then return for this field a "NAN" value. 
+DON'T create new items about damage that weren’t there.
 
 
 For the fields ""infrastructure_type" and "location" you should evaluate and improve your answer based on the information mentioned in CI locations.
