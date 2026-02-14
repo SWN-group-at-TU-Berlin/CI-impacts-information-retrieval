@@ -9,7 +9,86 @@ Context:
 
 
 Provide in the field "infrastructure_type" information about the affected critical infrastructure type mentioned in the context.
-Focus on following infrastructure types: energy, transportation, water, telecommunication, IT, waste treatment, healthcare and education.
+Use phrases from the list below to describe the affected infrastructure type:
+- airport
+- airport terminal
+- aviation
+- bridge(s)
+- road(s)
+- harbor
+- access road(s)
+- road infrastructure
+- motorway(s)
+- highway(s)
+- railway(s)
+- railway infrastructure
+- railway network
+- railway assets
+- railway tracks
+- metro
+- metro line(s)
+- harbor
+- port
+- port terminal(s)
+- port infrastructure
+- container terminal
+- container yards
+- transportation infrastructure
+- transportation network
+- electricity
+- electricity infrastructure
+- power 
+- power infrastructure
+- power plant(s)
+- power grid
+- power line(s)
+- power supply
+- substation
+- power transmission
+- gas
+- gas infrastructure
+- gas distribution
+- gas pipeline(s)
+- water infrastructure
+- water supply
+- drinking water supply
+- groundwater
+- drainage
+- drainage system
+- sewage treatment plant(s)
+- wastewater treatment plant(s)
+- wastewater facility
+- wastewater facilities
+- broadband
+- broadband network
+- mobile network services
+- telecommunication infrastructure
+- telecommunication network
+- telecommunication services
+- IT infrastructure
+- IT network
+- IT services
+- medical-care
+- medical facilities
+- general-practitioner practices
+- hospital(s)
+- healthcare infrastructure
+- healthcare facility
+- healthcare facilities
+- daycare center(s)
+- education infrastructure
+- schools
+- universities
+- dam 
+- dyke
+- train(s)
+- airplane(s)
+- public transport
+- operability
+- traffic
+
+
+
 Try to use one to three words to describe the affected infrastructure type and be as specific as possible.
 If no information about the infrastructure type is found, then return for this field a "NAN" value. 
 DON'T create new items about affected infrastructure that weren’t there.
@@ -27,21 +106,26 @@ Use phrases from the list below to describe the damage:
 - affected
 - damaged
 - severely damaged
+- highly damaged
 - disrupted
 - blocked
 - destroyed
 - largely destroyed
 - heavily destroyed
 - partly closed
-- outages 
+- outages
+- outage
+- blackout
 - contaminated
 - water or debris
 - water or debris on road
 - dam failure
 - closures
-- derailed, 
+- derailed 
 - impassable
 - indirectly affected
+
+
 
 If no information about the damage type is found, then return for this field a "NAN" value. 
 DON'T create new items about damage that weren’t there.
