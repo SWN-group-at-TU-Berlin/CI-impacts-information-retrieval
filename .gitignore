@@ -22,4 +22,3 @@ pgai/
 # store (pre-)trained models and models configs
 *.pkl
 huggingface_mirror/
- git commit -m "feat(transl): add translation

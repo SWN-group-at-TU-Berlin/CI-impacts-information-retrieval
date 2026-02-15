@@ -115,6 +115,11 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
 
             src_text = chunk.page_content
 
+            ## preprocess  TODO move to document cleaning workflow + dc.funcs
+            src_text = src_text.replace("\n", " ")
+            src_text = src_text.replace("- ", "-") # TODO test if ("- ", "") is better
+            
+
             # detect language type for each chunk 
             src_language = langdetect.detect(src_text)
             print(f"Detected language for chunk {j}: {src_language}")
@@ -153,12 +158,16 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
         
         src_text = doc
 
+        ## preprocess  TODO move to document cleaning workflow + dc.funcs
+        src_text = src_text.replace("\n", " ")
+        src_text = src_text.replace("- ", "-") # TODO test if ("- ", "") is better
+
         # detect language type for each chunk 
         src_language = langdetect.detect(src_text)
 
         supported_languages = ["fr", "de", "es", "it", "nl"]  # TODO make as global var in config file
         if (src_language == dst_language) or (src_language not in supported_languages):
-            print(f"Source and destination language for text are identical or unsupported. Skipping translation.")
+            print("Source and destination language for text are identical or unsupported. Skipping translation.")
             # write back to document
             doc = src_text.replace("\n", " ")
 
@@ -170,9 +179,8 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
         # generate the translation output using greedy search
         greedy_outputs = model.generate(inputs)
 
-        # decode the output and ignore special tokens
-        print("Source text: ", src_text)
-        print("Translated text: ", tokenizer.decode(greedy_outputs[0], skip_special_tokens=True))
+        # print("Source text: ", src_text)
+        # print("Translated text: ", tokenizer.decode(greedy_outputs[0], skip_special_tokens=True))
 
         # generate the translation output using beam search
         beam_outputs = model.generate(inputs, num_beams=3)

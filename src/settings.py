@@ -25,29 +25,34 @@ class Settings():
     PATH_EVALUATION: str = PATH_DATA + 'evaluation/'
 
 
-    #  Define data dir where tags.csv and domain-expertise derived tag lists are found 
-    PATH_VALID_DATA: Path = Path(PATH_EVALUATION + 'manual_extracted')
-    VALID_DATA_FILENAME: str = 'table_ci_impacts_sm.csv'
-    
-    PATH_EVAL_RESULT: Path = Path(PATH_DATA + 'evaluation_results')
-    os.makedirs(PATH_EVAL_RESULT, exist_ok=True)
-    SIMILARITY_FILENAME: str = 'llm1_ci_impact_evaluation.parquet'
-    SIMILARITY_LX_FILENAME: str = 'lx1_ci_impact_evaluation.parquet'
-    # SIMILARITY_FILENAME: str = 'llama3_ci_impact_evaluation.parquet' # replace with lx_modelname_xxx
-
-    PATH_LLM_DATA: Path = Path(PATH_DATA + "llm_outputs/")
-    # LLM_DATA_FILENAME: str = 'llm1_43docs_eval.csv'
-    LLM_DATA_FILENAME: str = f'llm1_{datetime.now().strftime("%Y-%m-%d")}.csv'
-    
-    PATH_LX_DATA: Path = Path(PATH_DATA + "langextract_output/")
-    os.makedirs(PATH_LX_DATA, exist_ok=True)
-    # LX_DATA_FILENAME: str = 'llama3_48_documents_2026-01-28.csv'   #  replace with lx_modelname_xxx
-    LX_DATA_FILENAME: str = f"lx1_mix_cigeo_{datetime.now().strftime('%Y-%m-%d')}.csv"
+    #  Define data paths 
 
     PATH_PROMPTS: Path = Path("./prompt_templates/")
     PROMPT_DIRECT_FILENAME: str = "ci_loc_direct_impacts.txt"
     NER_PATTERNS_FILEPATH: Path = Path("./" + "ner_patterns.jsonl")
-    CI_GEO_PAIRS_FILENAME: str = "extracted_ci_geo_entities.csv"
+    CI_GEO_PAIRS_FILENAME: str = "extracted_ci_geo_entities.csv"    
+    
+
+    PATH_LLM_DATA: Path = Path(PATH_DATA + "llm_outputs/")
+    LLM_DATA_FILENAME: str = "llm_1_updprompt_v2.csv" #"llm_1_half_validDS.csv"
+    #LLM_DATA_FILENAME: str = f'llm1_{datetime.now().strftime("%Y-%m-%d")}.csv'
+    
+    PATH_LX_DATA: Path = Path(PATH_DATA + "langextract_output/")
+    os.makedirs(PATH_LX_DATA, exist_ok=True)
+    LX_DATA_FILENAME: str = f"lx1_mix_cigeo_{datetime.now().strftime('%Y-%m-%d')}.csv"
+    # LX_DATA_FILENAME: str = 'llama3_48_documents_2026-01-28.csv'   #  replace with lx_modelname_xxx
+
+
+    PATH_VALID_DATA: Path = Path(PATH_EVALUATION + 'manual_extracted')
+    VALID_DATA_FILENAME: str = 'table_ci_impacts_sm.csv'
+    PATH_EVAL_RESULT: Path = Path(PATH_DATA + 'evaluation_results')
+    os.makedirs(PATH_EVAL_RESULT, exist_ok=True)
+
+    # NOTE SIMILARITY_[LX]_FILENAME is set based on LLM_DATA_FILENAME or LX_DATA_FILENAME 
+    SIMILARITY_LLM_FILENAME: str = f'smlrty_{LLM_DATA_FILENAME.replace(".csv", ".parquet")}'
+    SIMILARITY_LX_FILENAME: str = f'smlrty_{LX_DATA_FILENAME.replace(".csv", ".parquet")}'
+    # SIMILARITY_FILENAME: str = 'llama3_ci_impact_evaluation.parquet' # replace with lx_modelname_xxx
+
 
     HUGGINGFACE_TOKEN: str
     model_config = SettingsConfigDict(env_file=".env")  # load HUGGINGFACE_TOKEN
