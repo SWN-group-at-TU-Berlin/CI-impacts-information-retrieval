@@ -115,7 +115,6 @@ CI_GEO_FILEPATH = Path("./" + s.PATH_DATA + s.CI_GEO_PAIRS_FILENAME)
 ## store LLM 1 response and prompt
 os.makedirs(s.PATH_LLM_DATA, exist_ok=True)
 OUTPUT_LLM1_FILEPATH =  Path(s.PATH_LLM_DATA / s.LLM_DATA_FILENAME)
-OUTPUT_PROMPT_FILEPATH = Path(s.PATH_LLM_DATA / f"prompt_{OUTPUT_LLM1_FILEPATH.stem}.txt" )
 
 
 
@@ -132,12 +131,12 @@ if test_mode:
         Path(PARSED_TEXT_DIR, "AEMET 2024 - ESTUDIO SOBRE LA SITUACIÓN DE LLUVIAS INTENSAS_cleaned.md"),
         Path(PARSED_TEXT_DIR, "Karakatsani 2023 - Greece economy briefing The economic impact of the recent devastating floods in Greece_cleaned.md"),
         #Path(PARSED_TEXT_DIR, "Koks 2022 - Brief communication_cleaned.md"),
-        # Path(PARSED_TEXT_DIR, "Khazai 2013 - Juni-Hochwasser 2013 in Mitteleuropa - Fokus Deutschland Bericht 2 Auswirkungen und Bewältigung_cleaned.md"),
+        Path(PARSED_TEXT_DIR, "Khazai 2013 - Juni-Hochwasser 2013 in Mitteleuropa - Fokus Deutschland Bericht 2 Auswirkungen und Bewältigung_cleaned.md"),
         # Path(PARSED_TEXT_DIR, "European Investment Bank 2025 - Spain_ EIB lends €50 million to Iberdrola to rebuild and climate-proof flood-hit power infrastructure in Valencia_cleaned.md"),
         # Path(PARSED_TEXT_DIR, "Wilson 2024 - Flash floods in Spain sweep away cars, disrupt trains and leave several missing _ AP News_cleaned.md"),     
         # Path(PARSED_TEXT_DIR, "Wildhagen 2013 - Hochwasser_ Wie die Flut Unternehmen lahmlegt_cleaned.md"),
-        # Path(PARSED_TEXT_DIR, "Lloyd's List 2024 - Port of Valencia reopens after devastating floods_cleaned.md"),
-        # Path(PARSED_TEXT_DIR, "Containerlift 2024 - Valencia Port Resumes Operations Following Devastating Flooding in Spain - Containerlift.co.uk - Transport_Lifting_Shipping_cleaned.md"), 
+        Path(PARSED_TEXT_DIR, "Lloyd's List 2024 - Port of Valencia reopens after devastating floods_cleaned.md"),
+        Path(PARSED_TEXT_DIR, "Containerlift 2024 - Valencia Port Resumes Operations Following Devastating Flooding in Spain - Containerlift.co.uk - Transport_Lifting_Shipping_cleaned.md"), 
     ]
 
 
@@ -684,26 +683,35 @@ for i, filename in enumerate(search_path):
         ## postprocess response
         resp = response[0]["generated_text"].replace("\n", "")
         try:
-            #  remove potential text outside of json object
-            resp = (resp.split("]")[0] + "]") 
-            resp = ("[" + resp.split("[")[1]) 
-            # fix missing bracket at end of response
-            if "]" not in resp:
+            # fix missing bracket at beginning and end of response by splitting at first/last complete entry
+            if "[{" not in resp:
+                resp = "[{" + resp.split("{", 1)[1]
+            if "}]" or "},]" not in resp:
                 resp = resp.rpartition('}')[-3] + "}]"
+
+            # elif "]" not in resp:
+            #     resp = (resp.split("]")[0] + "]")
+            # elif "[" not in resp:
+            #     resp = ("[" + resp.split("[")[1]) 
+
+            # remove potential text outside - no matter if it exists or not
+            resp = ("[" + resp.split("[")[1]) 
+            resp = (resp.split("]", 1)[0] + "]") 
 
             # save LLM response for each chunk  in dataframe for each document
             df_resp = pd.read_json(StringIO(resp))
             df_resp["citation_id"] = context[0]["citation"]  # add citation info
             df_resp["chunk_id"] = j  # add chunk id as identifier
-            df_resp["ci_entity"] = df_ci_geo.loc[df_ci_geo["chunk_id"] == j, "ci_entity"] or None
-            df_resp["geo_entity"] = df_ci_geo.loc[df_ci_geo["chunk_id"] == j, "geo_entity"] or None
+            df_resp["ci_entity"] = df_ci_geo.loc[df_ci_geo["chunk_id"] == j, "ci_entity"] 
+            df_resp["geo_entity"] = df_ci_geo.loc[df_ci_geo["chunk_id"] == j, "geo_entity"]
             df_resp["case_type"] = df_ci_geo.loc[df_ci_geo["chunk_id"] == j, "case_type"]
             df_resp["chunk_text"] = context[0]["text"]  # add (translated) chunk text for tracing back LLM response
 
             df_responses = pd.concat([df_responses, df_resp], ignore_index=True)
         
-        except ValueError as e:
-            print(f"Cannot add response: {e}, \n   Response (before postprocessing): {response[0]['generated_text'].replace('\n', '')}")
+        except (IndexError, ValueError) as e:
+            print(f"Cannot add response: {e}, \n   Faulty response (before postprocessing): {response[0]['generated_text'].replace('\n', '')}")
+            # faullty response: e.g.  .., "location": "V" on satellite and online on radar"}, { ...}, {}
             responses_error_list.append({
                 "citation_id": citation,
                 "chunk_id": j,
@@ -723,49 +731,47 @@ for i, filename in enumerate(search_path):
 # %%
 print("Chunk with erroneous responses:", responses_error_list.__len__())
 df_responses_error = pd.DataFrame(responses_error_list)
-df_responses_error.tail(3)
+df_responses_error#.tail(3)
+
 
 # %%
-
+responses_error_list #df_responses_all
 
 # %% [markdown]
 # #### response
 
 # %%
-# OUTPUT_LLM1_FILEPATH.name.replace(".csv", "_v2.csv")
+PATH_LLM_DATA: Path = Path(s.PATH_DATA + "llm_outputs/")
+LLM_DATA_FILENAME: str = "llm_1_robustified.csv"
+
+OUTPUT_LLM1_FILEPATH =  Path(PATH_LLM_DATA / LLM_DATA_FILENAME)#.replace(".csv", "_v2.csv"))
 
 
 # %%
 safety_df = df_responses_all.copy()
 
-# OUTPUT_LLM1_FILEPATH =  Path(s.PATH_LLM_DATA / s.LLM_DATA_FILENAME.replace(".csv", "_v2.csv"))
 
 
 # save LLM 1 output to disk along with prompt text
 if not os.path.isfile(OUTPUT_LLM1_FILEPATH):
 
-    print(f"Saving prompt, LLM response {OUTPUT_LLM1_FILEPATH.stem}, and erroneous LLM responses [.txt, .csv] to {OUTPUT_LLM1_FILEPATH.parent} ...")
-    
-    with open(OUTPUT_PROMPT_FILEPATH, "w") as f:
+    print(f"Saving prompt, LLM response and erroneous responses [.txt, .csv] to {OUTPUT_LLM1_FILEPATH} ...")
+
+    with open(OUTPUT_LLM1_FILEPATH.with_suffix(".txt"), "w") as f:
         f.write(template.render(context=context, question=question_1))
-    
     df_responses_all.to_csv(OUTPUT_LLM1_FILEPATH, index=False)
     df_responses_error.to_csv(Path(OUTPUT_LLM1_FILEPATH.parent, f"errors_{OUTPUT_LLM1_FILEPATH.stem}.csv"), index=False)
 
+elif os.path.isfile(OUTPUT_LLM1_FILEPATH) and not os.path.isfile(Path(OUTPUT_LLM1_FILEPATH.parent, f"{OUTPUT_LLM1_FILEPATH.stem}_v2.csv")):
+    # If the original file exists but the v2 file doesn't, create the v2 file
+    with open(OUTPUT_LLM1_FILEPATH.with_suffix(".txt"), "w") as f:
+        f.write(template.render(context=context, question=question_1))
+    df_responses_all.to_csv(Path(OUTPUT_LLM1_FILEPATH.parent, f"{OUTPUT_LLM1_FILEPATH.stem}_v2.csv"), index=False)
+    df_responses_error.to_csv(Path(OUTPUT_LLM1_FILEPATH.parent, f"errors_{OUTPUT_LLM1_FILEPATH.stem}_v2.csv"), index=False)
 else:
     print(f"Output file {Path(OUTPUT_LLM1_FILEPATH).stem} already exists. Skip saving to avoid overwriting ...")
 
 
-
-    # # check if file exists already
-    # if os.path.exists(OUTPUT_LMM1_FILEPATH):
-    #     print(f"File {OUTPUT_LMM1_FILEPATH.name} already exists. Not saving to disk.")
-    #     pass
-    # else:
-    #     print(f"Saving LLM 1 output to {OUTPUT_LMM1_FILEPATH}")
-    #     df_responses_all.to_csv(OUTPUT_LMM1_FILEPATH, index=False)
-
-    
 
 
 
@@ -778,6 +784,9 @@ else:
 
 # %% [markdown]
 # ## Evaluation - only manually
+
+# %%
+df_responses_all[df_responses_all.ci_entity == "Spain’s second-biggest port"]
 
 # %% [markdown]
 # ### Manual comparison CI_location_table vs LLm response

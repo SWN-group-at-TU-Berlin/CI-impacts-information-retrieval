@@ -41,6 +41,7 @@ import torch
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pickle
+from matplotlib import pyplot as plt
 
 
 # from utils.training import topic_search, topic_search_lm
@@ -71,7 +72,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 VALID_DATA_FILENAME = "table_ci_impacts_sm.csv"
 PATH_VALID_DATA = s.PATH_VALID_DATA
 PATH_EVAL_RESULT = s.PATH_EVAL_RESULT
-LLM_DATA_FILEPATH = Path(s.PATH_LLM_DATA / s.LLM_DATA_FILENAME) # "llm1_2026-02-11_7of9.csv" "llm_1_test_eval.csv"
+LLM_DATA_FILEPATH = Path(s.PATH_LLM_DATA / "llm_1_robustified.csv") # s.LLM_DATA_FILENAME) # "llm1_2026-02-11_7of9.csv" "llm_1_test_eval.csv"
 SIMILARITY_LLM_FILENAME = s.SIMILARITY_LLM_FILENAME
 
 df_valid = pd.read_csv(
@@ -156,20 +157,15 @@ def cosine_similarity(vector_a, vector_b):
 
 
 
-# %%
-# df_pred_valid# .iloc[1].sentence_reference
-
-# %%
-# df_pred[df_pred["citation_id"] == "Koks 2022"]["infrastructure_type"].unique()
-df_pred["citation_id"].unique()
-
 # %% [markdown]
 # #### Select  entries which have text references
 
 # %%
 
+print(len(df_pred), len(df_valid))
 df_pred = df_pred[~df_pred["chunk_text"].isna()].reset_index(drop=True)
 df_valid = df_valid[~df_valid["sentence_reference"].isna()].reset_index(drop=True)
+print(len(df_pred), len(df_valid))
 
 
 # %% [markdown]
@@ -210,12 +206,14 @@ threshold = 95
 
 # find for each prediction entry all validation entries for respective chunk 
 # these validation entries are candidates from which the most similar one to the pred. entry is taken to calc. model recall 
+# inlcduing also entries where pred_inof or valid_info is missing (e.g FNs, FPs)
 for _, pred_entry in df_pred.iterrows():
     for _, valid_entry in df_valid.iterrows():  # all validation entries of all docs
+        
         # Calculate match score by accounting for partial string matches. 
         # In detail, it calculates the similarity ratio using the shortest string (length n, here: "sentence_reference") against all n-length substrings of the larger string and returns the highest score 
         score = fuzz.partial_ratio(valid_entry['sentence_reference'], pred_entry['chunk_text'])
-        # scores.append({'chunk_text': pred_entry['chunk_text'], 'sentence_reference': valid_entry['sentence_reference'], 'score': score})
+
         if score >= threshold:
             entry_pred_valid = {
                 "citation_id": pred_entry["citation_id"],
@@ -232,7 +230,6 @@ for _, pred_entry in df_pred.iterrows():
             }
             df_pred_valid_all = pd.concat([df_pred_valid_all, pd.DataFrame([entry_pred_valid])], ignore_index=True)  # n:1 relationship DF
         
-        # but keep also all False Negative cases (ie. where valid entry exists but no prediction)
         
 
 
@@ -244,13 +241,19 @@ df_pred_valid_all.info()
 # as it is easier to get a prep-valid match when pred.info is actually missing due to larger chunk-text (pred set) compared to sentence-text (valid set)
 
 
+# %%
+
+
 # %% [markdown]
-# #### For each prediction entry, search for all validation cases of the same chunk 
+# #### Calc similarities for all cases where text info in pred and valid set exists 
+# 
 
 # %%
-# for i in df_pred_valid_all.groupby(["chunk_text_pred"])["sentence_text_valid"]:
-#     print(i)
-df_pred_valid_all
+#df_pred_valid_smltry_all.loc[
+# df_pred_valid_smltry_all.groupby("identifier_valid")['impact_similarity'].transform(max) == df_pred_valid_smltry_all['impact_similarity']
+#    ]
+from matplotlib import pyplot as plt
+
 
 # %%
 columns_valid = ["ci_valid", "damage_valid", "location_valid"]
@@ -259,34 +262,25 @@ columns_pred = ["ci_pred", "damage_pred", "location_pred"]
 df_pred_valid_smltry_all = pd.DataFrame()
 
 
-
+## AIM: remove all cases in df_pred_valid_all where pred_entities were wrongly assigned to a valid_entity
+## ie keep only pre-valid pairs with highest similairity per unique valid case
 for column_valid, column_pred in zip(columns_valid, columns_pred):
 
     print(f" --------- Calculate similarities for entries in column pair: {column_pred} - {column_valid} ------------")
 
-    ## calc for each entry with the same chunk_text the similarity between valid_impact and pred_impact
-    ## means we calc also the False Negatives (ie. where valid entry exists but no prediction)
-    for chunk_grouped in df_pred_valid_all["chunk_text_pred"].unique():
-        df_group = df_pred_valid_all[df_pred_valid_all["chunk_text_pred"] == chunk_grouped]
 
-
-    for i, entry in df_group.iterrows():
-
-        highest_similarity_score = 0 
-
-        ## calculate embeddings
-
-        ## TODO calc FN and FP based on Belgian approach with self-set threshold
-        # which indicates when an entry pair is not similar
+    ## calculate embeddings
+    for _, entry in df_pred_valid_all.iterrows():
+        ## TODO calc FN and FP based on Belgian approach with self-set threshold which indicates when an entry pair is not similar
         ## TODO 2: calc also FP: i.e. when pred_info exists but not corresponding valid_info, and FNs (les FNs as wrong matches more likely due chunk-text is longer than sentence text)
 
-        ## calc TPs and TNs when both pred_info and valid_info exist (ie. not NaN)
+        ## calc similarity (TPs and TNs) when both pred_info and valid_info exist (ie. not NaN)
         if entry[column_pred] and entry[column_valid] is not np.nan:
             pred_impact = entry[column_pred]
             valid_impact = entry[column_valid]
             pred_vec = nlp(pred_impact).vector
             valid_vec = nlp(valid_impact).vector
-   
+
             # calculate cosine similarity for each pred-valid pair
             similarity_score = cosine_similarity(pred_vec, valid_vec)  # 0-1 value, the higher the more similar
             # print(f"Similarity {i}-{j}: {similarity_score}")
@@ -299,109 +293,47 @@ for column_valid, column_pred in zip(columns_valid, columns_pred):
                 #"chunk_id_pred": entry.chunk_id,
                 "chunk_text_pred": entry.chunk_text_pred,
                 "sentence_text_valid": entry.sentence_text_valid,
+                "identifier_valid": f"{entry.ci_valid}_{entry.damage_valid}_{entry.location_valid}", 
                 }
             df_pred_valid_smltry_all = pd.concat([df_pred_valid_smltry_all, pd.DataFrame([dict_pair])], ignore_index=True)
-    
-        # ## FNs
-        # # # calc FN when valid_info exists but not corresponding pred_info
-        # ## number of FNs is small due that wrong matching with any chunk-text is more likely due to its text size comapred sentence-level (valid set) 
-        # elif entry[column_pred] is np.nan:
-        #     similarity_score = 0
-        #     dict_pair = {
-        #         "impact_valid": valid_impact, 
-        #         "impact_pred": pred_impact, 
-        #         "impact_similarity": similarity_score,
-        #         "tp_tn_fp_fn": "fn",
-        #         "citation": entry.citation_id,
-        #         "chunk_text_pred": entry.chunk_text_pred,
-        #         "sentence_text_valid": entry.sentence_text_valid,
-        #         }
-        #     df_pred_valid_smltry_all = pd.concat([df_pred_valid_smltry_all, pd.DataFrame([dict_pair])], ignore_index=True)
-    
-        # ## FPs
-        # elif entry[column_valid] is np.nan:
-        #     similarity_score = 0
-        #     dict_pair = {
-        #         "impact_valid": valid_impact, 
-        #         "impact_pred": pred_impact, 
-        #         "impact_similarity": similarity_score,
-        #         "tp_tn_fp_fn": "fp",
-        #         "citation": entry.citation_id,
-        #         "chunk_text_pred": entry.chunk_text_pred,
-        #         "sentence_text_valid": entry.sentence_text_valid,
-        #         }
-        #     df_pred_valid_smltry_all = pd.concat([df_pred_valid_smltry_all, pd.DataFrame([dict_pair])], ignore_index=True)
+
+
+    # extract pred-valid pairs of highest similarity per unique valid_cols
+    df_pred_valid_smltry_all = df_pred_valid_smltry_all.loc[
+        df_pred_valid_smltry_all.groupby("identifier_valid")['impact_similarity'].transform(max) == df_pred_valid_smltry_all['impact_similarity']
+    ]
     
 
-        #     pred_impact = entry[column_pred]
-        #     pred_vec = nlp(pred_impact).vector
-
-        # # calc FP (when chunk exists but not corresponding sentence_reference) when valid_info exists but not corresponding pred_info
-        # if entry[column_valid] is np.nan:
-        #     valid_impact = entry[column_valid]
-        #     valid_vec = nlp(valid_impact).vector
-
-
-
-    print(" ---------- Evaluation summary statistics: -----------")
+    print(f" ---------- Evaluation summary statistics: {column_pred}-----------")
     print(df_pred_valid_smltry_all.impact_similarity.describe())
 
 
+    SIMILARITY_FILENAME = f'{column_pred}_{SIMILARITY_LLM_FILENAME}'
+    SIMILARITY_FILEPATH = Path(PATH_EVAL_RESULT / SIMILARITY_FILENAME)
 
-## NOTE : decrease in result due that validation set contains only a subset of all Ci impacts mentioned in the doc --> thus we need to match on sentence-level (col. sentence_reference) 
-# if chunk from prediction matches with sentence_reference of valid DS --> then calculate similarity, if not mathc: then continue with next entry
+
+    print("Saving evaluation statistics, distribution plots, and scores to ", SIMILARITY_FILEPATH.stem, "[.parquet, _stats.json]")
+    with open(SIMILARITY_FILEPATH, 'w') as f:
+        # results
+        df_pred_valid_smltry_all.to_csv(SIMILARITY_FILEPATH.with_suffix('.csv'), index=False)
+        # df_pred_valid_smltry_all_pyarrow = pa.Table.from_pandas(df_pred_valid_smltry_all)
+        # pq.write_table(df_pred_valid_smltry_all_pyarrow, SIMILARITY_FILEPATH)   
+        #   summary statistics
+        df_pred_valid_smltry_all_stats = df_pred_valid_smltry_all.describe()
+        f = SIMILARITY_FILEPATH.parent / f"{SIMILARITY_FILEPATH.stem}_stats.json"  
+        df_pred_valid_smltry_all_stats.to_json(f, indent=4)
+        # distribution plots
+        df_pred_valid_smltry_all.impact_similarity.hist(bins=100)
+        plt.savefig(SIMILARITY_FILEPATH.parent / f"{SIMILARITY_FILEPATH.stem}_hist.png")
+
+
+
 
 # %%
 df_pred_valid_smltry_all
 
 # %%
-df_pred_valid_smltry_all
 
-# %%
-# ## match based on (cosine) similarity 
-# # see also: Levenshtein distance which measures the number of edits (ie. the effort) to change a string into the other)
-# # https://medium.com/@caskcadellc/string-matching-in-pandas-techniques-and-examples-4041db161be9
-
-# df_pred_valid = pd.DataFrame()
-
-
-# df_pred_e = df_pred[~df_pred["chunk_text"].isna()].reset_index(drop=True)
-# df_valid_e = df_valid[~df_valid["sentence_reference"].isna()].reset_index(drop=True)
-
-
-# # find for each prediction entry all validation entries for respective chunk 
-# # these validation entries are all candidates from which the most similar one to the pred. enry is taken to calc. model recall 
-# threshold = 95 
-# for _, pred_entry in df_pred_e.iterrows():
-#     for _, valid_entry in df_valid_e.iterrows():  # all validation entries of all docs
-#         # Calculate match score by accounting for partial string matches. 
-#         # In detail, it calculates the similarity ratio using the shortest string (length n, here: "sentence_reference") against all n-length substrings of the larger string and returns the highest score 
-#         score = fuzz.partial_ratio(valid_entry['sentence_reference'], pred_entry['chunk_text'])
-#         # scores.append({'chunk_text': pred_entry['chunk_text'], 'sentence_reference': valid_entry['sentence_reference'], 'score': score})
-#         if score >= threshold:
-#             entry_pred_valid = {
-#                 "citation_id": pred_entry["citation_id"],
-#                 "ci_pred": pred_entry["infrastructure_type"],
-#                 "damage_pred": pred_entry["damage"],
-#                 "location_pred": pred_entry["location"],
-#                 "chunk_text_pred": pred_entry["chunk_text"],
-#                 "ci_valid": valid_entry["ci1_type"],
-#                 "damage_valid": valid_entry["ci1_damage"],
-#                 "location_valid": valid_entry["ci1_location"],
-#                 "sentence_text_valid": valid_entry["sentence_reference"],
-#                 "text_similarity_score": score
-#             }
-#             df_pred_valid = pd.concat([df_pred_valid, pd.DataFrame([entry_pred_valid])], ignore_index=True)
-
-# # Same approach as above but just using cartesian product of pred and valid entrries and then filter out low similarity scores.
-# # df_pred_valid = df_valid_e.merge(df_pred_e, how="cross")  
-# # # calculate score for each pair
-# # # df_pred_valid["score"] = df_pred_valid.apply(lambda row: fuzz.partial_ratio(row["sentence_reference"], row["chunk_text"]), axis=1) 
-# # df_pred_valid["score"] = df_pred_valid.apply(lambda row: fuzz.partial_ratio(row['chunk_text'], row['sentence_reference']), axis=1) 
-# # ### -_> filter pairs based on very high threshold to ensure 1:1 and 1:nth pairs to avoid dublicated prediction entires in merged df
-# # df_pred_valid = df_pred_valid[df_pred_valid["score"] >= threshold]
-# # print(len(df_pred_valid))
-# # df_pred_valid
 
 # %% [markdown]
 # #### For each validation entry, search for all prediction cases of the same chunk 
@@ -559,6 +491,84 @@ with pd.option_context('display.max_rows', None, 'display.max_columns', None):  
 
 # %% [markdown]
 # ## Archive
+
+# %%
+## Aim 
+## for all identical valid entries ie. with same [ci_valid	damage_valid	location_valid	sentence_text_valid]
+## get the match to pred_entity with highest similarity
+
+# %%
+    # ## calc for each entry with the same chunk_text the similarity between valid_impact and pred_impact
+    # ## means we calc also the False Negatives (ie. where valid entry exists but no prediction)
+
+
+    # # iterate over groups of entities which refer to the same valid case (i.e. which are identical in valid_columns)
+    # # TODO iterate over unqiue cases in df_valid (instead of using grouper)
+    # grouper = df_pred_valid_all[["ci_valid", "damage_valid", "location_valid", "sentence_text_valid"]].drop_duplicates()
+    # for group in grouper.itertuples():
+    #     df_pred_valid_group = df_pred_valid_all[df_pred_valid_all[["ci_valid", "damage_valid", "location_valid", "sentence_text_valid"]] == group[["ci_valid", "damage_valid", "location_valid", "sentence_text_valid"]]]
+
+    #     # calc. similarities to pred_entities
+    #     for i, entry in df_pred_valid_group.iterrows():
+
+    #         highest_similarity_score = 0 
+
+    #         if entry[column_pred].iloc[i] == "nan":
+    #             continue
+            
+    #         # calc embeddings
+    #         pred_impact = entry[column_pred].iloc[i]
+    #         pred_vec = nlp(pred_impact).vector
+
+    #         valid_impact = entry[column_valid].iloc[i] # is unique for each group
+    #         valid_vec = nlp(valid_impact).vector
+    #         print(valid_impact, "valid_impact")
+            
+    #         similarity_score = cosine_similarity(valid_vec, pred_vec)  # 0-1 value, the higher the more similar
+    #         # print(f"Similarity {i}-{j}: {similarity_score}")
+
+    #         ## return only pred-valid-pair with highest similarity
+    #         if similarity_score > highest_similarity_score:
+                
+    #             highest_similarity_score = similarity_score
+                
+    #             entry["impact_similarity"] = highest_similarity_score
+
+    # ## FNs
+    # # # calc FN when valid_info exists but not corresponding pred_info
+    # ## number of FNs is small due that wrong matching with any chunk-text is more likely due to its text size comapred sentence-level (valid set) 
+    # elif entry[column_pred] is np.nan:
+    #     similarity_score = 0
+    #     dict_pair = {
+    #         "impact_valid": valid_impact, 
+    #         "impact_pred": pred_impact, 
+    #         "impact_similarity": similarity_score,
+    #         "tp_tn_fp_fn": "fn",
+    #         "citation": entry.citation_id,
+    #         "chunk_text_pred": entry.chunk_text_pred,
+    #         "sentence_text_valid": entry.sentence_text_valid,
+    #         }
+    #     df_pred_valid_smltry_all = pd.concat([df_pred_valid_smltry_all, pd.DataFrame([dict_pair])], ignore_index=True)
+
+    # ## FPs
+    # elif entry[column_valid] is np.nan:
+    #     similarity_score = 0
+    #     dict_pair = {
+    #         "impact_valid": valid_impact, 
+    #         "impact_pred": pred_impact, 
+    #         "impact_similarity": similarity_score,
+    #         "tp_tn_fp_fn": "fp",
+    #         "citation": entry.citation_id,
+    #         "chunk_text_pred": entry.chunk_text_pred,
+    #         "sentence_text_valid": entry.sentence_text_valid,
+    #         }
+    #     df_pred_valid_smltry_all = pd.concat([df_pred_valid_smltry_all, pd.DataFrame([dict_pair])], ignore_index=True)
+
+
+
+
+# %%
+
 
 # %%
 # ## get same impact entries
