@@ -15,37 +15,38 @@ import subprocess
 # local or remote machine 
 hostname = subprocess.run(['hostname'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
 
-class Settings():
-# class Settings(BaseSettings):
-    # paths
-    PATH_SRC: str = "./src"
+# class Settings():
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore"
+    )
+    
+    PATH_SRC: Path = Path("./src")
     ## store logs and data outside of the repository
-    PATH_LOGS: str = "../logs/"
-    PATH_DATA: str = "../data/"
-    PATH_EVALUATION: str = PATH_DATA + 'evaluation/'
+    PATH_LOGS: Path = Path("../logs/")
+    PATH_DATA: Path = Path("../data/")
 
-
-    #  Define data paths 
-
+    
     PATH_PROMPTS: Path = Path("./prompt_templates/")
     PROMPT_DIRECT_FILENAME: str = "ci_loc_direct_impacts.txt"
-    NER_PATTERNS_FILEPATH: Path = Path("./" + "ner_patterns.jsonl")
+    NER_PATTERNS_FILEPATH: Path = Path("./ner_patterns.jsonl")
     CI_GEO_PAIRS_FILENAME: str = "extracted_ci_geo_entities.csv"    
     
 
-    PATH_LLM_DATA: Path = Path(PATH_DATA + "llm_outputs/")
+    PATH_LLM_DATA: Path = Path(PATH_DATA / "llm_outputs/")
     LLM_DATA_FILENAME: str = "llm_1_updprompt_v2.csv" #"llm_1_half_validDS.csv"
     #LLM_DATA_FILENAME: str = f'llm1_{datetime.now().strftime("%Y-%m-%d")}.csv'
     
-    PATH_LX_DATA: Path = Path(PATH_DATA + "langextract_output/")
+    PATH_LX_DATA: Path = Path(PATH_DATA / "langextract_output/")
     os.makedirs(PATH_LX_DATA, exist_ok=True)
     LX_DATA_FILENAME: str = f"lx1_mix_cigeo_{datetime.now().strftime('%Y-%m-%d')}.csv"
     # LX_DATA_FILENAME: str = 'llama3_48_documents_2026-01-28.csv'   #  replace with lx_modelname_xxx
 
 
-    PATH_VALID_DATA: Path = Path(PATH_EVALUATION + 'manual_extracted')
+    PATH_VALID_DATA: Path = Path(PATH_DATA / 'evaluation/manual_extracted')
     VALID_DATA_FILENAME: str = 'table_ci_impacts_sm.csv'
-    PATH_EVAL_RESULT: Path = Path(PATH_DATA + 'evaluation_results')
+    PATH_EVAL_RESULT: Path = Path(PATH_DATA / 'evaluation_results')
     os.makedirs(PATH_EVAL_RESULT, exist_ok=True)
 
     # NOTE SIMILARITY_[LX]_FILENAME is set based on LLM_DATA_FILENAME or LX_DATA_FILENAME 
@@ -54,9 +55,6 @@ class Settings():
     # SIMILARITY_FILENAME: str = 'llama3_ci_impact_evaluation.parquet' # replace with lx_modelname_xxx
 
 
-    HUGGINGFACE_TOKEN: str
-    model_config = SettingsConfigDict(env_file=".env")  # load HUGGINGFACE_TOKEN
-
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 50
 
@@ -64,11 +62,14 @@ class Settings():
     # performance: https://spacy.io/models/en#en_core_web_trf
     try:
         subprocess.check_output("nvidia-smi")
+        # FIXME workaround to not update torch which causes issues with flash-attn
+        #"solution: en_core_web_trf should be used as it is faster and maybe more precise"
         SPACY_MODEL: str = "en_core_web_trf"
     except Exception:
-        SPACY_MODEL: str = "en_core_web_lg"
-
-    if hostname == "a-buch-ThinkPad-X1-Extreme-Gen-4i":
+        print("couldnt load large spacy model")
+        SPACY_MODEL: str = "en_core_web_lg "
+    
+    if hostname == "abuch-ThinkPad-X1-Extreme-Gen-4i":
         print("Running on local machine")
 
         # set working dir
@@ -81,13 +82,17 @@ class Settings():
         # settings for CUDA and PYTORCH
         os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
         os.environ["CUDA_VISIBLE_DEVICES"]="0"   #  nvidia gpu
-        os.environ["PYTORCH_CUDA_ALLOC_CONF"]="expandable_segments:True" ## improve memory allocation
+        os.environ["PYTORCH_ALLOC_CONF"]="expandable_segments:True" ## improve memory allocation
         # # %env TORCH_CUDA_ARCH_LIST=8.6
 
-        # settings for distributed computing
-        os.environ["WORLD_SIZE"]="1"
-        os.environ["RANK"]="0"
-        os.environ["LOCAL_RANK"]="0"
+        # # settings for debugging CUDA errors (pinpoint exact line of error)
+        # os.environ["TORCH_USE_CUDA_DSA"] = "1"
+        # os.environ["CUDA_LAUNCH_BLOCKING"] = "1" 
+
+        # # settings for distributed computing
+        # os.environ["WORLD_SIZE"]="1"
+        # os.environ["RANK"]="0"
+        # os.environ["LOCAL_RANK"]="0"
         # NOTE: # WORLD_SIZE: each GPU corresponds to one process (world = no. of processes within a group), processes communicate with each other enabling eg., distributed training
         # NOTE: # RANK: IDs of the processes, ranging from 0 up to WORLD_SIZE - 1
 
