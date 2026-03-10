@@ -6,6 +6,7 @@ __author__ = "Anna Buch, TU Berlin"
 __email__ = "anna.buch@tu-berlin.de"
 
 
+import gc
 import os
 from annotated_types import doc
 import langdetect
@@ -109,11 +110,14 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
     # TODO condense try except blocks when handling string input
     # ISSUE: when doc is list[doc] then translation per chunk is needed, but when doc is single string then direct translation
     
-    if isinstance(doc, list):  # doc == docling object
+    if isinstance(doc, list):  # doc == Docling object or ConversionResult
 
         for j, chunk in enumerate(doc):
 
-            src_text = chunk.page_content
+            try:
+                src_text = chunk.page_content
+            except AttributeError as e:
+                src_text = chunk.text
 
             ## preprocess  TODO move to document cleaning workflow + dc.funcs
             src_text = src_text.replace("\n", " ")
@@ -129,27 +133,31 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
             if (src_language == dst_language) or (src_language not in supported_languages):
                 print(f"Source and destination language in chunk {j} are identical or unsupported. No translation needed.")
                 # write back to document  # TODO condense try except blocks when handling string input
-                doc[j].page_content =  src_text.replace("\n", " ")
+                try:
+                    doc[j].page_content =  src_text.replace("\n", " ")
+                except ValueError:
+                    doc[j].text =  src_text.replace("\n", " ")
 
             # tokenize the input text and move to the appropriate device
             inputs = tokenizer.encode(src_text, return_tensors="pt", max_length=512, truncation=True)
             inputs = inputs.to(device)
 
-            # generate the translation output using greedy search
-            greedy_outputs = model.generate(inputs)
-
-            # decode the output and ignore special tokens
-            print(" Source text: ", src_text)
-            print(" Translated text: ", tokenizer.decode(greedy_outputs[0], skip_special_tokens=True))
-
-            # generate the translation output using beam search
+            # generate the translation output using greedy search, 
+            # TODO recheck difference to greedy search
             beam_outputs = model.generate(inputs, num_beams=3)
 
             # decode the output and ignore special tokens
             dst_text = tokenizer.decode(beam_outputs[0], skip_special_tokens=True)
 
+            # # decode the output and ignore special tokens
+            # print(" Source text: ", src_text)
+            # print(" Translated text: ", tokenizer.decode(beam_outputs[0], skip_special_tokens=True))
+        
             # write back to document
-            doc[j].page_content =  dst_text.replace("\n", " ")
+            try:
+                doc[j].page_content =  dst_text.replace("\n", " ")
+            except ValueError as e:
+                doc[j].text =  dst_text.replace("\n", " ")
 
 
     if isinstance(doc, str):
@@ -176,19 +184,20 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
         inputs = tokenizer.encode(src_text, return_tensors="pt", max_length=512, truncation=True)
         inputs = inputs.to(device)
 
-        # generate the translation output using greedy search
-        greedy_outputs = model.generate(inputs)
-
-        # print("Source text: ", src_text)
-        # print("Translated text: ", tokenizer.decode(greedy_outputs[0], skip_special_tokens=True))
-
         # generate the translation output using beam search
         beam_outputs = model.generate(inputs, num_beams=3)
+
+        # print("Source text: ", src_text)
+        # print("Translated text: ", tokenizer.decode(beam_outputs[0], skip_special_tokens=True))
 
         # decode the output and ignore special tokens
         dst_text = tokenizer.decode(beam_outputs[0], skip_special_tokens=True)
 
         # write back to document
         doc = dst_text.replace("\n", " ")
+    
+    # cleaning up memory after translation
+    gc.collect()
+    torch.no_grad()
 
     return doc
