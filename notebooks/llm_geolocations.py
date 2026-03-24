@@ -78,15 +78,11 @@ torch.cuda.empty_cache()
 print(torch.cuda.memory_reserved() / 1e9)
 
 
-# %%
-# os.environ["HF_HOME"] = s.HF_HOME_DIR
-try: 
-    login(token=os.getenv("HUGGINGFACE_TOKEN"))   # notebook_login
-except:
-    login(token=os.environ.get("HUGGINGFACE_TOKEN"))  # former HF_TOKEN
-
-
 test_mode = True # for testing purposes, limit number of processed documents
+
+# login to HF
+os.environ['HUGGINGFACE_TOKEN']  
+# NOTE raises exception if not env.variable doesnt exist (compared to os.envrion.get and its shortcut os.getenv)
 
 
 
@@ -343,11 +339,6 @@ torch.no_grad()
 class DecoderModel:
 
     def __init__(self, model_name: str ="meta-llama/Llama-2-7b-chat-hf"):
-        
-        try: 
-            login(token=os.getenv("HUGGINGFACE_TOKEN"))   # notebook_login
-        except:
-            login(token=os.environ.get("HUGGINGFACE_TOKEN"))  # former HF_TOKEN
 
         base_dir =  s.HF_HOME_DIR   # use default dir in .cache/
         model_dir = base_dir # / f"models--{model_name.replace("/", "--")}"  # is already .._mirror/hub/
