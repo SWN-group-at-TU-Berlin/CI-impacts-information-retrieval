@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     
 
     PATH_LLM_DATA: Path = Path(PATH_DATA / "llm_outputs/")
-    LLM_DATA_FILENAME: str = "llm_1_updprompt_v2.csv" #"llm_1_half_validDS.csv"
+    LLM_DATA_FILENAME: str = "llm_1_dNER_fixNER.csv" #"llm_1_half_validDS.csv"
     #LLM_DATA_FILENAME: str = f'llm1_{datetime.now().strftime("%Y-%m-%d")}.csv'
     
     PATH_LX_DATA: Path = Path(PATH_DATA / "langextract_output/")
@@ -57,6 +57,8 @@ class Settings(BaseSettings):
 
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 50
+    BATCH_SIZE: int = 5  # max for my local GPU (as max. is 6GB)
+    
 
     # Use transformer model (roberta) for fast and precise NER recognition for english language [only with GPU]
     # performance: https://spacy.io/models/en#en_core_web_trf
