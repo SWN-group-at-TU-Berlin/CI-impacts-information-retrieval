@@ -43,21 +43,15 @@ import pyarrow.parquet as pq
 import pickle
 from matplotlib import pyplot as plt
 
-
-# from utils.training import topic_search, topic_search_lm
-
 sys.path.append('../')
 from src.settings import settings as s
 import src.document_cleaning as dc
 import src.translation_model as tm
 
 
-# %%
-try: 
-    login(token=os.getenv("HUGGINGFACE_TOKEN"))   # notebook_login
-except:
-    login(token=os.environ.get("HUGGINGFACE_TOKEN"))  # former HF_TOKEN
-
+# login to HF
+os.environ['HUGGINGFACE_TOKEN']  
+# NOTE raises exception if not env.variable doesnt exist (compared to os.envrion.get and its shortcut os.getenv)
 
 
 # %% [markdown]
@@ -484,7 +478,7 @@ SIMILARITY_FILEPATH = Path(PATH_EVAL_RESULT / SIMILARITY_FILENAME)
 
 with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
     df = pd.read_parquet(SIMILARITY_FILEPATH, engine='pyarrow')
-    display(df)
+    pd.display(df)
 
 # %%
 
