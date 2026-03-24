@@ -125,8 +125,6 @@ Use phrases from the list below to describe the damage:
 - impassable
 - indirectly affected
 
-
-
 If no information about the damage type is found, then return for this field a "NAN" value. 
 DON'T create new items about damage that weren’t there.
 
