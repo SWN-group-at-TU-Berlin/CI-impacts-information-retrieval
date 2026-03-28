@@ -16,3 +16,4 @@ logs/
 
 # store trained models and models configs
 *.pkl
+huggingface_mirror/
