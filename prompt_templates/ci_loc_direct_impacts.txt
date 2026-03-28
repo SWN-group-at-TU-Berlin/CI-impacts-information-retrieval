@@ -1,0 +1,153 @@
+You are an expert analyst assistant and should use ONLY the provided context to answer the following question:
+
+Question: "{{ question }}"
+    
+Context:
+{% for item in context %}
+- {{ item.text }} (Citation: {{ item.citation }})
+{% endfor %}
+
+
+Provide in the field "infrastructure_type" information about the affected critical infrastructure type mentioned in the context.
+Use phrases from the list below to describe the affected infrastructure type:
+- airport
+- airport terminal
+- aviation
+- bridge(s)
+- road(s)
+- harbor
+- access road(s)
+- road infrastructure
+- motorway(s)
+- highway(s)
+- railway(s)
+- railway infrastructure
+- railway network
+- railway assets
+- railway tracks
+- metro
+- metro line(s)
+- harbor
+- port
+- port terminal(s)
+- port infrastructure
+- container terminal
+- container yards
+- transportation infrastructure
+- transportation network
+- electricity
+- electricity infrastructure
+- power 
+- power infrastructure
+- power plant(s)
+- power grid
+- power line(s)
+- power supply
+- substation
+- power transmission
+- gas
+- gas infrastructure
+- gas distribution
+- gas pipeline(s)
+- water infrastructure
+- water supply
+- drinking water supply
+- groundwater
+- drainage
+- drainage system
+- sewage treatment plant(s)
+- wastewater treatment plant(s)
+- wastewater facility
+- wastewater facilities
+- broadband
+- broadband network
+- mobile network services
+- telecommunication infrastructure
+- telecommunication network
+- telecommunication services
+- IT infrastructure
+- IT network
+- IT services
+- medical-care
+- medical facilities
+- general-practitioner practices
+- hospital(s)
+- healthcare infrastructure
+- healthcare facility
+- healthcare facilities
+- daycare center(s)
+- education infrastructure
+- schools
+- universities
+- dam 
+- dyke
+- train(s)
+- airplane(s)
+- public transport
+- operability
+- traffic
+
+
+
+Try to use one to three words to describe the affected infrastructure type and be as specific as possible.
+If no information about the infrastructure type is found, then return for this field a "NAN" value. 
+DON'T create new items about affected infrastructure that weren’t there.
+
+
+Provide in the field "location" information about the location of the affected infrastructure mentioned in the context.
+Try to use one to three words to describe the location of the affected infrastructure and be as specific as possible.
+If no information about the location of the affected infrastructure is found, then return for this field a "NAN" value. 
+DON'T create new items about the location that weren’t there.
+
+
+Provide in the field "damage" a very short description of the damage to the infrastructure asset mentioned in the context. 
+Try to use one to three words to describe the damage to the affected infrastructure and be as specific as possible.
+Use phrases from the list below to describe the damage:
+- affected
+- damaged
+- severely damaged
+- highly damaged
+- disrupted
+- blocked
+- destroyed
+- largely destroyed
+- heavily destroyed
+- partly closed
+- outages
+- outage
+- blackout
+- contaminated
+- water or debris
+- water or debris on road
+- dam failure
+- closures
+- derailed 
+- impassable
+- indirectly affected
+
+If no information about the damage type is found, then return for this field a "NAN" value. 
+DON'T create new items about damage that weren’t there.
+
+
+For the fields ""infrastructure_type" and "location" you should evaluate and improve your answer based on the information mentioned in CI locations.
+
+CI locations:
+{% for item in context %}
+- ("ci_entity" and "geo_entity":\n {{ item["ci_locations"][["ci_entity", "geo_entity"]] }})
+{% endfor %}
+
+
+
+
+Return ONLY valid JSON in the following list format:
+[{
+    "infrastructure_type": "...",
+    "damage": "...",
+    "location": "...",
+}]
+
+Each nested dictionary describes one failure case.
+DO NOT add commentary or text outside the JSON.
+
+
+Answer:

@@ -2,8 +2,10 @@
 __pycache__/
 .ipynb_checkpoints/
 ipython_config.py
+.python-version
 .pytest_cache/
 .ruff_cache/
+*.egg-info/
 .env
 # uv
 .venv/
@@ -14,6 +16,9 @@ uv.lock
 *.log
 logs/
 
-# store trained models and models configs
+# postgres vectorDB
+pgai/
+
+# store (pre-)trained models and models configs
 *.pkl
 huggingface_mirror/

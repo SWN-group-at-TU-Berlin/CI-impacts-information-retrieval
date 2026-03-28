@@ -15,11 +15,12 @@ from docling.datamodel.pipeline_options import (
 )
 from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
 from docling.document_converter import DocumentConverter, FormatOption
-
+import langdetect
 
 import src.settings as s
 from src.database import fill_db, TextSource
 from src.document_cleaning import remove_references, remove_headers_footers
+import src.translation_model as tm
 
 
 # Docling pipeline configs
@@ -86,52 +87,71 @@ converted = DocumentConverter(
     },
 )
 
-for pdf_filename in os.listdir(DOCS_DIR):
-    if pdf_filename.endswith(".pdf"):
-        md_filename = f"{Path(pdf_filename).stem}.md"
 
-        pdf_filepath = os.path.join(DOCS_DIR, Path(pdf_filename))
-        md_filepath = os.path.join(PARSED_TEXT_DIR, Path(md_filename))
-        cleaned_md_filepath = md_filepath.replace(".md", "_cleaned.md")
-
-        if os.path.exists(md_filepath):
-            print(
-                f"Markdown file '{md_filepath}' already exists. Skipping conversion and cleaning."
-            )
-            continue
-
-        start_time = time.time()
-        print(f"\nFetching: {pdf_filename}")
-
-        print("Remove reference section")
-        pdf_text = extract_text(pdf_filepath)
-        pdf_text_no_references = remove_references(pdf_text)
-
-        # FIXME remove workaround of saving pdf as markdown and reading it again as Docling.Document
-        with open(md_filepath, "w", encoding="utf-8") as f:
-            f.write(pdf_text_no_references)
-
-        # FIXME with DocLoader
-        # loader = DoclingLoader(md_filepath)
-        # md_text = loader.load()
-        print("Converting Markdown to text...")
-        md_text = converted.convert(md_filepath)
-
-        print("Remove headers and footers")
-        md_text_cleaned = remove_headers_footers(md_text)
-
-        md_text_cleaned.document.save_as_markdown(cleaned_md_filepath)
-        print(
-            f"Parsed and cleaned document saved as markdown to: {cleaned_md_filepath}"
-        )
-
-        end_time = time.time() - start_time
-        print(f"Parsing and cleaning done. Time elapsed: {end_time:.2f} seconds.")
-
-
-## TODO init main function
 def main():
-    pass  # placeholder
+
+    # Document preprocessing (cleaning, translation)
+    for pdf_filename in os.listdir(DOCS_DIR):
+
+        if pdf_filename.endswith(".pdf"):
+        
+            md_filename = f"{Path(pdf_filename).stem}.md"
+
+            pdf_filepath = os.path.join(DOCS_DIR, Path(pdf_filename))
+            md_filepath = os.path.join(PARSED_TEXT_DIR, Path(md_filename))
+
+
+            cleaned_md_filepath = md_filepath.replace(".md", "_cleaned.md")
+
+            if os.path.exists(md_filepath):
+                print(f"""Markdown file '{md_filepath}' already exists.
+                    Skipping conversion and cleaning.
+                """)
+                continue
+
+            start_time = time.time()
+
+            print(f"\nFetching: {pdf_filename}")
+
+            print("Remove reference section")
+            pdf_text = extract_text(pdf_filepath)
+            pdf_text_no_references = remove_references(pdf_text)
+
+            # FIXME remove workaround of saving pdf as markdown and reading it again as Docling.Document
+            with open(md_filepath, "w", encoding="utf-8") as f:
+                f.write(pdf_text_no_references)
+            # FIXME with DocLoader
+            # loader = DoclingLoader(md_filepath)
+            # md_text = loader.load()
+            print("Converting Markdown to text...")
+            md_text = converted.convert(md_filepath)
+
+            print("Remove headers and footers")
+            md_text_cleaned = remove_headers_footers(md_text)
+
+            print("Removing URLs") # LangExtract tries to open these URLs when they occur in the document text
+            md_text_cleaned = re.sub(r"http\S+", "", md_text_cleaned)
+
+            ## Translation
+            src_language_doc = langdetect.detect(pdf_filename.replace(".pdf", "").lower())  # lower case improves language detection
+
+            if src_language_doc != "en":
+                supported_languages = ["fr", "de", "es", "it", "itc", "nl"]
+                if src_language_doc not in supported_languages:
+                    print(f"Unsupported source language: {src_language_doc}. Continue with extraction on original text")
+                    continue 
+
+                print(f"Translating {src_language_doc} --> en")
+                md_text_cleaned.document.texts = tm.translate_2_english(src_language_doc, md_text_cleaned.document.texts)        
+
+
+            print(f"Saving parsed and cleaned document as markdown to: {cleaned_md_filepath}")
+            md_text_cleaned.document.save_as_markdown(cleaned_md_filepath)
+
+            end_time = time.time() - start_time
+            print(f"Done. Time elapsed: {end_time:.2f} seconds.")
+
+
 
 
 if __name__ == "__main__":

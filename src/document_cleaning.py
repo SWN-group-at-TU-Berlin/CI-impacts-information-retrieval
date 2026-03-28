@@ -5,13 +5,11 @@
 __author__ = "Anna Buch, TU Berlin"
 __email__ = "anna.buch@tu-berlin.de"
 
+from contextlib import suppress
 import re
 import warnings
-from contextlib import suppress
-
 from docling_core.types.doc.document import TextItem
 from docling.document_converter import ConversionResult
-
 
 
 def extract_citation_info(citation_text: str) -> str:
@@ -30,7 +28,6 @@ def remove_urls(document_text: str) -> str:
     url_pattern = r"http\S+|www\S+|https\S+"
     document_text_no_urls = re.sub(url_pattern, "", document_text, flags=re.MULTILINE) # find urls everywhere in text
     return document_text_no_urls
-
 
 
 def remove_references(document_text: str) -> str:
