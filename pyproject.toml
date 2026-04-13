@@ -11,7 +11,6 @@ requires-python = "==3.12.0"
 
 readme = "README.md"
 dependencies = [
-  "geollama",
   "ipykernel>=7.2.0",
   "jupyter>=1.1.1",
   "langdetect>=1.0.9",
@@ -22,13 +21,17 @@ dependencies = [
   "pdfminer-six>=20260107",
   "pydantic>=2.12.5",
   "spacy>=3.8.14",
-  "flash-attn",
   "peft>=0.18.1",
   "vllm>=0.11.0",
   "sentencepiece>=0.2.1",
   "tiktoken>=0.12.0",
   "tokenizers>=0.22.2",
+  "torch==2.8.0",
+  "transformers==5.5.3",
   "transformers[sentencepiece]>=5.4.0",
+  "geopy>=2.4.1",
+  "plotly>=6.7.0",
+  "bitsandbytes>=0.49.2",
 ]
 
 
@@ -93,13 +96,13 @@ required-environments = ["sys_platform == 'linux' and platform_machine == 'x86_6
 
 ## define as independent sub-projects with inter-package dependency (here geollama)
 [tool.uv.sources]
-geollama = { path = "./submodules/geollama" }
+# geollama = { path = "./submodules/geollama" }
 accelerate = { url = "https://files.pythonhosted.org/packages/15/33/b6b4ad5efa8b9f4275d4ed17ff8a44c97276171341ba565fdffb0e3dc5e8/accelerate-0.33.0-py3-none-any.whl" }
-# torch = { url = "https://download.pytorch.org/whl/cu126/torch-2.9.1+cu126-cp310-cp310-manylinux_2_28_x86_64.whl" }
 # torch = { url = "https://files.pythonhosted.org/packages/19/17/e377a460603132b00760511299fceba4102bd95db1a0ee788da21298ccff/torch-2.9.1-cp312-cp312-manylinux_2_28_x86_64.whl" }
-torch = { index = "pytorch-cu126" }
-torchvision = { index = "pytorch-cu126" }
-flash-attn = { url = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.8.3+cu126torch2.6-cp312-cp312-linux_x86_64.whl" }
+# torch = [{url = "https://download.pytorch.org/whl/cpu/torch-1.10.0%2Bcpu-cp39-cp39-linux_x86_64.whl", markers = "sys_platform == 'linux'"},]
+# torch = { index = "pytorch-cu126" }
+# torchvision = { index = "pytorch-cu126" }
+# flash-attn = { url = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.8.3+cu126torch2.6-cp312-cp312-linux_x86_64.whl" }
 
 
 # NOTE: need manylinux wheel file: torch = { url = "https://download.pytorch.org/whl/torch/torch-2.6.0+cu124-cp312-cp312-linux_x86_64.whl" }
@@ -112,12 +115,8 @@ name = "pytorch-cu126"
 url =  "https://download.pytorch.org/whl/cu126/torch-2.9.1%2Bcu126-cp312-cp312-linux_x86_64.whl"
 explicit = true
 
-# pyproject.toml
-# [tool.poetry.dependencies]
-# python = "~3.9"
-# torch = [
-#   {url = "https://download.pytorch.org/whl/cpu/torch-1.10.0%2Bcpu-cp39-cp39-linux_x86_64.whl", markers = "sys_platform == 'linux'"},
-# ]
+
+
 
 
 # geollama venv
