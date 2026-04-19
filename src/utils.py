@@ -1,6 +1,5 @@
 import gc
 
-
 import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
@@ -53,8 +52,23 @@ def vector_calculation(token_pred:str, token_valid:str) -> np.empty(shape=(2,)):
 def cosine_similarity(vec_a:np.array, vec_b:np.array) -> float:
     """Calculate cosine similarity for contextual vectors"""
     similarity = cos_sim(vec_a, vec_b)
-
+    
     return similarity.item()
+
+
+
+
+def calc_recall(tps_no: int, fps_no: int, fns_no: int):
+    return tps_no / (fps_no + fns_no) 
+
+
+
+def calc_precision(tps_no: int, fps_no: int):
+    return tps_no / (tps_no + fps_no) 
+
+
+def calc_f1(recall: int, precision: int):
+    return 2 * (precision * recall) / (precision + recall)
 
 
 def supports_flash_attention(device_id):
@@ -69,3 +83,4 @@ def supports_flash_attention(device_id):
     is_sm90 = major == 9 and minor == 0
 
     return is_sm8x or is_sm90
+

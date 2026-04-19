@@ -12,7 +12,7 @@ import pandas as pd
 import src.document_cleaning as dc
 
 
-def group_ci_types(series_ci: pd.Series, ci_patterns: pd.DataFrame) -> pd.Series:
+def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.DataFrame) -> pd.DataFrame:
 
     # load regular expressions and subgroups from NER patterns as dict
     # for general cases
@@ -36,10 +36,10 @@ def group_ci_types(series_ci: pd.Series, ci_patterns: pd.DataFrame) -> pd.Series
         subgroup = r[pattern]
     
         # assign subgroups to CI records, na=False to remove all records which not match patterns
-        mask = series_ci.str.contains(pattern, regex=True, na=False)
-        series_ci.iloc[mask] = subgroup
+        mask = df[col_type].str.contains(pattern, regex=True, na=False)
+        df.loc[mask, col_grouped] = subgroup
     
-        return series_ci
+    return df
     
 
 def postprocess_response(resp: str) -> pd.DataFrame:
