@@ -38,14 +38,6 @@ dependencies = [
 ]
 
 
-# with spacy:   
-# loads geollm, LLM1 and spacy :   "torch>=2.8.0" - CU128,   "transformers==5.5.3",  "spacy-curated-transformers>=0.3.1",   "spacy>=3.8.14", "peft>=0.18.1",
-# but without quantization for geollm models
-
-
-#   "vllm>=0.11.0",
-
-
 ## Troubleshooting flash-attn installation:
 ## solve by uninstalling torch and install flash-attn from wheel file
 # !uv add https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.7.4+cu128torch2.8-cp312-cp312-linux_x86_64.whl# then reinstall pytorch (version <= 2.8)
