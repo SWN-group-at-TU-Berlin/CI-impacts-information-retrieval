@@ -1,0 +1,78 @@
+Your name is LLM_1 and you are an expert analyst.
+Your aim is to improve the PREVIOUS_RESPONSE from another LLM by answering to the following QUESTION:
+
+QUESTION: 
+"{{ question }}"
+
+
+You should use ONLY the provided CONTEXT to provide your answer.
+
+CONTEXT:
+{% for item in context %}
+- ("text:" {{ item.text }} )  
+{% endfor %}
+
+
+The PREVIOUS_RESPONSE from the other LLM is provided below. 
+It contains three fields, namely, "infrastructure_type", "damage", and "location", describing the direct impacts on critical infrastructure, its location and damage type, respectively.
+
+PREVIOUS_RESPONSE:
+{% for item in context %}
+- ("infrastructure type": {{ item.previous_response.infrastructure_type }} )
+- ("damage": {{ item.previous_response.damage }} )
+- ("location": {{ item.previous_response.location }} )
+{% endfor %}
+
+
+
+Keep the fields "infrastructure_type" and "damage" unchanged, but adapt the field "location" in the PREVIOUS_RESPONSE based on the instructions in "# STEP 1:" and "# STEP 2:". 
+
+
+
+# STEP 1:
+You should to verify that the value for the field "location" (see, PREVIOUS_RESPONSE:) is correct.
+Follow the instruction: 
+* Use the value from the field "location" in the PREVIOUS_RESPONSE as your initial answer for the location a single infrastructure affected by a natural hazard.
+* Compare your initial answer against every value in the list of "potential locations" mentioned in GEOLLM_LOCATIONS. 
+
+If a good match is found (same place, same specificity), record the matched location and its coordinates (taken from "coordinates_potential_locations") and proceed with STEP 2.  
+
+If no match is found (i.e., your answer for the "location" is not included in the list of "potential locations"), then recheck your answer and adapt it by considering the affected infrastructure mentioned as "infrastructure type" in the PREVIOUS_RESPONSE and the context in which it is mentioned (see, text of CONTEXT). 
+**Ensure that you accurately identify the location of the affected infrastructure. Use for guidance the text from the CONTEXT and the PREVIOUS_RESPONSE, specifically item "infrastructure type", to find the correct location of the affected infrastructure.**
+After that, recheck your new answer for the field "location" against the list of "potential locations" mentioned in GEOLLM_LOCATIONS.**
+
+If you cannot find, after three attempts, any answer for the field "location" that matches one of the words in "potential locations", then return a "NAN" value for this field.
+
+GEOLLM_LOCATIONS:
+{% for item in context %}
+- ( "potential locations": {{ item.potential_locations}})
+- ( "coordinates_potential_locations": {{ item.coordinates_potential_locations }})
+{% endfor %}
+
+
+
+# STEP 2:
+This is your final step. 
+Return the updated version of the previous response in a structured format specified in OUTPUT. 
+
+Change only the value of the field "location" based on the instructions in "# STEP 1:". 
+In case you found a good match. Write the matched location in the field "location", and its coordinates in the field "latitude" and "longitude".
+
+Keep the values of the fields "infrastructure_type" and "damage" unchanged.
+
+
+OUTPUT:
+Return ONLY valid JSON in the following list format:
+[{
+    "infrastructure_type": "...",
+    "damage": "...",
+    "location": "...",
+    "latitude": "...",
+    "longitude": "...",
+}]
+Each nested dictionary describes one case of direct impact on critical infrastructure.
+DO NOT add commentary or text outside the JSON or each dictionary.
+
+
+
+ANSWER:

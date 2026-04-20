@@ -1,12 +1,26 @@
 import gc
 
-
 import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import cos_sim
 
 from src.settings import settings as s
+
+
+
+def gen_dict_extract(var, key):
+    """Used for Ci-GEO pairs detection: Extract country names from geonamescache"""
+    # See, https://stackoverflow.com/questions/59444065/differentiate-between-countries-and-cities-in-spacy-ner
+    if isinstance(var, dict):
+        for k, v in var.items():
+            if k == key:
+                yield v
+            if isinstance(v, (dict, list)):
+                yield from gen_dict_extract(v, key)
+    elif isinstance(var, list):
+        for d in var:
+            yield from gen_dict_extract(d, key)
 
 
 def vector_calculation(token_pred:str, token_valid:str) -> np.empty(shape=(2,)):
@@ -40,4 +54,33 @@ def cosine_similarity(vec_a:np.array, vec_b:np.array) -> float:
     similarity = cos_sim(vec_a, vec_b)
     
     return similarity.item()
+
+
+
+
+def calc_recall(tps_no: int, fps_no: int, fns_no: int):
+    return tps_no / (fps_no + fns_no) 
+
+
+
+def calc_precision(tps_no: int, fps_no: int):
+    return tps_no / (tps_no + fps_no) 
+
+
+def calc_f1(recall: int, precision: int):
+    return 2 * (precision * recall) / (precision + recall)
+
+
+def supports_flash_attention(device_id):
+    """
+    Check if GPU supports FlashAttention
+    See, GPU checks for flash.attn, https://github.com/Dao-AILab/flash-attention/blob/197f2083a2f0953af9319cf4ce32d0bf2aae4bd8/csrc/flash_attn/flash_api.cpp#L303:
+    """
+    major, minor = torch.cuda.get_device_capability(device_id)
+    
+    # Check if the GPU architecture is Ampere (SM 8.x) or newer (SM 9.0)
+    is_sm8x = major == 8 and minor >= 0
+    is_sm90 = major == 9 and minor == 0
+
+    return is_sm8x or is_sm90
 
