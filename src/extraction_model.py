@@ -62,7 +62,7 @@ class DecoderModel:
             bnb_4bit_compute_dtype=torch.float16,
         )
 
-        self.pipeline, self.tokenizer, self.past_key_values = self.initialize_model(
+        self.pipeline, self.tokenizer = self.initialize_model(
             model_name, model_dir, bnb_config
         )
         
@@ -70,12 +70,10 @@ class DecoderModel:
     def initialize_model(self, model_name: str, model_dir: str = None, bnb_config=None, max_new_tokens: int = 1024):
         
         # use flash-attn when GPU type supports it (e.g., A100, not support:tesla P100)
+        flash_attn_config = None
         if u.supports_flash_attention(0):  # check only for first GPU
             print("Using flash attention")
             flash_attn_config = "flash_attention_2"
-        else:
-            print("Flash attention not supported for this GPU")
-            flash_attn_config = None
 
         # Model and Tokenizer initialization
         if not os.path.exists(model_dir):
@@ -91,6 +89,7 @@ class DecoderModel:
                 attn_implementation=flash_attn_config,
                 quantization_config=bnb_config,
                 # max_memory={0: "2GB", 1: "10GB"},  # distribute memory across GPUs
+                
             )
             model.save_pretrained(model_dir)
             
@@ -128,8 +127,7 @@ class DecoderModel:
 
         ## Caching
         # set iterative generation to avoid recomputing entire prompt
-        past_key_values = DynamicCache(config=model.config)
-
+        # past_key_values = DynamicCache(config=model.config)
 
 
         # Pipeline setup for question answering
@@ -140,14 +138,14 @@ class DecoderModel:
             max_new_tokens=max_new_tokens, # high max token otherwise output is truncated
             device_map="auto",
         )
-        return pipeline, tokenizer, past_key_values
+        return pipeline, tokenizer #, past_key_values
 
 
     def generate_response(
         self, question: str, context: list, 
         prompt_template: load_prompt_template, #chunk_id: int
-        top_k: int = None,
-        top_p: float = None,
+        top_k: int = 50,
+        top_p: float = 1.0,
         temperature: float = 0.2,
         max_new_tokens: int = 1024
     ):
@@ -168,7 +166,7 @@ class DecoderModel:
             temperature=temperature,
             # num_return_sequences=1,
             eos_token_id=self.tokenizer.eos_token_id,
-            past_key_values=self.past_key_values,
+            # past_key_values=self.past_key_values,
             return_full_text=False,  # allow bullet point answers
         )
         # Extracting and returning the generated text

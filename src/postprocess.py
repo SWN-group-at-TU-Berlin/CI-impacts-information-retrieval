@@ -40,7 +40,8 @@ def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.Data
         df.loc[mask, col_grouped] = subgroup
     
     return df
-    
+
+
 
 def postprocess_response(resp: str) -> pd.DataFrame:
 
