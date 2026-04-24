@@ -8,17 +8,16 @@ __email__ = "anna.buch@tu-berlin.de"
 
 
 import os
+import copy
 
 from jinja2 import Environment, FileSystemLoader
 from huggingface_hub import login
-import transformers
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
     BitsAndBytesConfig,
     DynamicCache,
 )
-
 import torch
 
 from src.settings import settings as s
@@ -27,9 +26,10 @@ import src.utils as u
 
 
 
+
 def load_prompt_template(
     template_path: str = "./prompt_templates",
-    template_filename: str = "ci_loc_direct_impacts.txt"
+    template_filename: str = None,
 ):
     env = Environment(loader=FileSystemLoader(template_path))
     template = env.get_template(template_filename)
@@ -38,9 +38,9 @@ def load_prompt_template(
 
 
 
-class DecoderModel:
+class DecoderModelCaching:
 
-    def __init__(self, model_name: str ="meta-llama/Llama-2-7b-chat-hf",):
+    def __init__(self, model_name: str, static_prompt: load_prompt_template):
         
         try: 
             login(token=os.getenv("HUGGINGFACE_TOKEN"))   # notebook_login
@@ -62,13 +62,19 @@ class DecoderModel:
             bnb_4bit_compute_dtype=torch.float16,
         )
 
-        self.pipeline, self.tokenizer, self.past_key_values = self.initialize_model(
-            model_name, model_dir, bnb_config
+        self.model, self.tokenizer, self.prompt_cache = self.initialize_model(
+            model_name, model_dir, bnb_config,
+            static_prompt=static_prompt,
         )
         
 
-    def initialize_model(self, model_name: str, model_dir: str = None, bnb_config=None, max_new_tokens: int = 1024):
-        
+    def initialize_model(
+        self, model_name: str, model_dir: str = None, 
+        bnb_config=None, 
+        static_prompt=None, 
+        max_new_tokens: int = 2048 # 4096
+    ):
+            
         # use flash-attn when GPU type supports it (e.g., A100, not support:tesla P100)
         if u.supports_flash_attention(0):  # check only for first GPU
             print("Using flash attention")
@@ -82,8 +88,6 @@ class DecoderModel:
             print("Model directory not found. Downloading model...")
             os.makedirs(model_dir, exist_ok=True)
 
-            device = transformers.infer_device()
-            print(f"Using device: {device}")
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
                 dtype="auto", # None ,# test for CU12.6, torch.29.1 #"auto",
@@ -128,48 +132,60 @@ class DecoderModel:
 
         ## Caching
         # set iterative generation to avoid recomputing entire prompt
-        past_key_values = DynamicCache(config=model.config)
+        # past_key_values = DynamicCache(config=model.config)
+        print("Using iterative caching of prompt key values to avoid recomputing entire prompt for each generation step.")
+        # print("Using offloading currently") # to CPU for prompt cache to reduce GPU memory usage")
+        prompt_cache =  DynamicCache(config=model.config) #, offloading=True) 
+        static_prompt = static_prompt.render()
+        inputs_initial_prompt = tokenizer(static_prompt, return_tensors="pt").to(model.device.type)
+        # This is the common prompt cached, we need to run forward without grad to be able to copy
+        with torch.no_grad():
+            prompt_cache = model(**inputs_initial_prompt, past_key_values=prompt_cache).past_key_values
 
-
-
-        # Pipeline setup for question answering
-        pipeline = transformers.pipeline(  # load model locally from wsl .cache\
-            "text-generation",
-            model=model,
-            tokenizer=tokenizer,
-            max_new_tokens=max_new_tokens, # high max token otherwise output is truncated
-            device_map="auto",
-        )
-        return pipeline, tokenizer, past_key_values
+        return model, tokenizer, prompt_cache
 
 
     def generate_response(
-        self, question: str, context: list, 
-        prompt_template: load_prompt_template, #chunk_id: int
+        self, 
+        question: str, context: list, 
+        static_prompt: load_prompt_template, 
+        dynamic_prompt: load_prompt_template, 
+        num_beams: int = 1,
         top_k: int = None,
         top_p: float = None,
         temperature: float = 0.2,
         max_new_tokens: int = 1024
     ):
-        rendered_prompt = prompt_template.render(
+        static_prompt = static_prompt.render()
+        dynamic_prompt = dynamic_prompt.render(
             context=context,  # includes also df_ci_geo info
             question=question,
         )
+        
+        new_inputs = self.tokenizer(static_prompt + dynamic_prompt, return_tensors="pt").to(self.model.device.type)
 
-        # print(f"Generating response for chunk_id: {chunk_id} ...")
+        # print("--> Using currently offloading and only shallow copy of pk_values")
+        # past_key_values = copy.copy(self.prompt_cache)  
+        print("--> Not using offloading, but deep copy of pk_values")
+        past_key_values = copy.deepcopy(self.prompt_cache)  # Needed to copy past KV values
+        # # FIXME - potential issues as pk_v is not copied as completely indenpendent object (set offloading=True) 
 
-        sequences = self.pipeline(
-            rendered_prompt,  # jinja template
-            max_new_tokens=max_new_tokens, # use default to not truncate the LLM response
-            do_sample=True,
-            num_beams=1,  # select token based on probability distribution over entire model’s vocabulary
-            top_k=top_k,
-            top_p=top_p,
+        outputs = self.model.generate(
+            **new_inputs, 
             temperature=temperature,
-            # num_return_sequences=1,
-            eos_token_id=self.tokenizer.eos_token_id,
-            past_key_values=self.past_key_values,
-            return_full_text=False,  # allow bullet point answers
-        )
+            past_key_values=past_key_values, 
+            do_sample=True,  # more creative output - NOTE: avoid duplications, better results than when False (greedy decoding)
+            max_new_tokens=max_new_tokens,
+            pad_token_id=self.tokenizer.eos_token_id
+            )
+
         # Extracting and returning the generated text
-        return sequences
+        sequences = self.tokenizer.batch_decode(outputs)[0]
+        try:
+            sequences_cleaned = sequences.split("ANSWER:")[1]       
+        except:
+            sequences_cleaned = sequences.split("The final answer is:")[1]       
+
+        return sequences_cleaned
+
+
