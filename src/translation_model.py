@@ -50,8 +50,7 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
         bnb_4bit_quant_type="nf4",
         bnb_4bit_compute_dtype=torch.float16,
     )
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = transformers.infer_device()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # Model and Tokenizer initialization
@@ -122,16 +121,21 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
             ## preprocess  TODO move to document cleaning workflow + dc.funcs
             src_text = src_text.replace("\n", " ")
             src_text = src_text.replace("- ", "-") # TODO test if ("- ", "") is better
-            
+            if src_text.strip() == "": 
+                continue
 
-            # detect language type for each chunk 
-            src_language = langdetect.detect(src_text)
-            print(f"Detected language for chunk {j}: {src_language}")
+            # detect language type for each chunk if text is not empty or too short
+            try:
+                src_language = langdetect.detect(src_text)
+            except langdetect.lang_detect_exception.LangDetectException as e:
+                print(f"Language detection failed for chunk {j} with text: {src_text[:30]}... Skipping translation for this chunk.")
+                continue
+            # print(f"Detected language for chunk {j}: {src_language}")
 
             supported_languages = ["fr", "de", "es", "it", "nl"]  # TODO make as global var in config file
 
             if (src_language == dst_language) or (src_language not in supported_languages):
-                print(f"Source and destination language in chunk {j} are identical or unsupported. No translation needed.")
+                # print(f"Source and destination language in chunk {j} are identical or unsupported. No translation needed.")
                 # write back to document  # TODO condense try except blocks when handling string input
                 try:
                     doc[j].page_content =  src_text.replace("\n", " ")
