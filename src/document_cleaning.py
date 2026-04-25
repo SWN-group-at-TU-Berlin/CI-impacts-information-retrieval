@@ -10,7 +10,9 @@ import re
 import warnings
 from docling_core.types.doc.document import TextItem
 from docling.document_converter import ConversionResult
-
+from langchain_core.documents import Document
+import json
+from typing import Iterable
 
 def extract_citation_info(citation_text: str) -> str:
     """Extract citation information from the document title (i.e. citation id)."""
@@ -54,35 +56,54 @@ def remove_references(document_text: str) -> str:
         return document_text
 
 
-def remove_headers_footers(conv_file: ConversionResult) -> ConversionResult:
-    ## remove headers and footers from the document
-    total_texts = len(conv_file.document.texts)
-    print(f"Total texts in document: {total_texts}")
+# def remove_headers_footers(conv_file: ConversionResult) -> ConversionResult:
+#     ## remove headers and footers from the document
+#     total_texts = len(conv_file.document.texts)
+#     print(f"Total texts in document: {total_texts}")
 
-    text_items = [x for x in conv_file.document.texts if isinstance(x, TextItem)]
+#     text_items = [x for x in conv_file.document.texts if isinstance(x, TextItem)]
 
-    text_items_to_drop = []
-    text_items_to_drop_visualization = []
+#     text_items_to_drop = []
+#     text_items_to_drop_visualization = []
 
-    ## select text items to drop based on their number of chars, e.g. headers/footers, text in figures
-    for i in text_items:
-        # FIXME still removes some subsection headers due that they arent tagged as SECTION_HEADER
-        # each of the conditions has a drawback
-        #   char threshold removes some subsection tiles thus apply it not for text_items marked as SECTION_HEADER,
-        #   "BODY" includes also words in images,
-        # IDEA check intermediate markdown (Korzilius, Mohr) if subsection headers are rendered by \n\n <subsection header> \n or similarly
-        if (
-            i.content_layer.name == "BODY"
-            and len(i.text) < 50
-            and i.label.name != "SECTION_HEADER"
-        ):
-            text_items_to_drop.append(i)
-            text_items_to_drop_visualization.append([len(i.text), i.text])
+#     ## select text items to drop based on their number of chars, e.g. headers/footers, text in figures
+#     for i in text_items:
+#         # FIXME still removes some subsection headers due that they arent tagged as SECTION_HEADER
+#         # each of the conditions has a drawback
+#         #   char threshold removes some subsection tiles thus apply it not for text_items marked as SECTION_HEADER,
+#         #   "BODY" includes also words in images,
+#         # IDEA check intermediate markdown (Korzilius, Mohr) if subsection headers are rendered by \n\n <subsection header> \n or similarly
+#         if (
+#             i.content_layer.name == "BODY"
+#             and len(i.text) < 50
+#             and i.label.name != "SECTION_HEADER"
+#         ):
+#             text_items_to_drop.append(i)
+#             text_items_to_drop_visualization.append([len(i.text), i.text])
 
-    ## drop selected text items
-    conv_file.document.delete_items(node_items=text_items_to_drop)
+#     ## drop selected text items
+#     conv_file.document.delete_items(node_items=text_items_to_drop)
 
-    texts_cleaned = len(conv_file.document.texts)
-    print(f"Total texts after deletion: {texts_cleaned}")
+#     texts_cleaned = len(conv_file.document.texts)
+#     print(f"Total texts after deletion: {texts_cleaned}")
 
-    return conv_file
+#     return conv_file
+
+def save_doc_to_jsonl(array:Iterable[Document], file_path:str)->None:
+    """ Saving langchain for DocumentLoader to jsonl"""
+    # taken from: https://github.com/langchain-ai/langchain/issues/3016
+    with open(file_path, "w") as f: #, encoding="utf-8") as f:
+        for d in array:
+            f.write(d.json() + '\n')
+
+
+def load_doc_from_jsonl(file_path:str)->Iterable[Document]:
+    """ Loading Documents for DocumentLoader from jsonl"""
+    # taken from: https://github.com/langchain-ai/langchain/issues/3016
+    array = []
+    with open(file_path, 'r') as jsonl_file:
+        for line in jsonl_file:
+            data = json.loads(line)
+            obj = Document(**data)
+            array.append(obj)
+    return array
