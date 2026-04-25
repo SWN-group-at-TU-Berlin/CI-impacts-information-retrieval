@@ -72,7 +72,7 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
         tokenizer.save_pretrained(model_dir)
 
     else:
-        print(f"Using locally saved model from {model_dir}")
+        print(f"Using locally saved model from {model_dir}/{model_name}")
 
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_name,
@@ -174,9 +174,14 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
         src_text = src_text.replace("\n", " ")
         src_text = src_text.replace("- ", "-") # TODO test if ("- ", "") is better
 
-        # detect language type for each chunk 
-        src_language = langdetect.detect(src_text)
-
+        # detect language type for each chunk if text is not empty or too short
+        try:
+            src_language = langdetect.detect(src_text)
+        except langdetect.lang_detect_exception.LangDetectException as e:
+            print(f"Language detection failed for chunk {j} with text: {src_text[:30]}... Skipping translation for this chunk.")
+            continue
+        # print(f"Detected language for chunk {j}: {src_language}")
+    
         supported_languages = ["fr", "de", "es", "it", "nl"]  # TODO make as global var in config file
         if (src_language == dst_language) or (src_language not in supported_languages):
             print("Source and destination language for text are identical or unsupported. Skipping translation.")
