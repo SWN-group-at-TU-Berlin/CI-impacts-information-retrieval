@@ -104,7 +104,7 @@ class DecoderModelCaching:
             print("Downloaded model and tokenizer")
 
         else:
-            print(f"Using locally saved model from {model_dir}")
+            print(f"Using locally saved model from {model_dir}/{model_name}")
 
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
@@ -166,7 +166,7 @@ class DecoderModelCaching:
 
         # print("--> Using currently offloading and only shallow copy of pk_values")
         # past_key_values = copy.copy(self.prompt_cache)  
-        print("--> Not using offloading, but deep copy of pk_values")
+        # print("--> Not using offloading, but deep copy of pk_values")
         past_key_values = copy.deepcopy(self.prompt_cache)  # Needed to copy past KV values
         # # FIXME - potential issues as pk_v is not copied as completely indenpendent object (set offloading=True) 
 
