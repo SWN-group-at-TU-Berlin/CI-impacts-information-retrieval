@@ -76,12 +76,10 @@ class DecoderModelCaching:
     ):
             
         # use flash-attn when GPU type supports it (e.g., A100, not support:tesla P100)
+        flash_attn_config = None
         if u.supports_flash_attention(0):  # check only for first GPU
             print("Using flash attention")
             flash_attn_config = "flash_attention_2"
-        else:
-            print("Flash attention not supported for this GPU")
-            flash_attn_config = None
 
         # Model and Tokenizer initialization
         if not os.path.exists(model_dir):
@@ -95,6 +93,7 @@ class DecoderModelCaching:
                 attn_implementation=flash_attn_config,
                 quantization_config=bnb_config,
                 # max_memory={0: "2GB", 1: "10GB"},  # distribute memory across GPUs
+                
             )
             model.save_pretrained(model_dir)
             
