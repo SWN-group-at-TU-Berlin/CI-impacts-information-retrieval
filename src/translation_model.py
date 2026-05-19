@@ -37,6 +37,10 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
     # print("Login with HF TOKEN ...")    
     # login(token=os.environ["HUGGINGFACE_TOKEN"])
 
+    gc.collect()
+    torch.cuda.empty_cache() 
+    torch.no_grad()    
+
     # construct our model name
     model_name = f"Helsinki-NLP/opus-mt-{src_language}-{dst_language}"
 
@@ -86,6 +90,7 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
             model_name,
             use_fast=True,
             cache_dir=model_dir,
+            backend="sentencepiece"
         )
 
     ## reduce further memory usage

@@ -149,10 +149,9 @@ class DecoderModelCaching:
         question: str, context: list, 
         static_prompt: load_prompt_template, 
         dynamic_prompt: load_prompt_template, 
-        num_beams: int = 1,
         top_k: int = None,
         top_p: float = None,
-        temperature: float = 0.2,
+        temperature: float = 0.1,
         max_new_tokens: int = 1024
     ):
         static_prompt = static_prompt.render()
@@ -167,19 +166,28 @@ class DecoderModelCaching:
         # past_key_values = copy.copy(self.prompt_cache)  
         # print("--> Not using offloading, but deep copy of pk_values")
         past_key_values = copy.deepcopy(self.prompt_cache)  # Needed to copy past KV values
-        # # FIXME - potential issues as pk_v is not copied as completely indenpendent object (set offloading=True) 
+        # # FIXME - potential issues as pk_v is not copied as completely independent object (set offloading=True) 
 
         outputs = self.model.generate(
             **new_inputs, 
             temperature=temperature,
+            num_beams=1,  # test for better results, but slower generation (more exhaustive search for best output sequence)
+            early_stopping=True, 
             past_key_values=past_key_values, 
-            do_sample=True,  # more creative output - NOTE: avoid duplications, better results than when False (greedy decoding)
+            do_sample=False,  # False, beam_nums=1  greedy search - default decoding strategy, good for short output and no creativity
+            # For further strategies, see https://huggingface.co/docs/transformers/en/generation_strategies
+            # # do_sampling=False + beam_num>1 - beam search -> good for input grounded tasks but 
+            # but got error when running with pk values  "TypeError: transformers.generation.utils.GenerationMixin.generate() argument after ** must be a mapping, not Tensor
+            # do_sampling=True + beam_search=1 - multinomial sampling -> more creative output - NOTE: avoid duplications, better results than when False (greedy decoding)
+            remove_invalid_values=True,
             max_new_tokens=max_new_tokens,
             pad_token_id=self.tokenizer.eos_token_id
             )
 
         # Extracting and returning the generated text
-        sequences = self.tokenizer.batch_decode(outputs)[0]
+        # when using beam search (beam_num>2 and do_sample=False), the output is a list of generated sequences, we take the first one
+        sequences = self.tokenizer.batch_decode(outputs[0], skip_special_tokens=True)[0]
+        # sequences = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
         try:
             sequences_cleaned = sequences.split("ANSWER:")[1]       
         except:
