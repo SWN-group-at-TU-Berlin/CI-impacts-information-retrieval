@@ -36,7 +36,7 @@ def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.Data
         subgroup = r[pattern]
     
         # assign subgroups to CI records, na=False to remove all records which not match patterns
-        df[col_type] = df[col_type].astype(str)
+        df[[col_type, col_grouped]] = df[[col_type, col_grouped]].astype(str)
         mask = df[col_type].str.contains(pattern, regex=True, na=False)
         df.loc[mask, col_grouped] = subgroup
     
