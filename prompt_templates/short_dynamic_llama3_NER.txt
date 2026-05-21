@@ -1,0 +1,30 @@
+
+**Inputs:**
+
+QUESTION: 
+"{{ question }}"
+
+
+CONTEXT:
+{% for item in context %}
+- ("text": "{{ item["text"] }}")
+{% endfor %}
+
+
+ENTITY_RECOGNITION:
+{% for item in context %}
+- ("ci_entity" and "geo_entity": {{ item["entity_recognition"][["ci_entity", "geo_entity"]] }})
+{% endfor %}
+
+
+
+Take a deep breath. 
+Read the instructions and the inputs (QUESTION, CONTEXT, ENTITY_RECOGNITION) again. 
+Each STEP and its instructions are crucial and must be executed with utmost care to produce a perfectly formatted JSON as specified in OUTPUT.
+
+DO NOT add commentary or text outside each dictionary or the JSON.
+DO NOT add any information to the OUTPUT that is not explicitly mentioned in the CONTEXT.
+DO NOT HALLUCINATE any case of affected infrastructure, its location or damage type. ONLY use the information from the CONTEXT to generate the answer.
+
+
+ANSWER:

@@ -1,0 +1,85 @@
+Your name is LLM_1 and you are an expert analyst with memory.
+
+
+Your aim is to improve your PREVIOUS_RESPONSE by answering to the QUESTION.
+
+The PREVIOUS_RESPONSE describes the impacts or damages to one or more critical infrastructure assets and contains four fields. The fields are described in the following:
+- "chunk text": Is the text describing one or more damages or impacts on critical infrastructure.
+- "infrastructure type": Is the type of infrastructure affected.
+- "damage": Is the type of damage sustained by the affected infrastructure.
+- "damage value": Is the value and unit of the damage sustained by the affected infrastructure expressed.
+- "location": Is the location of the affected infrastructure.
+
+For each case in the PREVIOUS_RESPONSE an output is produced which may look like this:
+Example of a case in the PREVIOUS_RESPONSE:
+- ("chunk text": "The power plant at new York was damaged by the storm and a major highway was closed for several hours. In addition, some railway tracks were affected in New Jersey." )
+- ("infrastructure type": "power plant" )
+- ("damage": "disrupted" )
+- ("damage value": "NAN" )
+- ("location": "New York" )
+
+Keep the values for the fields "infrastructure type", "damage", and "damage value" unchanged, but you should adapt the information for the field "location" based on the steps mentioned in the STEP-BY-STEP INSTRUCTIONS:
+
+
+
+STEP-BY-STEP INSTRUCTIONS:
+
+# STEP 1:
+Return for each field "infrastructure_type_<number>" in the OUTPUT, the value from the field "infrastructure type" from the respective case in the PREVIOUS_RESPONSE. Leave the values between PREVIOUS_RESPONSE and OUTPUT unchanged. Replace the <number> with the respective case number (e.g., infrastructure_type_1, infrastructure_type_2, etc.) in the OUTPUT.
+Return for each field "damage_<number>" in the OUTPUT, the value from the field "damage" from the respective case in the PREVIOUS_RESPONSE. Leave the values between the PREVIOUS_RESPONSE and the OUTPUT unchanged. Replace the <number> with the respective case number (e.g., damage_1, damage_2, etc.) in the OUTPUT.
+Return for each field "damage_value_<number>" in the OUTPUT, the value from the field "damage value" from the respective case in the PREVIOUS_RESPONSE. Leave the values between the PREVIOUS_RESPONSE and the OUTPUT unchanged. Replace the <number> with the respective case number (e.g., damage_value_1, damage_value_2, etc.) in the OUTPUT.
+
+
+# STEP 2:
+You should verify that the geolocation of the affected infrastructure was correctly identified by the previous LLM.
+For each case in the PREVIOUS_RESPONSE, do the following:
+* Use the value from the field "location" as your initial answer for the geolocation of the affected infrastructure (field "infrastructure type").
+* In case the value fom the field "location" is a country, then check the "chunk text" for more specific information about the location of the affected infrastructure (e.g., city, region, etc.). If you find more specific information about the location of the affected infrastructure in the "chunk text", then adapt your initial answer for the geolocation of the affected infrastructure by using this more specific information. If you cannot find any more specific information about the location of the affected infrastructure in the "chunk text", then keep your initial answer for the geolocation of the affected infrastructure.
+* Then, compare your answer against every value in the list of "potential locations" mentioned in GEOLLM_LOCATIONS. 
+* If a good match is found (same place, same specificity), write the matched geolocation in the field "location_<number>" of the OUTPUT. Replace the <number> with the respective case number (e.g., location_1, location_2, etc.) in the OUTPUT.
+* If no match is found (i.e., your answer for the correct geolocation the field "location" is not included in the list of "potential locations"), then recheck your answer and adapt it by considering in which context the affected infrastructure ("infrastructure type") was mentioned in the text of field "chunk text". If you still cannot find a good match for the field "location" after rechecking the context, then return a "NAN" value for this field.
+
+**Ensure that you accurately identify the location of the affected infrastructure ("infrastructure type"). Use for guidance ONLY the information provided in the respective case, specifically from the fields "chunk text" and "infrastructure type", to find the correct location of the affected infrastructure ("infrastructure type").**
+
+Do the procedure with all cases in the PREVIOUS_RESPONSE.
+
+
+
+# STEP 3:
+This is your final step. 
+Provide your answer about the impacts on critical infrastructure, the type of damage and the locations where they occurred (fields: "infrastructure_type", "damage", "location") in the format specified in OUTPUT:
+
+- Combine all the extracted information from the previous steps into a single JSON object as specified in OUTPUT.  
+- Each nested dictionary describes one case of direct impact on critical infrastructure, its damage type, and location.
+- Remove any duplicated dictionaries in the JSON object.
+- DO NOT add anything from the input, such as the PREVIOUS_RESPONSE, QUESTION or the GEOLLM_LOCATIONS, to the OUTPUT.
+- Ensure your entire response is only this JSON object and no commentary or text outside the JSON.
+
+
+OUTPUT:
+Return ONLY valid JSON in the following list format:
+[
+   {
+        "infrastructure_type_1":<str> | "NAN",
+        "damage_1": <str> | "NAN",
+        "damage_value_1": <float> | "NAN",
+        "location_1": <str> | "NAN",
+    },
+    {
+        "infrastructure_type_2": <str> | "NAN",
+        "damage_2": <str> | "NAN",
+        "damage_value_2": <float> | "NAN",
+        "location_2": <str> | "NAN",
+    },
+    ...
+    {
+        "infrastructure_type_nth": <str> | "NAN",
+        "damage_nth": <str> | "NAN",
+        "damage_value_nth": <float> | "NAN",
+        "location_nth": <str> | "NAN",
+    },
+]
+Each nested dictionary describes one case of direct impact on critical infrastructure, its damage type, and location.
+DO NOT add commentary or text outside the JSON.
+DO NOT add any information to the OUTPUT that is not explicitly mentioned in the CONTEXT.
+DO NOT HALLUCINATE any case of affected infrastructure, its location or damage type. ONLY use the information from the CONTEXT to generate the answer.

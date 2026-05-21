@@ -1,0 +1,22 @@
+
+
+**Inputs:**
+QUESTION: 
+"{{ question }}"
+
+
+CONTEXT:
+{% for item in context %}
+"{{ item.text }}"
+{% endfor %}
+
+
+Take a deep breath. 
+Read the instructions and the inputs (QUESTION, CONTEXT) again. 
+Each STEP and its instructions are crucial and must be executed with utmost care to produce a perfectly formatted JSON as specified in OUTPUT.
+
+DO NOT add any information to the OUTPUT that is not explicitly mentioned in the CONTEXT.
+DO NOT HALLUCINATE any case of affected infrastructure, its location or damage type. ONLY use the information from the CONTEXT to generate the answer.
+
+
+ANSWER:
