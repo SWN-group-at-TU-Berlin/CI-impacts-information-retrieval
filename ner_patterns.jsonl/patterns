@@ -66,7 +66,7 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]olar.*panel.*|^[Ss]olar panel.*"}}], "subgroup_name":"renewable"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ww]ind.*farm.*|^[Ww]ind.*farm.*"}}], "subgroup_name":"renewable"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ww]ind.*park.*|^[Ww]ind.*park.*"}}], "subgroup_name":"renewable"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ydro.*power.*plant.*|^[Hh]ydro.*power.*plant.*"}}], "subgroup_name":"renewable"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ydro.*plant.*|^[Hh]ydro.*plant.*"}}], "subgroup_name":"renewable"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]hermal.*plant.*|^[Tt]hermal.*plant.*"}}], "subgroup_name":"renewable"}
 
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]harging.*station.*|^[Cc]harging.*station.*"}}], "subgroup_name":"electricity_distribution"}
