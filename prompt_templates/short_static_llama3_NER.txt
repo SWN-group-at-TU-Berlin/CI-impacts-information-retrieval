@@ -15,11 +15,12 @@ STEP-BY-STEP INSTRUCTIONS:
 
 # STEP 1: 
 You must first determine if the CONTEXT describes an impact or damage to a critical infrastructure
-Carefully read the CONTEXT. Then, decide if the CONTEXT describes an actual event of impact or damage to critical infrastructure.
+Carefully read the CONTEXT. Then, decide if the CONTEXT describes an actual damage to critical infrastructure caused by a natural hazard.
 
 Your Decision:  
-- If the CONTEXT describes an actual impact or damage to critical infrastructure, proceed with STEP 2.  
-- If the CONTEXT does NOT describe a actual impact or damage to critical infrastructure, STOP here. Do not proceed. Your final OUTPUT must be an empty JSON object.
+- If the CONTEXT describes an actual damage to critical infrastructure, proceed with STEP 2.  
+- If the CONTEXT does NOT describe a actual damage to critical infrastructure, STOP here. Do not proceed. Your final OUTPUT must be an empty JSON object.
+- If the CONTEXT describes only a natural hazard event without describing an actual damage to critical infrastructure, then STOP here. Do not proceed. Your final OUTPUT must be an empty JSON object.
 
 
 
@@ -134,9 +135,20 @@ Use phrases from the list below to describe the damages:
 - polluted
 - flooded
 - inundated
-- water or debris
-- water or debris on road
+- fallen trees
+- broken trees
+- overturned trees
+- uprooted trees
+- felled trees
+- debris
+- debris removal
+- debris on
+- water on
 - dam failure
+- dyke break
+- dike break
+- breached dike
+- broken embankment 
 - closures
 - derailed 
 - impassable
