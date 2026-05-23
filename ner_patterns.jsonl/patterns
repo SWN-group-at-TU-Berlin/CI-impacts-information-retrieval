@@ -68,6 +68,7 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ww]ind.*park.*|^[Ww]ind.*park.*"}}], "subgroup_name":"renewable"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ydro.*plant.*|^[Hh]ydro.*plant.*"}}], "subgroup_name":"renewable"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]hermal.*plant.*|^[Tt]hermal.*plant.*"}}], "subgroup_name":"renewable"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ydropower reservoir.*|^[Hh]ydropower reservoir.*"}}], "subgroup_name":"renewable"}
 
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]harging.*station.*|^[Cc]harging.*station.*"}}], "subgroup_name":"electricity_distribution"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]etrol.*station.*|^[Pp]etrol.*station.*"}}], "subgroup_name":"petrol_gas_stations_consumers"}
@@ -140,5 +141,7 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Mm]edical.*|^[Mm]edical.*"}}], "subgroup_name":"healthcare_others"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]linic.*|^[Cc]linic.*"}}], "subgroup_name":"healthcare_hospitals_clinics"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ospital.*|^[Hh]ospital.*"}}], "subgroup_name":"healthcare_hospitals_clinics"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.*|^[Ee]mergency.*"}}], "subgroup_name":"healthcare_hospitals_clinics"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.*hospital.*|^[Ee]mergency.*hospital.*"}}], "subgroup_name":"healthcare_hospitals_clinics"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.*clinic.*|^[Ee]mergency.*clinic.*"}}], "subgroup_name":"healthcare_hospitals_clinics"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.*services.*|^[Ee]mergency.*services.*"}}], "subgroup_name":"healthcare_hospitals_clinics"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.*care.*|^[Ee]mergency.*care.*"}}], "subgroup_name":"healthcare_hospitals_clinics"}
