@@ -37,10 +37,18 @@ def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.Data
     
         # assign subgroups to CI records, na=False to remove all records which not match patterns
         df[[col_type, col_grouped]] = df[[col_type, col_grouped]].astype(str)
-        mask = df[col_type].str.contains(pattern, regex=True, na=False)
+        mask = is_ci_entity(df[col_type], pattern)
+        # mask = df[col_type].str.contains(pattern, regex=True, na=False)
         df.loc[mask, col_grouped] = subgroup
     
     return df
+
+
+def is_ci_entity(ci_entity: pd.Series, regex_pattern: str) -> pd.Series:
+    """returns boolean mask where records in pd.Series are a certain CI type based on regex pattern"""
+    
+    return ci_entity.str.contains(regex_pattern, regex=True, na=False)
+
 
 
 
