@@ -99,8 +99,9 @@ Use phrases from the list below to describe the affected infrastructure types:
 - education infrastructure
 - schools
 - universities
-- dam 
-- dyke
+- dam(s)
+- dyke(s)
+- dike(s)
 - train(s)
 - airplane(s)
 - public transport
@@ -135,34 +136,39 @@ Use phrases from the list below to describe the damages:
 - polluted
 - flooded
 - inundated
-- fallen trees
-- broken trees
-- overturned trees
-- uprooted trees
-- felled trees
+- fallen tree(s)
+- broken tree(s)
+- overturned tree(s)
+- uprooted tree(s)
+- felled tree(s)
 - debris
 - debris removal
 - debris on
 - water on
-- dam failure
-- dyke break
-- dike break
-- breached dike
-- broken embankment 
-- closures
+- dam failure(s)
+- dyke break(s)
+- dike break(s)
+- breached dike(s)
+- broken embankment(s)
+- closure(s)
 - derailed 
 - impassable
-- traffic jam
-- traffic disruption
-- traffic congestion
+- traffic jam(s)
+- traffic disruption(s)
+- traffic congestion(s)
 - indirectly affected
-- flight delays
-- train delays
-- delays
-- train failures
-- failures
-- cancellations
+- flight delay(s)
+- train delay(s)
+- delay(s)
+- train failure(s)
+- failure(s)
+- cancellation(s)
 - canceled
+- re-established
+- reestablished 
+- restored
+- reconnected
+- rebuild
 
 If no information about the damage type is found, then return a "NAN" value for this field. 
 DON'T create new items about damage that weren’t there.
