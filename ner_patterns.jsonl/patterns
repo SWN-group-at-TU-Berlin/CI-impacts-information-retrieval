@@ -5,11 +5,15 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Mm]otorway.*|^[Mm]otorway.*"}}], "subgroup_name":"motorways"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Rr]ail.*|^[Rr]ail.*"}}], "subgroup_name":"rail"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Rr]ailway track.*|^[Rr]ailway track.*"}}], "subgroup_name":"rail"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]rain\b|^[Tt]rain\b|[Tt]rain |^[Tt]rain |.* [Tt]rains\b|^[Tt]rains\b|.*[Tt]rain(s)"}}], "subgroup_name":"rail"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]rain|^[Tt]rain"}}], "subgroup_name":"rail_service"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]rains|^[Tt]rains|.*[Tt]rain(s)"}}], "subgroup_name":"rail_service"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]rain service.*|^[Tt]rain service.*"}}], "subgroup_name":"rail_service"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Rr]ail.*station.*|^[Rr]ail.*station.*"}}], "subgroup_name":"railway_station"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]rain.*station.*|^[Tt]rain.*station.*"}}], "subgroup_name":"railway_station"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Mm]etro.*station.*|^[Mm]etro.*station.*"}}], "subgroup_name":"metro"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Uu]nderground.*station.*|^[Uu]nderground.*station.*"}}], "subgroup_name":"metro"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]ubway.*line.*|^[Ss]ubway.*line.*"}}], "subgroup_name":"metro_service"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Mm]etro.*service.*|^[Mm]etro.*service.*"}}], "subgroup_name":"metro_service"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Bb]ridge.*|^[Bb]ridge.*"}}], "subgroup_name":"bridges"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Aa]irport.*|^[Aa]irport.*"}}], "subgroup_name":"airports"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Aa]irport.*terminal.*|^[Aa]irport.*terminal.*"}}], "subgroup_name":"airports"}
@@ -20,12 +24,12 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ff]light.*|^[Ff]light.*"}}], "subgroup_name":"aviation"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Aa]ircraft.*|^[Aa]ircraft.*"}}], "subgroup_name":"aviation"}
 
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]ort\b|^[Pp]ort\b|.* [Pp]ort .*|^[Pp]ort .*"}}], "subgroup_name":"ports"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]orts\b|^[Pp]orts\b|.* [Pp]orts .*|^[Pp]orts .*"}}], "subgroup_name":"ports"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]ort|^[Pp]ort|.* [Pp]ort .*|^[Pp]ort .*"}}], "subgroup_name":"ports"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]orts|^[Pp]orts|.* [Pp]orts .*|^[Pp]orts .*"}}], "subgroup_name":"ports"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]ea port.*|^[Ss]ea port.*"}}], "subgroup_name":"ports"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]arbor.*|^[Hh]arbor.*"}}], "subgroup_name":"ports"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]ontainer.*|^[Cc]ontainer.*"}}], "subgroup_name":"ports"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]hips\b|^[Ss]hips\b"}}], "subgroup_name":"waterways_ships"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]hips|^[Ss]hips"}}], "subgroup_name":"waterways_ships"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Mm]aritime traffic.*|^[Mm]aritime traffic.*"}}], "subgroup_name":"maritime"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Mm]aritime sector|^[Mm]aritime sector"}}], "subgroup_name":"maritime"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ww]aterway.*|^[Ww]aterway.*"}}], "subgroup_name":"inland_waterways"}
@@ -35,6 +39,7 @@
 
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]ransport.*|^[Tt]ransport.*"}}, {"LOWER": "sector"}], "subgroup_name":"transport_others"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]ransport.*|^[Tt]ransport.*"}}, {"LOWER": "infrastructure"}], "subgroup_name":"transport_others"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]ransport.*|^[Tt]ransport.*"}}, {"LOWER": "network"}], "subgroup_name":"transport_others"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]raffic.*|^[Tt]raffic.*"}}], "subgroup_name":"transport_supply"}
 
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectric.*distribution|^[Ee]lectric.*distribution"}}], "subgroup_name":"electricity_distribution"}
@@ -47,6 +52,7 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectric.*service.*|^[Ee]lectric.*service.*"}}], "subgroup_name":"electricity_supply"}
 
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]ower.*net.*|^[Pp]ower.*net.*"}}], "subgroup_name":"electricity_distribution"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Pp]ower .*|^[Pp]ower"}}], "subgroup_name":"electricity_supply"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]ower.*suppl.*|^[Pp]ower.*suppl.*"}}], "subgroup_name":"electricity_supply"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]ower.*outage.*|^[Pp]ower.*outage.*"}}], "subgroup_name":"electricity_supply"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ydrocarbon.*|^[Hh]ydrocarbon.*"}}],"subgroup_name":"nonrenewable_others"}
@@ -76,10 +82,10 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]etrol.*station.*|^[Pp]etrol.*station.*"}}], "subgroup_name":"petrol_gas_stations_consumers"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ff]illing.*station.*|^[Ff]illing.*station.*"}}], "subgroup_name":"petrol_gas_stations_consumers"}
 
-{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Dd]am\b|.* [Dd]am .*|^[Dd]am\b|^[Dd]am .*"}}], "subgroup_name":"waterprotection"}
-{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Dd]ams\b|.* [Dd]ams .*|^[Dd]ams\b|^[Dd]ams .*|.*[Dd]am(s)\b"}}], "subgroup_name":"waterprotection"}
-{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Dd]ike.*|^[Dd]ike.*|.*[Dd]ike(s)\b"}}], "subgroup_name":"waterprotection"}
-{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Dd]yke.*|^[Dd]yke.*|.*[Dd]yke(s)\b"}}], "subgroup_name":"waterprotection"}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Dd]am|.* [Dd]am .*|^[Dd]am|^[Dd]am .*"}}], "subgroup_name":"waterprotection"}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Dd]ams|.* [Dd]ams .*|^[Dd]ams|^[Dd]ams .*|.*[Dd]am(s)"}}], "subgroup_name":"waterprotection"}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Dd]ike.*|^[Dd]ike.*|.*[Dd]ike(s)"}}], "subgroup_name":"waterprotection"}
+{"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Dd]yke.*|^[Dd]yke.*|.*[Dd]yke(s)"}}], "subgroup_name":"waterprotection"}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Ll]eeve.*|^[Ll]eeve.*"}}], "subgroup_name":"waterprotection"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Rr]eservoir.*|^[Rr]eservoir.*"}}], "subgroup_name":"waterprotection"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ff]lood.*barrier.*|^[Ff]lood.*barrier.*"}}], "subgroup_name":"waterprotection"}
