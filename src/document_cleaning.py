@@ -26,12 +26,12 @@ class DocumentParser:
     def __init__(self):
                 
         # OCR pipeline configs
-        self.artifacts_path = Path("./docling_artifacts")
+        self.artifacts_path = Path("../docling_artifacts")
         self.artifacts_path.mkdir(exist_ok=True)
 
         # OCR and pipeline options
         ocr_options = EasyOcrOptions(
-            lang=["en", "fr", "de", "es", "it", "nl"],
+            lang=["en", "fr", "de", "es", "pt", "it", "pl", "cs", "nl", "da", "sv", "no", "hr", "ro", "bg" "sl", "sk", "lt", "et" ],
             download_enabled=True
         )
         pipeline_opts = PdfPipelineOptions(
