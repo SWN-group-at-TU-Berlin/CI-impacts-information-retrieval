@@ -85,8 +85,6 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ww]ind.*park.*|^[Ww]ind.*park.*"}}], "subgroup_name":"renewable_wind"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ww]ind.*turbine.*|^[Ww]ind.*turbine.*"}}], "subgroup_name":"renewable_wind"}
 
-offshore Samsø wind farm
-
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ydro.*plant.*|^[Hh]ydro.*plant.*"}}], "subgroup_name":"renewable_hydro"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ydropower reservoir.*|^[Hh]ydropower reservoir.*"}}], "subgroup_name":"renewable_hydro"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]hermal.*plant.*|^[Tt]hermal.*plant.*"}}], "subgroup_name":"renewable_thermal"}
