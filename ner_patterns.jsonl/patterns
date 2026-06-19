@@ -69,14 +69,27 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Nn]uclear.*reactors.*|^[Nn]uclear.*reactors.*"}}], "subgroup_name":"power_plants"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]ooling.*water.*|^[Cc]ooling.*water.*"}}], "subgroup_name":"power_plants"}
 
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]olar.*farm.*|^[Ss]olar farm.*"}}], "subgroup_name":"renewable"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]olar.*park.*|^[Ss]olar park.*"}}], "subgroup_name":"renewable"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]olar.*panel.*|^[Ss]olar panel.*"}}], "subgroup_name":"renewable"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ww]ind.*farm.*|^[Ww]ind.*farm.*"}}], "subgroup_name":"renewable"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ww]ind.*park.*|^[Ww]ind.*park.*"}}], "subgroup_name":"renewable"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ydro.*plant.*|^[Hh]ydro.*plant.*"}}], "subgroup_name":"renewable"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]hermal.*plant.*|^[Tt]hermal.*plant.*"}}], "subgroup_name":"renewable"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ydropower reservoir.*|^[Hh]ydropower reservoir.*"}}], "subgroup_name":"renewable"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Oo]ffshore.*platform.*|^[Oo]ffshore.*platform.*"}}], "subgroup_name":"power_offshore_others"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Oo]ffshore.*energy.*|^[Oo]ffshore.*energy.*"}}], "subgroup_name":"power_offshore_others"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Oo]nshore turbine.*|^[Oo]nshore turbine.*"}}], "subgroup_name":"power_onshore_others"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]urbine tower.*|^[Tt]urbine tower.*"}}], "subgroup_name":"power_turbines_others"}
+
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]olar.*energy.*|^[Ss]olar.*energy.*"}}], "subgroup_name":"renewable_wind"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]olar.*farm.*|^[Ss]olar.*farm.*"}}], "subgroup_name":"renewable_solar"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]olar.*park.*|^[Ss]olar.*park.*"}}], "subgroup_name":"renewable_solar"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]olar.*panel.*|^[Ss]olar.*panel.*"}}], "subgroup_name":"renewable_solar"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]hotovoltai.*|^[Pp]hotovoltai.*"}}], "subgroup_name":"renewable_solar"}
+
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ww]ind.*energy.*|^[Ww]ind.*energy.*"}}], "subgroup_name":"renewable_wind"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ww]ind.*farm.*|^[Ww]ind.*farm.*"}}], "subgroup_name":"renewable_wind"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ww]ind.*park.*|^[Ww]ind.*park.*"}}], "subgroup_name":"renewable_wind"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ww]ind.*turbine.*|^[Ww]ind.*turbine.*"}}], "subgroup_name":"renewable_wind"}
+
+offshore Samsø wind farm
+
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ydro.*plant.*|^[Hh]ydro.*plant.*"}}], "subgroup_name":"renewable_hydro"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ydropower reservoir.*|^[Hh]ydropower reservoir.*"}}], "subgroup_name":"renewable_hydro"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]hermal.*plant.*|^[Tt]hermal.*plant.*"}}], "subgroup_name":"renewable_thermal"}
 
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]harging.*station.*|^[Cc]harging.*station.*"}}], "subgroup_name":"electricity_distribution"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]etrol.*station.*|^[Pp]etrol.*station.*"}}], "subgroup_name":"petrol_gas_stations_consumers"}
