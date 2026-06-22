@@ -111,7 +111,16 @@ from geollama.geollama.model import TopoModel, RAGModel
 test_mode = True
 
 # login to HF
-login(token=os.getenv("HUGGINGFACE_TOKEN")) 
+# login(token="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")#os.getenv("HUGGINGFACE_TOKEN"))
+try: 
+    login(token=os.getenv("HUGGINGFACE_TOKEN"))   # notebook_login
+except:
+    try:
+        login(token="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")#os.getenv("HUGGINGFACE_TOKEN"))
+    except:
+        login(token=os.environ.get("HUGGINGFACE_TOKEN"))  # former HF_TOKEN
+        
+
 # NOTE raises exception if not env.variable doesnt exist (compared to os.envrion.get and its shortcut os.getenv)
 
 
@@ -124,7 +133,6 @@ BATCH_SIZE = s.BATCH_SIZE  # max for nvidia GPU
 pd.set_option('display.max_colwidth', 100000)
 pd.set_option("display.colheader_justify", "left")
 
-# print(os.environ["CUDA_VISIBLE_DEVICES"])
 
 # clean up before applying CUDA
 gc.collect()

@@ -1,0 +1,269 @@
+PROMPT:
+
+STEP-BY-STEP INSTRUCTIONS:
+The CONTEXT contains a text snippet from which you should extract information about critical infrastructure assets damaged or severely affected by a natural hazard. 
+
+
+# STEP 1: 
+You must first determine if the CONTEXT describes an impact or damage to a critical infrastructure.
+Carefully read the CONTEXT. Then, decide if the CONTEXT describes an actual damage to critical infrastructure.
+
+Your Decision:  
+- If the CONTEXT describes an actual damage to critical infrastructure, proceed with STEP 2.  
+- If the CONTEXT does NOT describe a actual damage to critical infrastructure, STOP here. Do not proceed. Your final OUTPUT must be an empty JSON object.
+- If the CONTEXT describes only a natural hazard event without describing an actual damage to critical infrastructure, then STOP here. Do not proceed. Your final OUTPUT must be an empty JSON object.
+
+
+
+# STEP 2:
+Provide, in the field "infrastructure_type", information about the affected critical infrastructure types mentioned in the CONTEXT.
+Try to use one to three words to describe each affected infrastructure type, being as specific as possible.
+Use phrases from the list below to describe the affected infrastructure types:
+- airport
+- airport terminal
+- aviation
+- flight(s)
+- bridge(s)
+- road(s)
+- harbor
+- access road(s)
+- road infrastructure
+- motorway(s)
+- highway(s)
+- railway(s)
+- railway infrastructure
+- railway network
+- railway line(s)
+- railway assets
+- railway track(s)
+- train
+- metro
+- metro line(s)
+- harbor
+- port(s)
+- port terminal(s)
+- port infrastructure
+- harbour
+- container terminal
+- container yards
+- transportation infrastructure
+- transportation network
+- electricity
+- electricity infrastructure
+- power 
+- power infrastructure
+- power plant(s)
+- power grid
+- power line(s)
+- power supply
+- substation
+- power transmission
+- gas
+- gas infrastructure
+- gas distribution
+- gas pipeline(s)
+- water infrastructure
+- water supply
+- drinking water supply
+- groundwater
+- drainage
+- drainage system
+- sewage treatment plant(s)
+- wastewater treatment plant(s)
+- wastewater facility
+- wastewater facilities
+- broadband
+- broadband network
+- mobile network services
+- telecommunication infrastructure
+- telecommunication network
+- telecommunication services
+- IT infrastructure
+- IT network
+- IT services
+- medical-care
+- medical facilities
+- general-practitioner practices
+- hospital(s)
+- healthcare infrastructure
+- healthcare facility
+- healthcare facilities
+- daycare center(s)
+- education infrastructure
+- schools
+- universities
+- dam(s)
+- dyke(s)
+- dike(s)
+- train(s)
+- airplane(s)
+- public transport
+- operability
+- traffic
+
+If no information about the infrastructure type is found, then return a "NAN" value for this field. 
+
+
+Proceed with STEP 3.
+
+
+
+# STEP 3:
+When you found a case of affected critical infrastructure type, then find the related damage type for this infrastructure.
+Provide your response about the related damage type in the field "damage_type".
+Try to use one to three words to describe each damage type, being as specific as possible.
+Use phrases from the list below to describe the damages:
+- affected
+- damaged
+- severely damaged
+- highly damaged
+- disrupted
+- blocked
+- destroyed
+- largely destroyed
+- heavily destroyed
+- partly closed
+- outages
+- outage
+- blackout
+- contaminated
+- polluted
+- flooded
+- inundated
+- fallen tree(s)
+- broken tree(s)
+- overturned tree(s)
+- uprooted tree(s)
+- felled tree(s)
+- debris
+- debris removal
+- debris on
+- water on
+- dam failure(s)
+- dyke break(s)
+- dike break(s)
+- breached dike(s)
+- broken embankment(s)
+- closure(s)
+- derailed 
+- impassable
+- traffic jam(s)
+- traffic disruption(s)
+- traffic congestion(s)
+- indirectly affected
+- flight delay(s)
+- train delay(s)
+- delay(s)
+- train failure(s)
+- failure(s)
+- cancellation(s)
+- canceled
+- re-established
+- reestablished 
+- restored
+- reconnected
+- rebuild
+- repaired
+
+If no information about the damage type is found, then return a "NAN" value for this field. 
+DON'T create new items about damage that weren’t there.
+
+Proceed with STEP 4.
+
+
+# STEP 4:
+Provide, in the field "damage_value", quantitative information about the damage to the specific infrastructure asset. 
+Use the exact values and units if mentioned, or retain the text or range as provided for vague numbers (e.g., "hundreds of," "500 travelers", "at least 500", "300−500 people").
+If no quantitative information (values and units) of the damages is found, then return a "NAN" value for this field.
+DON'T create new items about values and units of damages that weren’t there.
+
+Proceed with STEP 5.
+
+
+# STEP 5: 
+When you found a case of affected critical infrastructure type, then find the location of the affect infrastructure.
+Provide your response for the location in the field "location".
+Try to use one to three words to describe each location of the affected infrastructure, being as specific as possible.
+If no information about the location of the affected infrastructure is found, then return a "NAN" value for this field. 
+DON'T create new items about the location that weren’t there.
+
+
+Important: Only if you identified an affected critical infrastructure asset or object.
+- Identify the specific location of the affected infrastructure that the text explicitly states that this infrastructure asset or object was affected by a hazard event.
+- The location of the affected infrastructure must be explicitly described.
+- In case of transport infrastructure (e.g. railway lines, roads or highways) the location can consists of two or more towns, cities or regions (e.g. "railway line between City A and City B", "highway from City X to City Y", "highway between Valencia and Malaga").
+
+**Exclude:** 
+* **Future/Warning:** Locations listed as "at risk," "under warning," "may face," "could be affected," or "preparing for" a hazard event. 
+* **Historical/Contextual:** Locations mentioned only as background information or prior events (e.g., "This follows flooding in [Location X] last month," or "[Location Y] had **already** experienced flooding by this period"). **Only extract locations that are part of the specific incident described in the document.** 
+
+- Prioritize the most specific locations (e.g., street names, neighborhoods, towns over cities, cities over regions, regions over countries) and ensure each location is easy to find in a simple internet search.  
+- If a specific location lacks detailed background information (e.g., "Main Street" without a city), add the broader context (e.g., "Main Street, Anytown").  
+- If no specific locations are mentioned as actually affected, then return a "NAN" value for this field.
+
+Proceed with STEP 6.
+
+
+# STEP 6:
+When you found the location of an affected critical infrastructure, then find out or conclude which location type the previously location is.
+Provide your response about the related location type in the field "location_type".
+Try to use one to three words to describe each location type, being as specific as possible.
+Use for guidance some phrases from the list below to describe the location type, but also create new ones when you cannot find them in the list:
+- city
+- region
+- state
+- federal state
+- district
+- county
+- village
+- town
+- municipality
+- river
+- dam
+- reservoir
+- street
+- highway
+- federal road
+- road
+
+If no information of the location type is found, then return a "NAN" value for this field.
+
+Proceed with STEP 7.
+
+
+
+# STEP 7:
+Verify again whether the infrastructure assets from the field "infrastructure_type" are actually mentioned in the CONTEXT as specific instances of critical infrastructure damaged or impacted by natural hazards. 
+**Important**
+* DO NOT add any information to the objects that us not explicitly mentioned in the CONTEXT.
+* DO NOT HALLUCINATE any case of affected infrastructure, its location or damage type. ONLY use the information from the CONTEXT to generate the answer.
+
+
+Proceed with STEP 8.
+
+
+
+# STEP 8:
+This is your final step. 
+For each case of affected critical infrastructure, its damage type and location, you should return a single object. 
+In case multiple cases exists, you should create an array of objects.
+Provide your final response below the section "ANSWER".
+
+
+
+
+**Input**:
+
+QUESTION: 
+"{{ question }}"
+
+
+CONTEXT:
+{% for item in context %}
+- ("text": "{{ item["text"] }}")
+{% endfor %}
+
+
+
+**ANSWER**: 
+Provide here your response in the given OUTPUT format.

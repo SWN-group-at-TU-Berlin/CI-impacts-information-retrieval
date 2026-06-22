@@ -1,0 +1,80 @@
+
+STEP-BY-STEP INSTRUCTIONS:
+
+# STEP 1:
+Return for each field "infrastructure_type_<number>" in the OUTPUT, the value from the field "infrastructure_type" from the respective case in the PREVIOUS_RESPONSE. Leave the values between PREVIOUS_RESPONSE and OUTPUT unchanged. Replace the <number> with the respective case number (e.g., infrastructure_type_1, infrastructure_type_2, etc.) in the OUTPUT.
+Return for each field "damage_<number>" in the OUTPUT, the value from the field "damage" from the respective case in the PREVIOUS_RESPONSE. Leave the values between the PREVIOUS_RESPONSE and the OUTPUT unchanged. Replace the <number> with the respective case number (e.g., damage_1, damage_2, etc.) in the OUTPUT.
+Return for each field "damage_value_<number>" in the OUTPUT, the value from the field "damage_value" from the respective case in the PREVIOUS_RESPONSE. Leave the values between the PREVIOUS_RESPONSE and the OUTPUT unchanged. Replace the <number> with the respective case number (e.g., damage_value_1, damage_value_2, etc.) in the OUTPUT.
+
+
+
+# STEP 2:
+You should verify that the geolocation of the affected infrastructure was correctly identified by the previous LLM.
+For each case in the PREVIOUS_RESPONSE, do the following:
+* Use the value from the field "location" as your initial answer for the geolocation of the affected infrastructure (field "infrastructure_type").
+* Then, compare your answer against every value in the list of "potential_locations" mentioned in GEOLLM_LOCATIONS. 
+* If a good match is found (same place), write the matched geolocation in the field "location_<number>" of the OUTPUT. Replace the <number> with the respective case number (e.g., location_1, location_2, etc.) in the OUTPUT. Also, update the field "location_type_<number>" so that it refers to the location type (e.g., region, city, river, etc.) of the new extracted location in field "location_<number>".
+* If no match is found (i.e., your answer for the correct geolocation the field "location" is not included in the list of "potential_locations"), then recheck your answer and adapt it by considering in which context the affected infrastructure ("infrastructure_type") was mentioned in the text of field "chunk text". If you still cannot find a good match for the field "location" after rechecking the context, then return a "NAN" value for this field.
+
+**Ensure that you accurately identify the location of the affected infrastructure ("infrastructure_type"). Use for guidance ONLY the information provided in the respective case, specifically from the fields "chunk_text" and "infrastructure_type", to find the correct location of the affected infrastructure ("infrastructure_type").**
+
+Ensure also that the location type (field: "location_type"), describes properly what kind of location the affected infrastructure asset is located in
+Use for guidance some phrases from the list below to describe the location type, but also create new ones when you cannot find them in the list:
+If no information of the location type is found, then return a "NAN" value for this field.
+- city
+- region
+- state
+- federal state
+- district
+- county
+- village
+- town
+- municipality
+- river
+- dam
+- reservoir
+- street
+- highway
+- federal road
+- road
+
+Do the procedure explained in STEP 2 with all cases in the PREVIOUS_RESPONSE.
+
+
+
+# STEP 3:
+This is your final step. 
+Provide your answer about the impacts on critical infrastructure, the type of damage and the locations where they occurred (fields: "infrastructure_type", "damage", "damage_value", "location", "location_type") in the format specified in OUTPUT:
+
+- Combine all the extracted information from the previous steps into a single JSON object as specified in OUTPUT.  
+- Each nested dictionary describes one case of direct impact on critical infrastructure, its damage type, and location.
+- Remove any duplicated dictionaries in the JSON object.
+- DO NOT add anything from the input, such as the PREVIOUS_RESPONSE, QUESTION or the GEOLLM_LOCATIONS, to the OUTPUT.
+- Ensure your entire response is only this JSON object and no commentary or text outside the JSON.
+
+
+
+**Input**:
+
+PREVIOUS_RESPONSE:
+{% for case in range(0, context[0]["previous_response"].shape[0]) %}
+- ("case": "{{ case }}" ) 
+- ("chunk_text": "{{ context[0]["previous_response"].iloc[case].chunk_text }}" )
+- ("infrastructure_type": "{{ context[0]["previous_response"].iloc[case].infrastructure_type }}" )
+- ("damage": "{{ context[0]["previous_response"].iloc[case].damage }}" )
+- ("damage_value": "{{ context[0]["previous_response"].iloc[case].damage_value }}" )
+- ("location": "{{ context[0]["previous_response"].iloc[case].location }}" )
+- ("location_type": "{{ context[0]["previous_response"].iloc[case].location_type }}" )
+{% endfor %}
+
+
+GEOLLM_LOCATIONS:
+{% for item in context %}
+- ( "potential_locations": {{ item.potential_locations}})
+{% endfor %}
+
+
+ANSWER: 
+Provide here your response in the given OUTPUT format.
+
+
