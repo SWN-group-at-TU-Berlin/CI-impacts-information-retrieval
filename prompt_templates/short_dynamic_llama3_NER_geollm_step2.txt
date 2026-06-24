@@ -1,8 +1,6 @@
 QUESTION: 
 "{{ question }}"
 
-MEMORY:
-"{{ memory }}"
 
 PREVIOUS_RESPONSE:
 {% for case in range(0, context[0]["previous_response"].shape[0]) %}

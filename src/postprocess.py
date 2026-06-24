@@ -76,7 +76,15 @@ def postprocess_response(resp: str) -> pd.DataFrame:
         final_resp = ("[{" + final_resp.split("[{")[1]) 
         final_resp = (final_resp.split("}]", 1)[0] + "}]") 
 
-    df_final_resp = pd.read_json(StringIO(final_resp))
+    try:
+        df_final_resp = pd.read_json(StringIO(final_resp))
 
+    except Exception as e:
+    # special handling for some GPT oss responses where value is a list item
+        final_resp = ("[" + resp.split("[")[2]) 
+        final_resp = (final_resp.split("]", 1)[0] + "]") 
+        df_final_resp = pd.read_json(StringIO(final_resp))
+
+   
     return df_final_resp
         

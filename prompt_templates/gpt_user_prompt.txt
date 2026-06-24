@@ -17,91 +17,10 @@ Your Decision:
 
 # STEP 2:
 Provide, in the field "infrastructure_type", information about the affected critical infrastructure types mentioned in the CONTEXT.
-Try to use one to three words to describe each affected infrastructure type, being as specific as possible.
-Use phrases from the list below to describe the affected infrastructure types:
-- airport
-- airport terminal
-- aviation
-- flight(s)
-- bridge(s)
-- road(s)
-- harbor
-- access road(s)
-- road infrastructure
-- motorway(s)
-- highway(s)
-- railway(s)
-- railway infrastructure
-- railway network
-- railway line(s)
-- railway assets
-- railway track(s)
-- train
-- metro
-- metro line(s)
-- harbor
-- port(s)
-- port terminal(s)
-- port infrastructure
-- harbour
-- container terminal
-- container yards
-- transportation infrastructure
-- transportation network
-- electricity
-- electricity infrastructure
-- power 
-- power infrastructure
-- power plant(s)
-- power grid
-- power line(s)
-- power supply
-- substation
-- power transmission
-- gas
-- gas infrastructure
-- gas distribution
-- gas pipeline(s)
-- water infrastructure
-- water supply
-- drinking water supply
-- groundwater
-- drainage
-- drainage system
-- sewage treatment plant(s)
-- wastewater treatment plant(s)
-- wastewater facility
-- wastewater facilities
-- broadband
-- broadband network
-- mobile network services
-- telecommunication infrastructure
-- telecommunication network
-- telecommunication services
-- IT infrastructure
-- IT network
-- IT services
-- medical-care
-- medical facilities
-- general-practitioner practices
-- hospital(s)
-- healthcare infrastructure
-- healthcare facility
-- healthcare facilities
-- daycare center(s)
-- education infrastructure
-- schools
-- universities
-- dam(s)
-- dyke(s)
-- dike(s)
-- train(s)
-- airplane(s)
-- public transport
-- operability
-- traffic
-
-If no information about the infrastructure type is found, then return a "NAN" value for this field. 
+Use for guidance the tool "get_infrastructure_entities"  which returns a list of critical infrastructure (ci) entities mentioned in the CONTEXT. 
+For each ci entity, you should determine if the CONTEXT mentions that the ci entity was directly or indirectly affected by a natural hazard.
+If this is the case, then write the respective ci entity to the field "infrastructure_type". In this case, the ci_entity as an affected or impacted critical infrastructure asset.
+Proceed with the remaining ci entities in the list.
 
 
 Proceed with STEP 3.

@@ -38,6 +38,7 @@ class DocumentParser:
             artifacts_path=self.artifacts_path,
             do_ocr=True,         # Required for text extraction
             do_table_structure=False,  # Disable table analysis if not needed
+            allow_external_plugins=True,
             ocr_options=ocr_options
         )
         # PDF format options
