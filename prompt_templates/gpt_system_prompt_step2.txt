@@ -14,10 +14,10 @@ For each case in the PREVIOUS_RESPONSE an output is produced which may look like
 Example of a case in the PREVIOUS_RESPONSE:
 - ("chunk_text": "The power plant at New York was damaged by the storm and a major highway was closed for several hours. In addition, some railway tracks were affected in New Jersey." )
 - ("infrastructure_type": "power plant" )
-- ("damage": "disrupted" )
-- ("damage_value": "NAN" )
 - ("location": "New York" )
 - ("location_type": "city" )
+- ("damage": "disrupted" )
+- ("damage_value": "NAN" )
 
 
 Keep the values for the fields "infrastructure type", "damage", and "damage value" unchanged, but you should adapt the information for the field "location" and "location_type" based on the steps mentioned in the STEP-BY-STEP INSTRUCTIONS.

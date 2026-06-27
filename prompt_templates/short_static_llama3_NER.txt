@@ -14,8 +14,8 @@ STEP-BY-STEP INSTRUCTIONS:
 
 
 # STEP 1: 
-You must first determine if the CONTEXT describes an impact or damage to a critical infrastructure
-Carefully read the CONTEXT. Then, decide if the CONTEXT describes an actual damage to critical infrastructure caused by a natural hazard.
+As a first step, you must carefully read the CONTEXT. 
+Then, decide if the CONTEXT describes an actual damage to critical infrastructure caused by a natural hazard.
 
 Your Decision:  
 - If the CONTEXT describes an actual damage to critical infrastructure, proceed with STEP 2.  
@@ -206,7 +206,7 @@ Important: Only if you identified an affected critical infrastructure asset or o
 
 - Prioritize the most specific locations (e.g., street names, neighborhoods, towns over cities, cities over regions, regions over countries) and ensure each location is easy to find in a simple internet search.  
 - If a specific location lacks detailed background information (e.g., "Main Street" without a city), add the broader context (e.g., "Main Street, Anytown").  
-- If no specific locations are mentioned as actually affected, then return a "NAN" value for this field.
+- If no specific location is mentioned as actually affected, then return a "NAN" value for this field.
 
 Proceed with STEP 6.
 

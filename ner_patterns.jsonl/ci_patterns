@@ -1,14 +1,10 @@
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ff]ederal.*road.*|^[Ff]ederal.*road.*"}}], "subgroup_name":"federal_roads",  "group_name":"roads"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Rr]oad.*|^[Rr]oad.*"}}], "subgroup_name":"road_others",  "group_name":"roads", "subgroup_name_note":"unsure -if also federal roads would be matched, despite they occur in the search-path first "}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Bb]undesstraße.*|^[Bb]undesstraße.*"}}], "subgroup_name":"roads",  "group_name":"roads"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Aa]ccess.*road.*|^[Aa]ccess.*road.*"}}], "subgroup_name":"roads",  "group_name":"roads"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]treet.*|^[Ss]treet.*"}}], "subgroup_name":"roads",  "group_name":"roads"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Aa]venue.*|^[Aa]venue.*"}}], "subgroup_name":"roads",  "group_name":"roads"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ff]ederal.*road.*|^[Ff]ederal.*road.*"}}], "subgroup_name":"roads",  "group_name":"roads"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]treet.*|^[Ss]treet.*"}}], "subgroup_name":"road_others",  "group_name":"roads"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Aa]ccess.*road.*|^[Aa]ccess.*road.*"}}], "subgroup_name":"road_others",  "group_name":"roads"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Aa]venue.*|^[Aa]venue.*"}}], "subgroup_name":"road_others",  "group_name":"roads"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ighway.*|^[Hh]ighway.*"}}], "subgroup_name":"motorways",  "group_name":"roads"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ff]ederal.*highway.*|^[Ff]ederal.*highway.*"}}], "subgroup_name":"motorways",  "group_name":"roads"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Mm]otorway.*|^[Mm]otorway.*"}}], "subgroup_name":"motorways",  "group_name":"roads"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Mm]otorway.*|^[Mm]otorway.*"}}], "subgroup_name":"motorways",  "group_name":"roads"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Bb]undesautobahn.*|^[Bb]undesautobahn.*"}}], "subgroup_name":"motorways",  "group_name":"roads"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Rr]ail.*|^[Rr]ail.*"}}], "subgroup_name":"rail",  "group_name":"rails"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Rr]ailway track.*|^[Rr]ailway track.*"}}], "subgroup_name":"rail", "group_name":"rails"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]rain|^[Tt]rain"}}], "subgroup_name":"rail_service", "group_name":"rails"}
@@ -20,11 +16,7 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Uu]nderground.*station.*|^[Uu]nderground.*station.*"}}], "subgroup_name":"metro", "group_name":"rails"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]ubway.*line.*|^[Ss]ubway.*line.*"}}], "subgroup_name":"metro_service", "group_name":"rails"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Mm]etro.*service.*|^[Mm]etro.*service.*"}}], "subgroup_name":"metro_service", "group_name":"rails"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Bb]ridge.*|^[Bb]ridge.*|.*bridge.*"}}], "subgroup_name":"bridges", "group_name":"transport_general"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]unnel.*|^[Tt]unnel.*"}}], "subgroup_name":"tunnels", "group_name":"transport_general"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Uu]nderpass.*|^[Uu]nderpass.*"}}], "subgroup_name":"tunnels", "group_name":"transport_general"}
-
-
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Bb]ridge.*|^[Bb]ridge.*"}}], "subgroup_name":"bridges", "group_name":"transport_general"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Aa]irport.*|^[Aa]irport.*"}}], "subgroup_name":"airports", "group_name":"aviation"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Aa]irport.*terminal.*|^[Aa]irport.*terminal.*"}}], "subgroup_name":"airports", "group_name":"aviation"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Aa]viation.*|^[Aa]viation.*"}}], "subgroup_name":"aviation", "group_name":"aviation"}
@@ -43,7 +35,6 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]ort operation.*|^[Pp]ort operation.*"}}], "subgroup_name":"port_operation", "group_name":"shipping"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]ontainer.*|^[Cc]ontainer.*"}}], "subgroup_name":"ports", "group_name":"shipping"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]hips|^[Ss]hips"}}], "subgroup_name":"waterways_ships", "group_name":"shipping"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]hipping|^[Ss]hipping"}}], "subgroup_name":"waterways_ships", "group_name":"shipping"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Mm]aritime traffic.*|^[Mm]aritime traffic.*"}}], "subgroup_name":"maritime", "group_name":"shipping"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Mm]aritime sector|^[Mm]aritime sector"}}], "subgroup_name":"maritime", "group_name":"shipping"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ww]aterway.*|^[Ww]aterway.*"}}], "subgroup_name":"inland_waterways", "group_name":"shipping"}
@@ -63,12 +54,10 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectric.*line.*|^[Ee]lectric.*line.*"}}], "subgroup_name":"electricity_distribution", "group_name":"electricity"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectric.*transmission.*|^[Ee]lectric.*transmission.*"}}], "subgroup_name":"electricity_distribution", "group_name":"electricity"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectric.*net.*|^[Ee]lectric.*net.*"}}], "subgroup_name":"electricity_distribution", "group_name":"electricity"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectric.*grid.*|^[Ee]lectric.*grid.*"}}], "subgroup_name":"electricity_distribution", "group_name":"electricity"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectric.*plant.*|^[Ee]lectric.*plant.*"}}], "subgroup_name":"power_plants", "group_name":"electricity"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectric.*service.*|^[Ee]lectric.*service.*"}}], "subgroup_name":"electricity_supply", "group_name":"electricity"}
 
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]ower.*net.*|^[Pp]ower.*net.*"}}], "subgroup_name":"electricity_distribution", "group_name":"electricity"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]ower.*grid.*|^[Pp]ower.*grid.*"}}], "subgroup_name":"electricity_distribution", "group_name":"electricity"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": "^[Pp]ower .*|^[Pp]ower"}}], "subgroup_name":"electricity_supply", "group_name":"electricity"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]ower.*suppl.*|^[Pp]ower.*suppl.*"}}], "subgroup_name":"electricity_supply", "group_name":"electricity"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]ower.*outage.*|^[Pp]ower.*outage.*"}}], "subgroup_name":"electricity_supply", "group_name":"electricity"}
@@ -205,15 +194,3 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.*clinic.*|^[Ee]mergency.*clinic.*"}}], "subgroup_name":"healthcare_hospitals_clinics",  "group_name":"healthcare"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.*services.*|^[Ee]mergency.*services.*"}}], "subgroup_name":"healthcare_hospitals_clinics",  "group_name":"healthcare"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.*care.*|^[Ee]mergency.*care.*"}}], "subgroup_name":"healthcare_hospitals_clinics",  "group_name":"healthcare"}
-
-
-
-{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]ity.*|^[Cc]ity.*|.* [Cc]ities.*|^[Cc]ities.*"}}], "group_name":"loc"}
-{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Aa]ccess.*road.*|^[Aa]ccess.*road.*"}}], "group_name":"loc"}
-{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]apital.*|^[Cc]apital.*"}}],"group_name":"loc"}
-{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]ounty.*|^[Cc]ounty.*|.* [Cc]ounties.*|^[Cc]ounties.*"}}],"group_name":"loc"}
-{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]ommune.*|^[Cc]ommune.*"}}],"group_name":"loc"}
-{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Rr]egion.*|^[Rr]egion.*"}}], "group_name":"loc"}
-
-{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Rr]iver.*|^[Rr]iver.*"}}], "group_name":"loc"}
-{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]tream.*|^[Ss]tream.*"}}], "group_name":"loc"}
