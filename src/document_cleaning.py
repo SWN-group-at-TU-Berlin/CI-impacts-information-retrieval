@@ -33,86 +33,38 @@ class DocumentParser:
 
     def __init__(self):
                 
-        # # OCR pipeline configs
-        # self.artifacts_path = Path("../docling_artifacts")
-        # self.artifacts_path.mkdir(exist_ok=True)
+        # OCR pipeline configs
+        self.artifacts_path = Path("../docling_artifacts")
+        self.artifacts_path.mkdir(exist_ok=True)
 
-        # # EASY-OCR and pipeline options
-        # ocr_options = EasyOcrOptions(
-        #     lang=["fr", "de", "es", "it", "nl"],
-        #     # lang=["en", "fr", "de", "es", "pt", "it", "pl", "cs", "nl", "da", "sv", "no", "hr", "ro", "bg" "sl", "sk", "lt", "et" ],
-        #     download_enabled=True
-        # )
-        # pipeline_opts = PdfPipelineOptions(
-        #     artifacts_path=self.artifacts_path,
-        #     do_ocr=True,         # Required for text extraction
-        #     do_table_structure=False,  # Disable table analysis if not needed"
-        #     allow_external_plugins=True,
-        #     ocr_options=ocr_options
-        # )
-        # # PDF format options
-        # pdf_format_option = PdfFormatOption(
-        #     pipeline_options=pipeline_opts,
-        #     # reading_order="natural"
-        # )
-        # # init pdf converter
-        # self.ocr_converter = DocumentConverter(
-        #     format_options={InputFormat.PDF: pdf_format_option}
-        # )
+        # EASY-OCR and pipeline options
+        ocr_options = EasyOcrOptions(
+            lang=["fr", "de", "es", "it", "nl"],
+            # lang=["en", "fr", "de", "es", "pt", "it", "pl", "cs", "nl", "da", "sv", "no", "hr", "ro", "bg" "sl", "sk", "lt", "et" ],
+            download_enabled=True
+        )
+        pipeline_opts = PdfPipelineOptions(
+            artifacts_path=self.artifacts_path,
+            do_ocr=True,         # Required for text extraction
+            do_table_structure=False,  # Disable table analysis as not needed, and not well working for EasyOCR
+            generate_picture_images=False, 
+            #allow_external_plugins=True,
+            ocr_options=ocr_options
+        )
+        
+        # PDF format options
+        pdf_format_option = PdfFormatOption(
+            pipeline_options=pipeline_opts,
+            # reading_order="natural"
+        )
+        # init pdf converter
+        self.ocr_converter = DocumentConverter(
+            format_options={InputFormat.PDF: pdf_format_option}
+        )
         
         # # for RAPID-OCR 
         # # NOTE: needs language detection beforehand and DWL of respective model, and issue of detecting text in 2-column pages eg. frontpage Koks 2022
         # # !uv add rapidocr_onnxruntime
-
-        ## VLLM granite3
-        BATCH_SIZE = 64
-
-        # DEBUGING, for GET-request (200) but none POST (no back-response)
-        # import logging
-        # logging.basicConfig(level=logging.DEBUG)
-        # logging.getLogger("docling").setLevel(logging.DEBUG)
-        # logging.getLogger("httpx").setLevel(logging.DEBUG)
-        
-        # acceleration
-        settings.perf.page_batch_size = BATCH_SIZE
-        settings.debug.profile_pipeline_timings = True
-
-        # Code snippets adapted from: https://alain-airom.medium.com/vlm-pipeline-with-docling-4789fd73af86
-        pipeline_options = VlmPipelineOptions(
-            enable_remote_services=True,
-            do_picture_description=False,
-            do_chart_extraction=False,
-            )
-
-        pipeline_options.vlm_options = ApiVlmOptions(
-                url="http://localhost:11434/v1/chat/completions",  # the default Ollama endpoint
-                params=dict(model="ibm/granite-docling:258m"),
-                # "deepseek-ocr:latest"),  # OOM cuda
-                #"danchev/granite-docling:latest"),
-                #"ibm/granite-docling:258m"),
-                #"MedAIBase/PaddleOCR-VL:0.9b"),
-                #"granite3.2-vision:latest"),
-                #"ibm/granite-docling:258m"),#"granite3.2-vision:latest",),
-                prompt="OCR the document to markdown.",
-                timeout=300,  # Increased timeout to 300 seconds
-                # scale=1.0,
-                response_format=ResponseFormat.MARKDOWN,
-                # allow_external_plugins=True,
-                concurrency=BATCH_SIZE,
-        )
-        self.ocr_converter = DocumentConverter(
-            # allowed_formats= [InputFormat.PDF,],
-            format_options={
-                InputFormat.PDF: PdfFormatOption(
-                    pipeline_options=pipeline_options,
-                    pipeline_cls=VlmPipeline,
-                ),
-                InputFormat.IMAGE: ImageFormatOption(
-                    pipeline_options=pipeline_options,
-                    pipeline_cls=VlmPipeline,
-                )
-        })
-
 
 
 
@@ -244,7 +196,7 @@ def clean_text(p_str: str) -> str:
 def remove_figure_references(p_str: str) -> str:
     # remove potneital figure reference when they are colsed by bracketss, e.g. (A1), (B20)
     # this is done to avoid mismatches with road names
-    p_str = re.sub(r"\s+\([A-Z][0-9]{1,}\)\s", "", p_str)
+    p_str = re.sub(r"\s+\([A-Z][0-9]{1,}\)", "", p_str)
     return p_str
 
 def is_reference_section(document_text: str) -> bool:
@@ -271,7 +223,7 @@ def is_conclusions_section(document_text: str) -> bool:
 
 def is_abstract_section(document_text: str) -> bool:
     # search for reference section
-    pattern = re.compile(r"^(ABSTRACT|Abstract|SUMMARY|Summary)$", flags=re.MULTILINE)
+    pattern = re.compile(r"^(ABSTRACT|Abstract|SUMMARY|Summary|Zusammenfassung)$", flags=re.MULTILINE)
     # re.MULTILINE in combination with "^" and case sensitive : find search words only when they are at beginning of a new line
     matches = re.findall(pattern, document_text)
     if matches:
@@ -463,39 +415,29 @@ def get_processed_texts(doc: DoclingDocument) -> List[DocItem]:
     mislabeled: List[DocItem] = []
 
     for text_item in doc.texts:
-    #     page_number = text_item.prov[0].page_no
+        page_number = text_item.prov[0].page_no
 
-    #     if page_number not in processed_pages:
-    #         # On new page, so get all items on the current page
-    #         same_page_items = [
-    #             item for item in doc.texts if item.prov[0].page_no == page_number
-    #         ]
-    #         processed_pages.add(page_number)  # Mark the page as processed
-    #         reached_bottom_notes = False
+        if page_number not in processed_pages:
+            # On new page, so get all items on the current page
+            same_page_items = [
+                item for item in doc.texts if item.prov[0].page_no == page_number
+            ]
+            processed_pages.add(page_number)  # Mark the page as processed
+            reached_bottom_notes = False
 
-    #     if not reached_bottom_notes:
-    #         near_bottom = is_near_bottom(text_item, same_page_items, threshold=0.5)
+        if not reached_bottom_notes:
+            near_bottom = is_near_bottom(text_item, same_page_items, threshold=0.5)
 
-    #     if is_too_short(text_item):
-    #         continue
-    #     elif reached_bottom_notes or is_footnote(text_item):
-    #         notes.append(text_item)
-    #     elif is_bottom_note(text_item, near_bottom=near_bottom):
-    #         notes.append(text_item)
-    #         reached_bottom_notes = True
-    #     else:
-    #         regular_texts.append(text_item)
-    #     # Check if the DocItem is a SectionHeaderItem. If so, turn it into a TextItem.
-    #     if is_section_header(text_item):
-    #         mislabeled.append(text_item)
-
-        reached_bottom_notes = False
         if is_too_short(text_item):
             continue
         elif reached_bottom_notes or is_footnote(text_item):
             notes.append(text_item)
+        elif is_bottom_note(text_item, near_bottom=near_bottom):
+            notes.append(text_item)
+            reached_bottom_notes = True
         else:
             regular_texts.append(text_item)
+
         # Check if the DocItem is a SectionHeaderItem. If so, turn it into a TextItem.
         if is_section_header(text_item):
             mislabeled.append(text_item)
