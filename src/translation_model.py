@@ -6,11 +6,12 @@ __author__ = "Anna Buch, TU Berlin"
 __email__ = "anna.buch@tu-berlin.de"
 
 
-import gc
 import os
-from annotated_types import doc
-import langdetect
+import re
 
+from annotated_types import doc
+import nltk
+import langdetect
 from huggingface_hub import login
 import transformers
 from transformers import (
@@ -19,8 +20,11 @@ from transformers import (
     BitsAndBytesConfig,
 )
 import torch
+import gc
 
 from src.settings import settings as s
+
+nltk.download('punkt_tab')
 
 
 # Multilingual Translator 
@@ -40,7 +44,7 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
     # construct our model name
     model_name = f"Helsinki-NLP/opus-mt-{src_language}-{dst_language}"
 
-    base_dir =  s.HF_HOME_DIR 
+    base_dir = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/hub"# s.HF_HOME_DIR 
     model_dir = base_dir 
     print(model_dir)
 
@@ -50,9 +54,11 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
         bnb_4bit_quant_type="nf4",
         bnb_4bit_compute_dtype=torch.float16,
     )
+
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device = transformers.infer_device()
-    print(f"Using device: {device}")
+    if device != "cuda":
+        print(f"Using device: {device}")
 
     # Model and Tokenizer initialization
     if not os.path.exists(model_dir):
@@ -73,7 +79,7 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
         tokenizer.save_pretrained(model_dir)
 
     else:
-        print(f"Using locally saved model from {model_dir}")
+        # print(f"Using locally saved model from {model_dir}")
 
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_name,
@@ -161,8 +167,8 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
 
 
     if isinstance(doc, str):
-        print("Input document is a string (not DoclingObject). Wrapping it in a list for processing.")
-        print("Continue with translation of text string")
+        # print("Input document is a string (not DoclingObject). Wrapping it in a list for processing.")
+        # print("Continue with translation of text string")
         
         src_text = doc
 
@@ -177,21 +183,37 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
         if (src_language == dst_language) or (src_language not in supported_languages):
             print("Source and destination language for text are identical or unsupported. Skipping translation.")
             # write back to document
-            doc = src_text.replace("\n", " ")
+            # doc = src_text.replace("\n", " ")
 
+        ## NOTE workaround 
+        # keeps sentences which would be missed by Helsinki models in longer paragraphs 
+        # probably due to max_token_limit for Helsinki_models
+        if len(nltk.word_tokenize(src_text)) > 150: 
+            dst_text: str = ""
+            src_halfs = split_long_paragraph(src_text)   
 
-        # tokenize the input text and move to the appropriate device
-        inputs = tokenizer.encode(src_text, return_tensors="pt", max_length=512, truncation=True)
-        inputs = inputs.to(device)
+            for half in src_halfs:
+                half = "".join(half) # [str] -> str
+                # tokenize the input text and move to the appropriate device
+                inputs = tokenizer.encode(half, return_tensors="pt", max_length=512, truncation=True)
+                inputs = inputs.to(device)
+                # generate the translation output using beam search
+                beam_outputs = model.generate(inputs, num_beams=3)
+                # decode the output and ignore special tokens
+                dst_half = tokenizer.decode(beam_outputs[0], skip_special_tokens=True)
+                dst_text += dst_half       
+        
+        # shorter paragraphs          
+        else:
+            # tokenize the input text and move to the appropriate device
+            inputs = tokenizer.encode(src_text, return_tensors="pt", max_length=512, truncation=True)
+            inputs = inputs.to(device)
 
-        # generate the translation output using beam search
-        beam_outputs = model.generate(inputs, num_beams=3)
+            # generate the translation output using beam search
+            beam_outputs = model.generate(inputs, num_beams=3)
 
-        # print("Source text: ", src_text)
-        # print("Translated text: ", tokenizer.decode(beam_outputs[0], skip_special_tokens=True))
-
-        # decode the output and ignore special tokens
-        dst_text = tokenizer.decode(beam_outputs[0], skip_special_tokens=True)
+            # decode the output and ignore special tokens
+            dst_text = tokenizer.decode(beam_outputs[0], skip_special_tokens=True)
 
         # write back to document
         doc = dst_text.replace("\n", " ")
@@ -201,3 +223,33 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
     torch.no_grad()
 
     return doc
+
+
+def split_sentences_keep_sep(text: str):
+    # #Abbreviations of names ad 
+    ABBR_RE = re.compile(
+        r"(?:e\.g|i\.e|z\.B|u\.a|bzw|vgl|Dr|Nr|etc)\.$",
+        flags=re.IGNORECASE,
+    )
+    # pattern: ignore digits and when "." is followed by lowercase latter (3.000, 3. hans), keep separator "."  
+    SEP_RE = re.compile(r".+?(?:(?<!\d)\.(?!\d)(?=\s+[A-Z])|$)", re.DOTALL)
+
+    # protect abbreviations so they do not get split
+    protected = " ".join(
+        [w.replace(".", "§") if w in ["e.g.", "i.e.", "z.B.", "bzw.", "vgl.", "Dr.", "Nr.", "etc."] else w for w in text.split()]
+    )
+    # split at "." when it is not decimal number and after followed by uppercase letter
+    parts = [m.group(0) for m in SEP_RE.finditer(protected)]
+
+    # drop empty strings and restore abbreviations
+    parts = [p.replace("§", ".") for p in parts if p]
+
+    return parts
+
+
+def split_long_paragraph(text:str) -> (str, str): 
+    # issue: Helsinki models drop last sentences in long paragraphs, probably due to fix max_token_limit=512 in Helsinki_models
+    # solved: half paragraph and translate each half separate
+    text_list = split_sentences_keep_sep(text)
+    half = len(text_list)//2
+    return text_list[:half], text_list[half:]
