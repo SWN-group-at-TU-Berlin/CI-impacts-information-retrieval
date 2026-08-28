@@ -37,7 +37,7 @@ class DataHandler:
             f = SIMILARITY_FILEPATH.parent / f"{SIMILARITY_FILEPATH.stem}_stats.json"  
             df_smltry_selmax_stats.to_json(f, indent=4)
             
-            # # distribution plots
-            # df_smltry_selmax["impact_sim_identical"].hist(bins=100)
-            # plt.savefig(SIMILARITY_FILEPATH.parent / f"{SIMILARITY_FILEPATH.stem}_hist.png")
-            # plt.close()
+            # distribution plots
+            df_smltry_selmax["impact_sim_identical"].hist(bins=100)
+            plt.savefig(SIMILARITY_FILEPATH.parent / f"{SIMILARITY_FILEPATH.stem}_hist.png")
+            plt.close()

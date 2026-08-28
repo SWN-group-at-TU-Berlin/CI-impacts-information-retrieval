@@ -1,0 +1,11 @@
+
+
+{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]ity.*|^[Cc]ity.*|.* [Cc]ities.*|^[Cc]ities.*"}}], "group_name":"loc"}
+{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Aa]ccess.*road.*|^[Aa]ccess.*road.*"}}], "group_name":"loc"}
+{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]apital.*|^[Cc]apital.*"}}],"group_name":"loc"}
+{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]ounty.*|^[Cc]ounty.*|.* [Cc]ounties.*|^[Cc]ounties.*"}}],"group_name":"loc"}
+{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]ommune.*|^[Cc]ommune.*"}}],"group_name":"loc"}
+{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Rr]egion.*|^[Rr]egion.*"}}], "group_name":"loc"}
+
+{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Rr]iver.*|^[Rr]iver.*"}}], "group_name":"loc"}
+{"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]tream.*|^[Ss]tream.*"}}], "group_name":"loc"}

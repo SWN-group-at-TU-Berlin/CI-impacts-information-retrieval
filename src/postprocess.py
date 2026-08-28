@@ -15,7 +15,14 @@ import src.document_cleaning as dc
 def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.DataFrame) -> pd.DataFrame:
 
     # load regular expressions and subgroups from NER patterns as dict
-    # for general cases
+    # # for general cases
+    # try:
+    #     regexes_3 = [
+    #         {ci_patterns["pattern"][i][0]["TEXT"] : ci_patterns["subgroup_name"][i]}
+    #         for i in range(len(ci_patterns)) 
+    #             if len(ci_patterns["pattern"][i])==1 
+    #     ]
+    # except Exception:
     regexes_1 = [
             {ci_patterns["pattern"][i][0]["TEXT"]["REGEX"] : ci_patterns["subgroup_name"][i]}
             for i in range(len(ci_patterns)) 
@@ -27,7 +34,9 @@ def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.Data
         for i in range(len(ci_patterns))
             if len(ci_patterns["pattern"][i])==2
     ]
-    regexes = regexes_1 + regexes_2
+    # for speial cases where regex not worked due to reducnandcy to other regex Ci word,eg access roads <-> roads 
+
+    regexes = regexes_1 + regexes_2 #+ regexes_3
 
     for i, r in enumerate(regexes):
         # get regex pattern for CI type (key) and its subgroup (value)
@@ -36,21 +45,12 @@ def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.Data
         subgroup = r[pattern]
     
         # assign subgroups to CI records, na=False to remove all records which not match patterns
-        df[[col_type, col_grouped]] = df[[col_type, col_grouped]].astype(str)
-        mask = is_ci_entity(df[col_type], pattern)
+        mask = df[col_type].str.match(pattern)
         # mask = df[col_type].str.contains(pattern, regex=True, na=False)
         df.loc[mask, col_grouped] = subgroup
     
     return df
-
-
-def is_ci_entity(ci_entity: pd.Series, regex_pattern: str) -> pd.Series:
-    """returns boolean mask where records in pd.Series are a certain CI type based on regex pattern"""
     
-    return ci_entity.str.contains(regex_pattern, regex=True, na=False)
-
-
-
 
 def postprocess_response(resp: str) -> pd.DataFrame:
 
@@ -65,26 +65,10 @@ def postprocess_response(resp: str) -> pd.DataFrame:
         resp = resp.rpartition('}')[-3] + "}]"
 
     # remove potential text outside - no matter if it exists or not
-    final_resp = ("[" + resp.split("[")[1]) 
-    final_resp = (final_resp.split("]", 1)[0] + "]") 
+    resp = ("[" + resp.split("[")[1]) 
+    resp = (resp.split("]", 1)[0] + "]") 
 
-    # check for empty response due to removal of text outside of brackets
-    if final_resp == "[]" or final_resp == "[{}]":
-        # remove potential double [[ and ]]
-        final_resp = resp.replace("[[{", "[{").replace("}]]", "}]")
-        # remove potential text outside - no matter if it exists or not
-        final_resp = ("[{" + final_resp.split("[{")[1]) 
-        final_resp = (final_resp.split("}]", 1)[0] + "}]") 
-
-    try:
-        df_final_resp = pd.read_json(StringIO(final_resp))
-
-    except Exception as e:
-    # special handling for some GPT oss responses where value is a list item
-        final_resp = ("[" + resp.split("[")[2]) 
-        final_resp = (final_resp.split("]", 1)[0] + "]") 
-        df_final_resp = pd.read_json(StringIO(final_resp))
-
-   
-    return df_final_resp
+    df_resp = pd.read_json(StringIO(resp))
+    
+    return df_resp
         
