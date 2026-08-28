@@ -1,10 +1,15 @@
 # config and cache files
+.vscode
 __pycache__/
+.gitattributes
 .ipynb_checkpoints/
 ipython_config.py
+.python-version
 .pytest_cache/
 .ruff_cache/
+*.egg-info/
 .env
+
 # uv
 .venv/
 uv.lock
@@ -14,5 +19,11 @@ uv.lock
 *.log
 logs/
 
-# store trained models and models configs
-*.pkl
+
+# postgres vectorDB
+pgai/
+
+# store (pre-)trained models and models configs
+huggingface_mirror/
+docling_artifacts/
+spacy_model_pipeline
