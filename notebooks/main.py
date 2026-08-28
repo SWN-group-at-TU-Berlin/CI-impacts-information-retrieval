@@ -111,12 +111,11 @@ from geollama.geollama.model import TopoModel, RAGModel
 test_mode = True
 
 # login to HF
-# login(token="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")#os.getenv("HUGGINGFACE_TOKEN"))
 try: 
     login(token=os.getenv("HUGGINGFACE_TOKEN"))   # notebook_login
 except:
     try:
-        login(token="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")#os.getenv("HUGGINGFACE_TOKEN"))
+        login(os.getenv("HF_TOKEN"))
     except:
         login(token=os.environ.get("HUGGINGFACE_TOKEN"))  # former HF_TOKEN
         
