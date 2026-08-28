@@ -8,8 +8,10 @@ __email__ = "anna.buch@tu-berlin.de"
 import os
 from datetime import datetime
 from pathlib import Path
-from pydantic_settings import BaseSettings, SettingsConfigDict
+# from pydantic_settings import BaseSettings
 import subprocess
+
+
 
 # local or remote machine 
 hostname = subprocess.run(['hostname'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
@@ -21,11 +23,16 @@ class Settings(BaseSettings):
         env_file=".env",
         extra="ignore"
     )
+
+    if hostname == "abuch-ThinkPad-X1-Extreme-Gen-4i":
+        print("Running on local machine")
+        PATH_DATA: Path = Path("../data/")
+    else:
+        print("Running on TUB cluster")
+        PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
     
     PATH_SRC: Path = Path("./src")
     PATH_LOGS: Path = Path("../logs/")
-    PATH_DATA: Path = Path("../data/")
-
     
     PATH_PROMPTS: Path = Path("./prompt_templates/")
     PROMPT_DIRECT_FILENAME: str = "ci_loc_direct_impacts.txt"
@@ -58,6 +65,24 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 50
     BATCH_SIZE: int = 5  # max for my local GPU (as max. is 6GB)
     
+        
+    # settings for CUDA and PYTORCH
+    os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"]="0"   #  nvidia gpu
+    os.environ["PYTORCH_ALLOC_CONF"]="expandable_segments:True" ## improve memory allocation
+    # # %env TORCH_CUDA_ARCH_LIST=8.6
+
+    # settings for debugging CUDA errors (pinpoint exact line of error)
+    os.environ["TORCH_USE_CUDA_DSA"] = "1"
+    os.environ["CUDA_LAUNCH_BLOCKING"] = "1" 
+
+    # # settings for distributed computing
+    # os.environ["WORLD_SIZE"]="1"
+    # os.environ["RANK"]="0"
+    # os.environ["LOCAL_RANK"]="0"
+    # NOTE: # WORLD_SIZE: each GPU corresponds to one process (world = no. of processes within a group), processes communicate with each other enabling eg., distributed training
+    # NOTE: # RANK: IDs of the processes, ranging from 0 up to WORLD_SIZE - 1
+
 
     # Use transformer model (roberta) for fast and precise NER recognition for english language [only with GPU]
     # performance: https://spacy.io/models/en#en_core_web_trf
@@ -78,29 +103,10 @@ class Settings(BaseSettings):
         # set working dir
         os.chdir("/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/")
     
+       
         # HF directory
         HF_HOME_DIR: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/hub"
         HF_TOKEN_PATH: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/token"
-        # model_config = SettingsConfigDict(env_file=".env")  # load HUGGINGFACE_TOKEN
-        
-        # settings for CUDA and PYTORCH
-        os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-        os.environ["CUDA_VISIBLE_DEVICES"]="0"   #  nvidia gpu
-        os.environ["PYTORCH_CUDA_ALLOC_CONF"]="expandable_segments:True" ## improve memory allocation
-        # # %env TORCH_CUDA_ARCH_LIST=8.6
-
-        # # settings for debugging CUDA errors (pinpoint exact line of error)
-        # os.environ["TORCH_USE_CUDA_DSA"] = "1"
-        # os.environ["CUDA_LAUNCH_BLOCKING"] = "1" 
-
-        # settings for distributed computing
-        os.environ["WORLD_SIZE"]="1"
-        os.environ["RANK"]="0"
-        os.environ["LOCAL_RANK"]="0"
-        # NOTE: # WORLD_SIZE: each GPU corresponds to one process (world = no. of processes within a group), processes communicate with each other enabling eg., distributed training
-        # NOTE: # RANK: IDs of the processes, ranging from 0 up to WORLD_SIZE - 1
-        
-    
     # elif re.findall("node*|gpu*", hostname) ==TRUE:  # TODO adapt pattern search
     else:
         print("Running on TUB Cluster")
@@ -108,6 +114,8 @@ class Settings(BaseSettings):
         HF_TOKEN_PATH: str = "/beegfs/home/users/a/a-buch/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/token"
         # model_config = SettingsConfigDict(env_file=".env")  # load HUGGINGFACE_TOKEN
 
+        # DATA DIR
+        PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
     # else:
     #     print("Could not identify if code is executed on local or remote machine, adapt hostname and paths accordingly!")
 

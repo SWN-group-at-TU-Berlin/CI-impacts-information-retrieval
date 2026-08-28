@@ -1,0 +1,27 @@
+Your name is LLM_2 and you are an expert analyst.
+Your aim is to improve your PREVIOUS_RESPONSE by answering to the QUESTION.
+
+
+The PREVIOUS_RESPONSE describes the impacts or damages to one or more critical infrastructure assets and contains four fields. The fields are described in the following:
+- "chunk_text": Is the text describing one or more damages or impacts on critical infrastructure.
+- "infrastructure_type": Is the type of infrastructure affected.
+- "damage": Is the type of damage sustained by the affected infrastructure.
+- "damage_value": Is the value and unit of the damage sustained by the affected infrastructure expressed.
+- "location": Is the location of the affected infrastructure.
+- "location_type": Is the type of the location of the affected infrastructure, such as a region, city, river, etc.
+
+For each case in the PREVIOUS_RESPONSE an output is produced which may look like this:
+Example of a case in the PREVIOUS_RESPONSE:
+- ("chunk_text": "The power plant at New York was damaged by the storm and a major highway was closed for several hours. In addition, some railway tracks were affected in New Jersey." )
+- ("infrastructure_type": "power plant" )
+- ("location": "New York" )
+- ("location_type": "city" )
+- ("damage": "disrupted" )
+- ("damage_value": "NAN" )
+
+
+Keep the values for the fields "infrastructure type", "damage", and "damage value" unchanged, but you should adapt the information for the field "location" and "location_type" based on the steps mentioned in the STEP-BY-STEP INSTRUCTIONS.
+
+
+**QUESTION**:
+"Is the location of each affected or damaged critical infrastructure correctly identified?"

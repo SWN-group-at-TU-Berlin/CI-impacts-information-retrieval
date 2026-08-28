@@ -1,0 +1,26 @@
+QUESTION: 
+"{{ question }}"
+
+
+PREVIOUS_RESPONSE:
+{% for case in range(0, context[0]["previous_response"].shape[0]) %}
+- ("case": "{{ case }}" ) 
+- ("chunk text": "{{ context[0]["previous_response"].iloc[case].chunk_text }}" )
+- ("infrastructure type": "{{ context[0]["previous_response"].iloc[case].infrastructure_type }}" )
+- ("damage": "{{ context[0]["previous_response"].iloc[case].damage }}" )
+- ("damage value": "{{ context[0]["previous_response"].iloc[case].damage_value }}" )
+- ("location": "{{ context[0]["previous_response"].iloc[case].location }}" )
+{% endfor %}
+
+
+
+GEOLLM_LOCATIONS:
+{% for item in context %}
+- ( "potential locations": {{ item.potential_locations}})
+{% endfor %}
+
+
+
+
+
+ANSWER:

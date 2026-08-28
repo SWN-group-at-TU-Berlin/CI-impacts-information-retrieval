@@ -18,7 +18,6 @@ class DataHandler:
 
     def save_evaluation_results(self, entity_pred, df_smltry_selmax, recall_score, precision_score, f1_score):
 
-
         SIMILARITY_FILENAME = f"{entity_pred.replace('_pred', '')}_{self.SIMILARITY_LLM_FILENAME}"
         SIMILARITY_FILEPATH = Path(self.PATH_EVAL_RESULT / SIMILARITY_FILENAME)
         

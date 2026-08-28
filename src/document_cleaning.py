@@ -32,7 +32,6 @@ class DocumentParser:
     """Class for parsing and cleaning documents."""
 
     def __init__(self):
-
         # OCR pipeline configs
         self.artifacts_path = Path("../docling_artifacts")
         self.artifacts_path.mkdir(exist_ok=True)

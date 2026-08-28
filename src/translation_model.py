@@ -41,6 +41,10 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
     # print("Login with HF TOKEN ...")    
     # login(token=os.environ["HUGGINGFACE_TOKEN"])
 
+    gc.collect()
+    torch.cuda.empty_cache() 
+    torch.no_grad()    
+
     # construct our model name
     model_name = f"Helsinki-NLP/opus-mt-{src_language}-{dst_language}"
 
@@ -93,6 +97,7 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
             model_name,
             use_fast=True,
             cache_dir=model_dir,
+            backend="sentencepiece"
         )
 
     ## reduce further memory usage
@@ -125,27 +130,29 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
             except AttributeError as e:
                 src_text = chunk.text
 
-            ## preprocess  TODO move to document cleaning workflow + dc.funcs
-            src_text = src_text.replace("\n", " ")
-            src_text = src_text.replace("- ", "-") # TODO test if ("- ", "") is better
-            
+            if src_text.strip() == "": 
+                continue
 
-            # detect language type for each chunk 
-            src_language = langdetect.detect(src_text)
-            print(f"Detected language for chunk {j}: {src_language}")
+            # detect language type for each chunk if text is not empty or too short
+            try:
+                src_language = langdetect.detect(src_text)
+            except langdetect.lang_detect_exception.LangDetectException as e:
+                print(f"Language detection failed for chunk {j} with text: {src_text[:30]}... Skipping translation for this chunk.")
+                continue
+            # print(f"Detected language for chunk {j}: {src_language}")
 
             supported_languages = ["fr", "de", "es", "it", "nl"]  # TODO make as global var in config file
 
             if (src_language == dst_language) or (src_language not in supported_languages):
-                print(f"Source and destination language in chunk {j} are identical or unsupported. No translation needed.")
+                # print(f"Source and destination language in chunk {j} are identical or unsupported. No translation needed.")
                 # write back to document  # TODO condense try except blocks when handling string input
                 try:
-                    doc[j].page_content =  src_text.replace("\n", " ")
+                    doc[j].page_content =  src_text
                 except ValueError:
-                    doc[j].text =  src_text.replace("\n", " ")
+                    doc[j].text =  src_text
 
             # tokenize the input text and move to the appropriate device
-            inputs = tokenizer.encode(src_text, return_tensors="pt", max_length=512, truncation=True)
+            inputs = tokenizer.encode(src_text, return_tensors="pt", max_length=2048, truncation=True)
             inputs = inputs.to(device)
 
             # generate the translation output using greedy search, 
@@ -161,9 +168,9 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
         
             # write back to document
             try:
-                doc[j].page_content =  dst_text.replace("\n", " ")
+                doc[j].page_content =  dst_text
             except ValueError as e:
-                doc[j].text =  dst_text.replace("\n", " ")
+                doc[j].text =  dst_text
 
 
     if isinstance(doc, str):
@@ -172,11 +179,7 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
         
         src_text = doc
 
-        ## preprocess  TODO move to document cleaning workflow + dc.funcs
-        src_text = src_text.replace("\n", " ")
-        src_text = src_text.replace("- ", "-") # TODO test if ("- ", "") is better
-
-        # detect language type for each chunk 
+        # detect language type for each chunk if text is not empty or too short
         src_language = langdetect.detect(src_text)
 
         supported_languages = ["fr", "de", "es", "it", "nl"]  # TODO make as global var in config file
@@ -217,7 +220,7 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
 
         # write back to document
         doc = dst_text.replace("\n", " ")
-    
+  
     # cleaning up memory after translation
     gc.collect()
     torch.no_grad()
