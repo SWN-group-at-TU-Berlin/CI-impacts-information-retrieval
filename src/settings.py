@@ -16,17 +16,6 @@ import subprocess
 # local or remote machine 
 hostname = subprocess.run(['hostname'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
 
-<<<<<<< HEAD
-class Settings():
-#class Settings(BaseSettings):
-
-    if hostname == "abuch-ThinkPad-X1-Extreme-Gen-4i":
-        print("Running on local machine")
-        PATH_DATA: Path = Path("../data/")
-    else:
-        print("Running on TUB cluster")
-        PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
-=======
 
 class Settings(BaseSettings):
 
@@ -34,7 +23,13 @@ class Settings(BaseSettings):
         env_file=".env",
         extra="ignore"
     )
->>>>>>> 18-orchestration-graphs
+
+    if hostname == "abuch-ThinkPad-X1-Extreme-Gen-4i":
+        print("Running on local machine")
+        PATH_DATA: Path = Path("../data/")
+    else:
+        print("Running on TUB cluster")
+        PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
     
     PATH_SRC: Path = Path("./src")
     PATH_LOGS: Path = Path("../logs/")
@@ -100,14 +95,10 @@ class Settings(BaseSettings):
         print("couldnt load large spacy model")
         SPACY_MODEL: str = "en_core_web_lg "
     
-<<<<<<< HEAD
-    if hostname == "abuch-ThinkPad-X1-Extreme-Gen-4i":
-=======
 
     # HF directory
     if hostname == "a-buch-ThinkPad-X1-Extreme-Gen-4i":
         print("Running on local machine")
->>>>>>> 18-orchestration-graphs
 
         # set working dir
         os.chdir("/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/")
@@ -116,30 +107,6 @@ class Settings(BaseSettings):
         # HF directory
         HF_HOME_DIR: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/hub"
         HF_TOKEN_PATH: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/token"
-<<<<<<< HEAD
-
-=======
-        # model_config = SettingsConfigDict(env_file=".env")  # load HUGGINGFACE_TOKEN
-        
-        # settings for CUDA and PYTORCH
-        os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-        os.environ["CUDA_VISIBLE_DEVICES"]="0"   #  nvidia gpu
-        os.environ["PYTORCH_CUDA_ALLOC_CONF"]="expandable_segments:True" ## improve memory allocation
-        # # %env TORCH_CUDA_ARCH_LIST=8.6
-
-        # # settings for debugging CUDA errors (pinpoint exact line of error)
-        # os.environ["TORCH_USE_CUDA_DSA"] = "1"
-        # os.environ["CUDA_LAUNCH_BLOCKING"] = "1" 
-
-        # settings for distributed computing
-        os.environ["WORLD_SIZE"]="1"
-        os.environ["RANK"]="0"
-        os.environ["LOCAL_RANK"]="0"
-        # NOTE: # WORLD_SIZE: each GPU corresponds to one process (world = no. of processes within a group), processes communicate with each other enabling eg., distributed training
-        # NOTE: # RANK: IDs of the processes, ranging from 0 up to WORLD_SIZE - 1
-        
-    
->>>>>>> 18-orchestration-graphs
     # elif re.findall("node*|gpu*", hostname) ==TRUE:  # TODO adapt pattern search
     else:
         print("Running on TUB Cluster")

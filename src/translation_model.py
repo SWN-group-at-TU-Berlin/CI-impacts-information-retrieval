@@ -58,16 +58,11 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
         bnb_4bit_quant_type="nf4",
         bnb_4bit_compute_dtype=torch.float16,
     )
-<<<<<<< HEAD
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
-=======
 
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device = transformers.infer_device()
     if device != "cuda":
         print(f"Using device: {device}")
->>>>>>> 18-orchestration-graphs
 
     # Model and Tokenizer initialization
     if not os.path.exists(model_dir):
@@ -88,11 +83,7 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
         tokenizer.save_pretrained(model_dir)
 
     else:
-<<<<<<< HEAD
-        print(f"Using locally saved model from {model_dir}/{model_name}")
-=======
         # print(f"Using locally saved model from {model_dir}")
->>>>>>> 18-orchestration-graphs
 
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_name,
@@ -191,12 +182,6 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
         # detect language type for each chunk if text is not empty or too short
         src_language = langdetect.detect(src_text)
 
-<<<<<<< HEAD
-        try:    
-            # tokenize the input text and move to the appropriate device
-            inputs = tokenizer.encode(src_text, return_tensors="pt", max_length=2048, truncation=True)
-            inputs = inputs.to(device)
-=======
         supported_languages = ["fr", "de", "es", "it", "nl"]  # TODO make as global var in config file
         if (src_language == dst_language) or (src_language not in supported_languages):
             print("Source and destination language for text are identical or unsupported. Skipping translation.")
@@ -235,32 +220,6 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
 
         # write back to document
         doc = dst_text.replace("\n", " ")
->>>>>>> 18-orchestration-graphs
-    
-            # generate the translation output using beam search
-            beam_outputs = model.generate(inputs, num_beams=3)
-    
-            # print("Source text: ", src_text)
-            # print("Translated text: ", tokenizer.decode(beam_outputs[0], skip_special_tokens=True))
-    
-            # decode the output and ignore special tokens
-            dst_text = tokenizer.decode(beam_outputs[0], skip_special_tokens=True)
-    
-            # write back to document
-            doc = dst_text
-            
-        except langdetect.lang_detect_exception.LangDetectException as e:
-            print(f"Language detection failed for chunk {j} with text: {src_text[:30]}... Skipping translation for this chunk.")
-            
-            doc = src_text
-        
-            supported_languages = ["fr", "de", "es", "it", "nl"]  # TODO make as global var in config file
-            if (src_language == dst_language) or (src_language not in supported_languages):
-                print("Source and destination language for text are identical or unsupported. Skipping translation.")
-                # write back to document
-                doc = src_text
-
-
   
     # cleaning up memory after translation
     gc.collect()

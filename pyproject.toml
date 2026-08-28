@@ -27,16 +27,10 @@ dependencies = [
     "langchain>=1.0.8",
     "langchain-docling>=2.0.0",
     "langdetect>=1.0.9",
-<<<<<<< HEAD
     "matplotlib>=3.10.8",
-    "numpy>=2.4.4",
-    "pandas>=3.0.2",
     "pdfminer-six>=20260107",
     "peft>=0.19.1",
     "plotly>=6.7.0",
-    "pyarrow>=23.0.1",
-    "pydantic>=2.13.2",
-=======
     "langextract>=1.1.1",
     "ninja>=1.13.0",
     "nlpcloud>=1.1.47",
@@ -44,7 +38,6 @@ dependencies = [
     "numpy>=2.3.4",
     "ollama>=0.5.4",
     "packaging>=25.0",
-    "pandas>=2.3.3",
     "pgai[vectorizer-worker]>=0.12.1",
     "pgvector>=0.4.1",
     "pip>=25.3",
@@ -55,9 +48,6 @@ dependencies = [
     "pydantic>=2.12.4",
     "pydantic-settings>=2.11.0",
     "pyzmq>=27.1.0",
-    "ruff>=0.15.5",
-    "rust>=1.3.1",
->>>>>>> 18-orchestration-graphs
     "sacremoses>=0.1.1",
     "sentence-transformers>=5.4.1",
     "spacy>=3.8.14",
@@ -72,14 +62,8 @@ dependencies = [
     "geonamescache>=3.0.1",
 ]
 
-<<<<<<< HEAD
-#  "langchain>=1.2.15",
-#  "langchain-community>=0.4.1",
-#  "langchain-unstructured>=1.0.1",
-=======
 ## "vllm>=0.1.2"
 ##    "flash-attn>=2.8.3",
->>>>>>> 18-orchestration-graphs
 
 ## Troubleshooting flash-attn installation:
 ## solve by uninstalling torch and install flash-attn from wheel file
