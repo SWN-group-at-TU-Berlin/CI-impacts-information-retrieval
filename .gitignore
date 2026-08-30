@@ -5,6 +5,7 @@ ipython_config.py
 .python-version
 .pytest_cache/
 .ruff_cache/
+*archive*/
 *.egg-info/
 .env
 # uv
@@ -15,6 +16,10 @@ uv.lock
 *.orig
 *.log
 logs/
+scalene*
+
+# run-script outputs
+slurm-*.out
 
 # postgres vectorDB
 pgai/
@@ -22,3 +27,5 @@ pgai/
 # store (pre-)trained models and models configs
 *.pkl
 huggingface_mirror/
+docling_artifacts/
+spacy_model_pipeline/
