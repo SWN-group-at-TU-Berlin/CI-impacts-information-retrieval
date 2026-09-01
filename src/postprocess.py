@@ -121,6 +121,7 @@ def postprocess_locations(df:pd.Series, location_col:str) -> pd.Series:
 
     return df[location_col]
 
+    
 
 def split_text_into_multiple_rows(df: pd.DataFrame, column: str, split_at = " and ") -> pd.DataFrame:
     """ split text at splitting_point into multiple rows """
