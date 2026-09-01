@@ -122,7 +122,7 @@ def postprocess_locations(df:pd.Series, location_col:str) -> pd.Series:
     return df[location_col]
 
 
-def pp.split_text_into_multiple_rows(df: pd.DataFrame, column: str, split_at = " and ") -> pd.DataFrame:
+def split_text_into_multiple_rows(df: pd.DataFrame, column: str, split_at = " and ") -> pd.DataFrame:
     """ split text at splitting_point into multiple rows """
     # split CIs and LOCs with "and" into multiple rows
     df[column] = df[column].str.split(split_at)   
