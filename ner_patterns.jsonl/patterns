@@ -66,6 +66,10 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectric.*grid.*|^[Ee]lectric.*grid.*"}}], "subgroup_name":"electricity_distribution", "group_name":"electricity"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectric.*plant.*|^[Ee]lectric.*plant.*"}}], "subgroup_name":"power_plants", "group_name":"electricity"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectric.*service.*|^[Ee]lectric.*service.*"}}], "subgroup_name":"electricity_supply", "group_name":"electricity"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectricity|^[Ee]lectricity"}}], "subgroup_name":"electricity_supply", "group_name":"electricity"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]nergy.*system.*|^[Ee]nergy.*system.*"}}], "subgroup_name":"electricity_distribution", "group_name":"electricity"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]nergy.*supply.*|^[Ee]nergy.*supply.*"}}], "subgroup_name":"electricity_supply", "group_name":"electricity"}
+
 
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]ower.*net.*|^[Pp]ower.*net.*"}}], "subgroup_name":"electricity_distribution", "group_name":"electricity"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]ower.*grid.*|^[Pp]ower.*grid.*"}}], "subgroup_name":"electricity_distribution", "group_name":"electricity"}
@@ -174,10 +178,12 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]elecommunication.*sector.*|^[Tt]elecommunication.*sector.*"}}], "subgroup_name":"it_telecommunication",  "group_name":"it_telecommunication"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]elecommunication.*infrastructure.*|^[Tt]elecommunication.*infrastructure.*"}}], "subgroup_name":"it_telecommunication",  "group_name":"it_telecommunication"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]elecommunication.*mast.*|^[Tt]elecommunication.*mast.*"}}], "subgroup_name":"it_telecommunication",  "group_name":"it_telecommunication"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]ignal.*mast.*|^[Ss]ignal.*mast.*"}}], "subgroup_name":"it_telecommunication",  "group_name":"it_telecommunication"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]elecommunication.*network.*|^[Tt]elecommunication.*network.*"}}], "subgroup_name":"it_telecommunication",  "group_name":"it_telecommunication"}
 
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]eavy.*industr.*|^[Hh]eavy.*industr.*"}}], "subgroup_name":"industry_heavy",  "group_name":"industry_heavy"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]hemic.*industr.*|^[Cc]hemic.*industr.*"}}], "subgroup_name":"industry_heavy", "group_name":"industry_heavy"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]hemic.*plant.*|^[Cc]hemic.*plant.*"}}], "subgroup_name":"industry_heavy", "group_name":"industry_heavy"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Rr]efiner.*|^[Rr]efiner.*"}}], "subgroup_name":"industry_heavy", "group_name":"industry_heavy"}
 
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]ducation.*|^[Ee]ducation.*"}}], "subgroup_name":"education_others", "group_name":"education"}
