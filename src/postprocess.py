@@ -35,6 +35,11 @@ def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.Data
         pattern = [*r][0]
         subgroup = r[pattern]
     
+        # remove words considered wrongly as Ci keywords, 
+        # "the damaged rails"-> "the rails"
+        regex = re.compile(r"\b[Dd]amage\w*|\b[Tt]raining\w*")
+        df[col_type].str.replace(regex, "", regex=True).str.replace("  ", " ")
+            
         # assign subgroups to CI records, na=False to remove all records which not match patterns
         df[[col_type, col_grouped]] = df[[col_type, col_grouped]].astype(str)
         mask = is_ci_entity(df[col_type], pattern)
@@ -47,9 +52,8 @@ def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.Data
 def is_ci_entity(ci_entity: pd.Series, regex_pattern: str) -> pd.Series:
     """returns boolean mask where records in pd.Series are a certain CI type based on regex pattern"""
     
-    return ci_entity.str.contains(regex_pattern, regex=True, na=False)
-
-
+    # return ci_entity.str.contains(regex_pattern, regex=True, na=False)
+    return ci_entity.str.match(regex_pattern)
 
 
 def postprocess_response(resp: str) -> pd.DataFrame:
@@ -88,3 +92,41 @@ def postprocess_response(resp: str) -> pd.DataFrame:
    
     return df_final_resp
         
+def postprocess_locations(df:pd.Series, location_col:str) -> pd.Series:
+    """remove surrounding text for locations"""
+    # TODO condense function
+
+    cleanup_patterns = [r"\(", ", "]
+    for i in cleanup_patterns:
+        # "( "  eg "Sinzig (in North Rhine-Westphalia)""
+        # rm text after comma, e.g. "Ahr valley, Germany" --> "Ahr valley"
+        df[location_col] = df[location_col].str.split(i, regex=True).str[0].str.strip()
+
+    cleanup_patterns = [r"[\(\),]", "\bthe ",  "\bin ", "\bpassing ", "city of"]
+    for i in cleanup_patterns:
+        # remove all remaining brackets and commas
+        # remove "the" when it is not contained in other word
+        # remove "in"  when it is not contained in other word
+            # set this after cleaning up "( " and ", " as it otherwise would take the later location
+        df[location_col] = df[location_col].replace(rf"{i}", " ", regex=True).str.strip()   
+
+    cleanup_patterns = ["between",]
+    for i in cleanup_patterns:
+        # handling loc with "railway tracks between "
+        df[location_col] = df[location_col].str.split(i).str[-1].str.strip()
+
+    ## remove "near ", "close to", "passing " from location names, and final double whitespace
+    df[location_col] =  df[location_col].str.replace(r"^(\bnear |close to |parts of |direction of |passing |along )", " ", regex=True).str.strip()
+    df[location_col] =  df[location_col].str.replace("  ", " ").str.strip()
+
+    return df[location_col]
+
+
+def pp.split_text_into_multiple_rows(df: pd.DataFrame, column: str, split_at = " and ") -> pd.DataFrame:
+    """ split text at splitting_point into multiple rows """
+    # split CIs and LOCs with "and" into multiple rows
+    df[column] = df[column].str.split(split_at)   
+    # NOTE: Removes info from CI - drops info if CI is singular o plural (e.g, road and railway infrastrcutre --> "road", "railway infrastructure")
+    df = df.explode(column=column)
+    df = df.drop_duplicates().reset_index(drop=True)
+    return df
