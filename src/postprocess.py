@@ -121,7 +121,6 @@ def postprocess_locations(df:pd.Series, location_col:str) -> pd.Series:
 
     return df[location_col]
 
-    
 
 def split_text_into_multiple_rows(df: pd.DataFrame, column: str, split_at = " and ") -> pd.DataFrame:
     """ split text at splitting_point into multiple rows """
@@ -130,4 +129,5 @@ def split_text_into_multiple_rows(df: pd.DataFrame, column: str, split_at = " an
     # NOTE: Removes info from CI - drops info if CI is singular o plural (e.g, road and railway infrastrcutre --> "road", "railway infrastructure")
     df = df.explode(column=column)
     df = df.drop_duplicates().reset_index(drop=True)
+    
     return df
