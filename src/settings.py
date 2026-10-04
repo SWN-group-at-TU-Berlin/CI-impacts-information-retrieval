@@ -8,7 +8,7 @@ __email__ = "anna.buch@tu-berlin.de"
 import os
 from datetime import datetime
 from pathlib import Path
-# from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings
 import subprocess
 
 
@@ -19,10 +19,10 @@ hostname = subprocess.run(['hostname'], stdout=subprocess.PIPE).stdout.decode('u
 
 class Settings(BaseSettings):
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        extra="ignore"
-    )
+    # model_config = SettingsConfigDict(
+    #     env_file=".env",
+    #     extra="ignore"
+    # )
 
     if hostname == "abuch-ThinkPad-X1-Extreme-Gen-4i":
         print("Running on local machine")
@@ -92,7 +92,7 @@ class Settings(BaseSettings):
         #"solution: en_core_web_trf should be used as it is faster and maybe more precise"
         SPACY_MODEL: str = "en_core_web_trf"
     except Exception:
-        print("couldnt load large spacy model")
+        print("couldnt load transform model, loading large spacy model")
         SPACY_MODEL: str = "en_core_web_lg "
     
 

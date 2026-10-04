@@ -56,3 +56,15 @@
    * remaining endpoints (+ API keys)
    * ingestion contract for the extraction container
 4. **Verification per slice**: pytest unit + integration tests (real Postgres, including tests that connect as each group role and assert what is visible); ruff + type checks in CI.
+
+## FAQ
+
+* **Q: Which columns should be stored in the database?**
+  A: Use the CSV file `/home/a-buch/Documents/TUB_DWN/_PROJECTS/interim_results_debug/llm_geollm_chain_step1_Koks 2022.csv` as the example for the columns that should be stored in the database.
+
+* **Q: Which data is hidden from users?**
+  A: The column with `chunk_text` should be hidden from the user.
+
+* **Q: Can users register themselves?**
+  A: No, users should not register themselves.
+
