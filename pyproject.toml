@@ -77,6 +77,7 @@ dependencies = [
     "spacy>=3.8.11",
     "spacy-curated-transformers>=0.3.1",
     "sqlalchemy>=2.0.44",
+    " subprocess-run>=0.0.8",
     "stripogram>=1.5",
     "tiktoken>=0.12.0",
     "token-count>=0.2.1",
@@ -84,7 +85,14 @@ dependencies = [
     "transformers>=4.57.1",
     "unidecode>=1.4.0",
     "urllib3>=2.7.0",
+    "rioxarray>=0.23.0",
+    "pydantic-shapely>=1.0.0a6",
+    "holoviews>=1.23.2",
 ]
+
+## "vllm>=0.1.2"
+##    "flash-attn>=2.8.3",
+
 
 
 ## Troubleshooting flash-attn installation:

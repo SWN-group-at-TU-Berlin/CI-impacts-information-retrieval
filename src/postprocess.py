@@ -43,13 +43,22 @@ def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.Data
         # NOTE, nice shortcut: get key containing regex by unpacking each dict into list, then get key
         pattern = [*r][0]
         subgroup = r[pattern]
-    
+
+        # remove words considered wrongly as Ci keywords
+        regex = re.compile(r"\b[Dd]amage\w*|\b[Tt]raining\w*")
+        df[col_type].str.replace(regex, "", regex=True).str.replace("  ", " ")
+            
         # assign subgroups to CI records, na=False to remove all records which not match patterns
         mask = df[col_type].str.match(pattern)
         # mask = df[col_type].str.contains(pattern, regex=True, na=False)
         df.loc[mask, col_grouped] = subgroup
     
     return df
+    
+           
+def postprocess_llmresp(llm_response):
+    result = {key: llm_response[key] for key in ["assets","locations", "damages"]}
+    return  pd.DataFrame(result)
     
 
 def postprocess_response(resp: str) -> pd.DataFrame:

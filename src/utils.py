@@ -8,7 +8,6 @@ from sentence_transformers.util import cos_sim
 from src.settings import settings as s
 
 
-
 def gen_dict_extract(var, key):
     """Used for Ci-GEO pairs detection: Extract country names from geonamescache"""
     # See, https://stackoverflow.com/questions/59444065/differentiate-between-countries-and-cities-in-spacy-ner
@@ -21,6 +20,7 @@ def gen_dict_extract(var, key):
     elif isinstance(var, list):
         for d in var:
             yield from gen_dict_extract(d, key)
+
 
 
 class EmbeddingModel:
@@ -86,17 +86,3 @@ def supports_flash_attention(device_id):
 
     return is_sm8x or is_sm90
 
-
-
-
-def calc_recall(tps_no: int, fns_no: int):
-    return tps_no / (tps_no + fns_no) 
-
-
-
-def calc_precision(tps_no: int, fps_no: int):
-    return tps_no / (tps_no + fps_no) 
-
-
-def calc_f1(recall: int, precision: int):
-    return 2 * (precision * recall) / (precision + recall)

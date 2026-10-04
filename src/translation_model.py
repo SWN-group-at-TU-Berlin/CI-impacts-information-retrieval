@@ -11,7 +11,7 @@ import re
 
 from annotated_types import doc
 import nltk
-import langdetect
+from lingua import Language, LanguageDetectorBuilder
 from huggingface_hub import login
 import transformers
 from transformers import (
@@ -133,13 +133,12 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
             if src_text.strip() == "": 
                 continue
 
-            # detect language type for each chunk if text is not empty or too short
-            try:
-                src_language = langdetect.detect(src_text)
-            except langdetect.lang_detect_exception.LangDetectException as e:
-                print(f"Language detection failed for chunk {j} with text: {src_text[:30]}... Skipping translation for this chunk.")
-                continue
-            # print(f"Detected language for chunk {j}: {src_language}")
+            # detect language type for each chunk 
+            # NOTE langdetect() is sometime errorneous for short text, eg Luiijf 2010 -> title=en, title.lower=es       
+            detector = LanguageDetectorBuilder.from_languages(*Language.all_with_latin_script()).build()
+            src_language = detector.detect_language_of(src_text).iso_code_639_1.name.lower()
+
+            print(f"Detected language for chunk {j}: {src_language}")
 
             supported_languages = ["fr", "de", "es", "it", "nl"]  # TODO make as global var in config file
 
@@ -179,8 +178,14 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
         
         src_text = doc
 
-        # detect language type for each chunk if text is not empty or too short
-        src_language = langdetect.detect(src_text)
+        ## preprocess  TODO move to document cleaning workflow + dc.funcs
+        src_text = src_text.replace("\n", " ")
+        src_text = src_text.replace("- ", "-") # TODO test if ("- ", "") is better
+
+        # detect language type for each chunk 
+        # NOTE langdetect() is sometime errorneous for short text, eg Luiijf 2010 -> title=en, title.lower=es       
+        detector = LanguageDetectorBuilder.from_languages(*Language.all_with_latin_script()).build()
+        src_language = detector.detect_language_of(src_text).iso_code_639_1.name.lower()
 
         supported_languages = ["fr", "de", "es", "it", "nl"]  # TODO make as global var in config file
         if (src_language == dst_language) or (src_language not in supported_languages):

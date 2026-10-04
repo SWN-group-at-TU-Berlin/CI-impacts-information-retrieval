@@ -31,7 +31,7 @@ class Settings(BaseSettings):
         print("Running on TUB cluster")
         PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
     
-    PATH_SRC: Path = Path("./src")
+    PATH_SRC: Path = Path("../src")
     PATH_LOGS: Path = Path("../logs/")
     
     PATH_PROMPTS: Path = Path("./prompt_templates/")
@@ -97,7 +97,8 @@ class Settings(BaseSettings):
     
 
     # HF directory
-    if hostname == "a-buch-ThinkPad-X1-Extreme-Gen-4i":
+    if hostname == "abuch-ThinkPad-X1-Extreme-Gen-4i":
+    
         print("Running on local machine")
 
         # set working dir

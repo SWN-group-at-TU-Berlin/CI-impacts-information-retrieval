@@ -18,8 +18,7 @@ from docling_core.types import DoclingDocument
 from docling_core.types.doc import CoordOrigin
 from docling_core.types.doc.document import SectionHeaderItem, ListItem, TextItem, DocItem
 from langchain_core.documents import Document
-from docling.datamodel.pipeline_options import PdfPipelineOptions, EasyOcrOptions, AcceleratorOptions, ApiVlmOptions, ResponseFormat, VlmPipelineOptions
-from docling.pipeline.vlm_pipeline import VlmPipeline
+from docling.datamodel.pipeline_options import PdfPipelineOptions, EasyOcrOptions, AcceleratorOptions, ApiVlmOptions, ResponseFormat
 from docling.document_converter import ConversionResult, DocumentConverter, PdfFormatOption, ImageFormatOption, PipelineOptions, InputFormat
 from haystack.dataclasses import ByteStream
 
@@ -193,7 +192,7 @@ def clean_text(p_str: str) -> str:
 
 ##########################  MY FUNCS
 def remove_figure_references(p_str: str) -> str:
-    # remove potneital figure reference when they are colsed by bracketss, e.g. (A1), (B20)
+    # remove potneital figure reference when they are closed by bracketss, e.g. (A1), (B20)
     # this is done to avoid mismatches with road names
     p_str = re.sub(r"\s+\([A-Z][0-9]{1,}\)", "", p_str)
     return p_str
@@ -493,7 +492,7 @@ def add_paragraph(
 
 
 
-##########################  HYPHEN CLENAING SOLO  (keep solo or inc. in DoclingParser class)
+##########################  HYPHEN CLEANING SOLO  (keep solo or inc. in DoclingParser class)
 
 ## document-wise cleaning 
 
