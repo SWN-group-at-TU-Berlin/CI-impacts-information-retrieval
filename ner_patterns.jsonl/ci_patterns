@@ -33,7 +33,6 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]ea port.*|^[Ss]ea port.*"}}], "subgroup_name":"ports", "group_name":"shipping"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]arbor.*|^[Hh]arbor.*"}}], "subgroup_name":"ports", "group_name":"shipping"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]ort operation.*|^[Pp]ort operation.*"}}], "subgroup_name":"port_operation", "group_name":"shipping"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]ontainer.*|^[Cc]ontainer.*"}}], "subgroup_name":"ports", "group_name":"shipping"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]hips|^[Ss]hips"}}], "subgroup_name":"waterways_ships", "group_name":"shipping"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Mm]aritime traffic.*|^[Mm]aritime traffic.*"}}], "subgroup_name":"maritime", "group_name":"shipping"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Mm]aritime sector|^[Mm]aritime sector"}}], "subgroup_name":"maritime", "group_name":"shipping"}
