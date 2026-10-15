@@ -86,3 +86,17 @@ def supports_flash_attention(device_id):
 
     return is_sm8x or is_sm90
 
+
+
+
+def calc_recall(tps_no: int, fns_no: int):
+    return tps_no / (tps_no + fns_no) 
+
+
+
+def calc_precision(tps_no: int, fps_no: int):
+    return tps_no / (tps_no + fps_no) 
+
+
+def calc_f1(recall: int, precision: int):
+    return 2 * (precision * recall) / (precision + recall)

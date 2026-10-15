@@ -18,44 +18,53 @@ from docling_core.types import DoclingDocument
 from docling_core.types.doc import CoordOrigin
 from docling_core.types.doc.document import SectionHeaderItem, ListItem, TextItem, DocItem
 from langchain_core.documents import Document
-from docling.datamodel.pipeline_options import PdfPipelineOptions, EasyOcrOptions, AcceleratorOptions
-from docling.document_converter import ConversionResult, DocumentConverter, PdfFormatOption, PipelineOptions, InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions, EasyOcrOptions, AcceleratorOptions, ApiVlmOptions, ResponseFormat, VlmPipelineOptions
+from docling.pipeline.vlm_pipeline import VlmPipeline
+from docling.document_converter import ConversionResult, DocumentConverter, PdfFormatOption, ImageFormatOption, PipelineOptions, InputFormat
 from haystack.dataclasses import ByteStream
 
-
-
+import requests
+# from docling.datamodel.base_models import InputFormat
+from docling.datamodel.settings import settings
 
 
 class DocumentParser:
     """Class for parsing and cleaning documents."""
 
     def __init__(self):
-                
         # OCR pipeline configs
         self.artifacts_path = Path("../docling_artifacts")
         self.artifacts_path.mkdir(exist_ok=True)
 
-        # OCR and pipeline options
+        # EASY-OCR and pipeline options
         ocr_options = EasyOcrOptions(
-            lang=["en", "fr", "de", "es", "pt", "it", "pl", "cs", "nl", "da", "sv", "no", "hr", "ro", "bg" "sl", "sk", "lt", "et" ],
+            lang=["fr", "de", "es", "it", "nl"],
+            # lang=["en", "fr", "de", "es", "pt", "it", "pl", "cs", "nl", "da", "sv", "no", "hr", "ro", "bg" "sl", "sk", "lt", "et" ],
             download_enabled=True
         )
         pipeline_opts = PdfPipelineOptions(
             artifacts_path=self.artifacts_path,
             do_ocr=True,         # Required for text extraction
-            do_table_structure=False,  # Disable table analysis if not needed
-            allow_external_plugins=True,
+            do_table_structure=False,  # Disable table analysis as not needed, and not well working for EasyOCR
+            generate_picture_images=False, 
+            #allow_external_plugins=True,
             ocr_options=ocr_options
         )
+        
         # PDF format options
         pdf_format_option = PdfFormatOption(
             pipeline_options=pipeline_opts,
-            reading_order="natural"
+            # reading_order="natural"
         )
         # init pdf converter
         self.ocr_converter = DocumentConverter(
             format_options={InputFormat.PDF: pdf_format_option}
         )
+        
+        # # for RAPID-OCR 
+        # # NOTE: needs language detection beforehand and DWL of respective model, and issue of detecting text in 2-column pages eg. frontpage Koks 2022
+        # # !uv add rapidocr_onnxruntime
+
 
 
 
@@ -186,7 +195,7 @@ def clean_text(p_str: str) -> str:
 def remove_figure_references(p_str: str) -> str:
     # remove potneital figure reference when they are colsed by bracketss, e.g. (A1), (B20)
     # this is done to avoid mismatches with road names
-    p_str = re.sub(r"\s+\([A-Z][0-9]{1,}\)\s", "", p_str)
+    p_str = re.sub(r"\s+\([A-Z][0-9]{1,}\)", "", p_str)
     return p_str
 
 def is_reference_section(document_text: str) -> bool:
@@ -199,6 +208,37 @@ def is_reference_section(document_text: str) -> bool:
     if matches:
         print(f"Reference section found!" )
         return True
+
+def is_conclusions_section(document_text: str) -> bool:
+    # search for disucssion/conclusion section
+    pattern = re.compile(
+        r"Discussion|discussion|Conclusions|conclusions", flags=re.MULTILINE
+    )
+    # re.MULTILINE in combination with "^" and case sensitive : find search words only when they are at beginning of a new line
+    matches = re.findall(pattern, document_text)
+    if matches:
+        return True
+
+def is_abstract(document_text: str) -> bool:
+    # search for abstract section or "Abstract." mentioning in text-body-size (e.g .Koks2022, kettle2020)
+    pattern = re.compile(r"^(ABSTRACT|Abstract|SUMMARY|FOREWORD|Summary|Zusammenfassung)$|Abstract.", flags=re.MULTILINE)
+    # re.MULTILINE in combination with "^" and case sensitive : find search words only when they are at beginning of a new line
+    matches = re.findall(pattern, document_text)
+    if matches:
+        return True
+
+def is_not_running_text(text: Union[SectionHeaderItem, ListItem, TextItem]) -> bool:
+    # find figure or table text or figure/table text marked as group, e.g. axis-labels, table text, figure annotations etc.  (<= 3 words, parent=picture). 
+    pattern = re.compile(r"(#/pictures/*|#/tables/*|#/groups/*)", flags=re.MULTILINE)
+    matches = re.findall(pattern, text.parent.cref) #and (len(text.text.split()) <= 3)
+    if matches:
+        return True
+
+
+
+def is_caption(text: Union[SectionHeaderItem, ListItem, TextItem]) -> bool:
+    return text.label._value_ == "caption"
+
 ###################
 
 
@@ -227,23 +267,23 @@ def combine_paragraphs(p1_str: str, p2_str: str):
 def is_section_header(text: Union[SectionHeaderItem, ListItem, TextItem]) -> bool:
     if text is None:
         return False
-    return text.label == "section_header"
+    return text.label._value_ == "section_header"
 
 
 def is_page_footer(text: Union[SectionHeaderItem, ListItem, TextItem]) -> bool:
-    return text.label == "page_footer"
+    return text.label._value_ == "page_footer"
 
 
 def is_page_header(text: Union[SectionHeaderItem, ListItem, TextItem]) -> bool:
-    return text.label == "page_header"
+    return text.label._value_ == "page_header"
 
 
 def is_footnote(text: Union[SectionHeaderItem, ListItem, TextItem]) -> bool:
-    return text.label == "footnote"
+    return text.label._value_ == "footnote"
 
 
 def is_list_item(text: Union[SectionHeaderItem, ListItem, TextItem]) -> bool:
-    return text.label == "list_item"
+    return text.label._value_ == "list_item"
 
 
 def is_text_break(text: Union[SectionHeaderItem, ListItem, TextItem]) -> bool:
@@ -251,7 +291,7 @@ def is_text_break(text: Union[SectionHeaderItem, ListItem, TextItem]) -> bool:
 
 
 def is_page_not_text(text: Union[SectionHeaderItem, ListItem, TextItem]) -> bool:
-    return text.label not in ["text", "list_item", "formula"]
+    return text.label._value_ not in ["text", "list_item", "formula"]
 
 
 def is_page_text(text: Union[SectionHeaderItem, ListItem, TextItem]) -> bool:
@@ -263,15 +303,10 @@ def is_ends_with_punctuation(text: str) -> bool:
 
 
 def is_too_short(doc_item: DocItem, threshold: int = 2) -> bool:
-    return doc_item.label == "text" and len(doc_item.text) <= threshold
+    return doc_item.label._value_ == "text" and len(doc_item.text) <= threshold
 
 
-def is_bottom_note(text: DocItem, near_bottom: bool = False) -> bool:
-    # if 'Morgenstern was then the director' in text.text:
-    #     pass
-    # if text.text.startswith("10. Summing up o f"):
-    #     pass
-
+def git om_note(text: DocItem, near_bottom: bool = False) -> bool:
     # If it is specifically digits followed by a period, followed by a space, and it is
     # a section header or a list item, then it is NOT a bottom note
     if bool(re.match(r"^\d+\.\s", text.text)) and (is_section_header(text) or is_list_item(text)):
@@ -298,7 +333,7 @@ def is_bottom_note(text: DocItem, near_bottom: bool = False) -> bool:
     return False
 
 
-def is_near_bottom(doc_item: DocItem, same_page_items: [DocItem], threshold: float = 0.3) -> bool:
+def is_near_bottom(doc_item: DocItem, same_page_items: [DocItem], threshold: float = 0.5) -> bool:
     """
     Determine if a DocItem is near the bottom of its page.
 
@@ -366,7 +401,10 @@ def should_skip_element(text: Union[SectionHeaderItem, ListItem, TextItem]) -> b
     return any([
         is_page_footer(text),
         is_page_header(text),
-        is_roman_numeral(text.text)
+        is_roman_numeral(text.text),
+        is_not_running_text(text),
+        is_footnote(text),
+        is_caption(text)
     ])
 
 
@@ -400,6 +438,10 @@ def get_processed_texts(doc: DoclingDocument) -> List[DocItem]:
         if is_too_short(text_item):
             continue
         elif reached_bottom_notes or is_footnote(text_item):
+            # NOTE: # workaround to keep paragraphs in correct section 
+            # issue: some text paragraphs are removed as they get the wrong section_name, this bc they are getting the label reached_bottom_notes=True and thenjust added later to the outp of get_processed_text() 
+            if len(text_item.text) > 3:
+                regular_texts.append(text_item)
             notes.append(text_item)
         elif is_bottom_note(text_item, near_bottom=near_bottom):
             notes.append(text_item)
@@ -408,10 +450,31 @@ def get_processed_texts(doc: DoclingDocument) -> List[DocItem]:
             regular_texts.append(text_item)
 
         # Check if the DocItem is a SectionHeaderItem. If so, turn it into a TextItem.
-        if reached_bottom_notes and is_section_header(text_item):
+        if is_section_header(text_item):
             mislabeled.append(text_item)
 
-    return regular_texts + notes
+    # new_texts = regular_texts + notes
+    new_texts = regular_texts # NOTE test without notes, this text that is already added by " workaround to keep paragraphs in correct section "
+   
+
+    # # is reference or conlcusion
+    # if dc.is_conclusions_section(section_name):
+    #     print("Discussion / Conclusions section found. Stopping further processing of document.")
+    #     continue 
+    # if dc.is_reference_section(section_name):
+    #     print("Reference section found. Stopping further processing of document.")
+    #     continue                    
+
+    # # skip paragraph belonging to Abstract/Summary
+    # # keep "overview" section as might be more like introduction with detailed info, recognized also "Abstract." in text-body fontsize
+    # if (dc.is_abstract(section_name)) or (dc.is_abstract(text.text)):
+    #     print("Abstract/Summary section found. Continue with next text piece.")
+    #     continue
+
+    return new_texts
+
+    # return regular_texts + notes
+
 
 
 def add_paragraph(
@@ -533,7 +596,9 @@ def combine_hyphenated_words(p_str):
 
         # If there is a space after the hyphen and the combined word is valid,
         # assume the hyphen was splitting a single word.
-        if word2.startswith(" ") and is_valid_word(combined):
+        # if word2.startswith(" ") and is_valid_word(combined):  # org
+        # NOTE: test if it not merges two proper nouns, eg. Sachsen-Anhalt, Elbe-Havel
+        if word2.startswith(" ") and is_valid_word(combined) and word2.strip()[0].islower():
             return combined
         # If both parts are valid words on their own, keep them hyphenated.
         elif is_valid_word(word1.strip()) and is_valid_word(word2.strip()):

@@ -5,9 +5,8 @@
 __author__ = "Anna Buch, TU Berlin"
 __email__ = "anna.buch@tu-berlin.de"
 
-from datetime import datetime
 import os
-import re
+from datetime import datetime
 from pathlib import Path
 # from pydantic_settings import BaseSettings
 import subprocess
@@ -17,8 +16,13 @@ import subprocess
 # local or remote machine 
 hostname = subprocess.run(['hostname'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
 
-class Settings():
-#class Settings(BaseSettings):
+
+class Settings(BaseSettings):
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore"
+    )
 
     if hostname == "abuch-ThinkPad-X1-Extreme-Gen-4i":
         print("Running on local machine")
@@ -28,7 +32,6 @@ class Settings():
         PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
     
     PATH_SRC: Path = Path("./src")
-    ## store logs and data outside of the repository
     PATH_LOGS: Path = Path("../logs/")
     
     PATH_PROMPTS: Path = Path("./prompt_templates/")
@@ -92,7 +95,10 @@ class Settings():
         print("couldnt load large spacy model")
         SPACY_MODEL: str = "en_core_web_lg "
     
-    if hostname == "abuch-ThinkPad-X1-Extreme-Gen-4i":
+
+    # HF directory
+    if hostname == "a-buch-ThinkPad-X1-Extreme-Gen-4i":
+        print("Running on local machine")
 
         # set working dir
         os.chdir("/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/")
@@ -101,12 +107,12 @@ class Settings():
         # HF directory
         HF_HOME_DIR: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/hub"
         HF_TOKEN_PATH: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/token"
-
     # elif re.findall("node*|gpu*", hostname) ==TRUE:  # TODO adapt pattern search
     else:
         print("Running on TUB Cluster")
-        HF_HOME_DIR: str = "/beegfs/home/users/a/a-buch/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/hub"
+        HF_HOME_DIR: str = "/beegfs/home/users/a/a-buch/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror"
         HF_TOKEN_PATH: str = "/beegfs/home/users/a/a-buch/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/token"
+        # model_config = SettingsConfigDict(env_file=".env")  # load HUGGINGFACE_TOKEN
 
         # DATA DIR
         PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
