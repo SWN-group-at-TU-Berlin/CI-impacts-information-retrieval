@@ -88,11 +88,6 @@ def is_ci_entity(ci_entity: pd.Series, regex_pattern: str) -> pd.Series:
     return ci_entity.str.match(regex_pattern)
 
 
-def postprocess_llmresp(llm_response):
-    result = {key: llm_response[key] for key in ["assets","locations", "damages"]}
-    return  pd.DataFrame(result)
-    
-
 def postprocess_response(resp: str) -> pd.DataFrame:
 
     # Remove linebreak symbols and case numbers in the keys ("damage_1" -> "damage")
@@ -128,7 +123,7 @@ def postprocess_response(resp: str) -> pd.DataFrame:
 
     return df_final_resp
 
-
+        
 def postprocess_locations(df:pd.Series, location_col:str) -> pd.Series:
     """remove surrounding text for locations"""
     # TODO condense function
@@ -159,7 +154,6 @@ def postprocess_locations(df:pd.Series, location_col:str) -> pd.Series:
     return df[location_col]
 
 
-
 def split_text_into_multiple_rows(df: pd.DataFrame, column: str, split_at = " and ") -> pd.DataFrame:
     """ split text at splitting_point into multiple rows """
     # split CIs and LOCs with "and" into multiple rows
@@ -177,48 +171,57 @@ def split_text_into_multiple_rows(df: pd.DataFrame, column: str, split_at = " an
 
 
 
+def split_ci_entities(df: pd.DataFrame, columns: list[str],) -> pd.DataFrame:
+    """Split entries containing 'and' or 'or'; expand the resulting entities into separate rows."""
 
-def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.DataFrame, grouping_scheme: str = "subgroup_name") -> pd.DataFrame:
+    df = df.copy()
 
-    # load regular expressions and subgroups from NER patterns as dict
-    # # for general cases
-    # try:
-    #     regexes_3 = [
-    #         {ci_patterns["pattern"][i][0]["TEXT"] : ci_patterns["subgroup_name"][i]}
-    #         for i in range(len(ci_patterns)) 
-    #             if len(ci_patterns["pattern"][i])==1 
-    #     ]
-    # except Exception:
-    regexes_1 = [
-            {ci_patterns["pattern"][i][0]["TEXT"]["REGEX"] : ci_patterns["subgroup_name"][i]}
-            for i in range(len(ci_patterns)) 
-                if len(ci_patterns["pattern"][i])==1 
-    ]
-    # for all special cases with "LOWER"-pattern
-    regexes_2 = [
-        {ci_patterns["pattern"][i][0]["TEXT"]["REGEX"] + " " + ci_patterns["pattern"][i][1]["LOWER"] : ci_patterns["subgroup_name"][i] }
-        for i in range(len(ci_patterns))
-            if len(ci_patterns["pattern"][i])==2
-    ]
-    # for speial cases where regex not worked due to reducnandcy to other regex Ci word,eg access roads <-> roads 
+    def split_entity_string(text):
 
-    regexes = regexes_1 + regexes_2 #+ regexes_3
+        if pd.isna(text):
+            return []
 
-    for i, r in enumerate(regexes):
-        # get regex pattern for CI type (key) and its subgroup (value)
-        # NOTE, nice shortcut: get key containing regex by unpacking each dict into list, then get key
-        pattern = [*r][0]
-        subgroup = r[pattern]
+        text = str(text).strip()
 
-        # remove words considered wrongly as Ci keywords
-        regex = re.compile(r"\b[Dd]amage\w*|\b[Tt]raining\w*|\b[Cc]ommunication\w*")
-        df[col_type].str.replace(regex, "", regex=True).str.replace("  ", " ")
-            
-        # assign subgroups to CI records, na=False to remove all records which not match patterns
-        # mask = df[col_type].str.match(pattern)
-        df[[col_type, col_grouped]] = df[[col_type, col_grouped]].astype(str)
-        mask = is_ci_entity(df[col_type], pattern)
-        df.loc[mask, col_grouped] = subgroup
-    
+        if not text:
+            return []
+
+        # Split on standalone "and" / "or"
+        parts = re.split(
+            r"\s+(?:and|or)\s+",
+            text,
+            flags=re.IGNORECASE
+        )
+
+        if len(parts) == 1:
+            return [text]
+
+        # Handle shared final word:
+        right_words = parts[-1].split()
+
+        if len(right_words) >= 2:
+            shared_head = right_words[-1]
+
+            parts = [
+                (
+                    f"{part.strip()} {shared_head}"
+                    if not part.strip().lower().endswith(
+                        shared_head.lower()
+                    )
+                    else part.strip()
+                )
+                for part in parts
+            ]
+
+        return parts
+
+    # Split each requested column
+    for column in columns:
+        df[column] = df[column].apply(split_entity_string)
+
+    # Explode each column sequentially
+    for column in columns:
+        df = df.explode(column, ignore_index=True)
+
     return df
-
+       

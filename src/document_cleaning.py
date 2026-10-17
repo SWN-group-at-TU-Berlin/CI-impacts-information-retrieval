@@ -193,7 +193,7 @@ def clean_text(p_str: str) -> str:
 
 ##########################  MY FUNCS
 def remove_figure_references(p_str: str) -> str:
-    # remove potneital figure reference when they are colsed by bracketss, e.g. (A1), (B20)
+    # remove potential figure reference when they are colsed by bracketss, e.g. (A1), (B20)
     # this is done to avoid mismatches with road names
     p_str = re.sub(r"\s+\([A-Z][0-9]{1,}\)", "", p_str)
     return p_str
@@ -306,7 +306,7 @@ def is_too_short(doc_item: DocItem, threshold: int = 2) -> bool:
     return doc_item.label._value_ == "text" and len(doc_item.text) <= threshold
 
 
-def git om_note(text: DocItem, near_bottom: bool = False) -> bool:
+def is_bottom_note(text: DocItem, near_bottom: bool = False) -> bool:
     # If it is specifically digits followed by a period, followed by a space, and it is
     # a section header or a list item, then it is NOT a bottom note
     if bool(re.match(r"^\d+\.\s", text.text)) and (is_section_header(text) or is_list_item(text)):
@@ -493,7 +493,7 @@ def add_paragraph(
 
 
 
-##########################  HYPHEN CLENAING SOLO  (keep solo or inc. in DoclingParser class)
+##########################  HYPHEN CLEANING SOLO  (keep solo or inc. in DoclingParser class)
 
 ## document-wise cleaning 
 
