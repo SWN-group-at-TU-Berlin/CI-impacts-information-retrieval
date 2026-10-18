@@ -196,22 +196,22 @@ def split_ci_entities(df: pd.DataFrame, columns: list[str],) -> pd.DataFrame:
         if len(parts) == 1:
             return [text]
 
-        # Handle shared final word:
+        parts = [part.strip() for part in parts]
+
+        # Handle shared final word, e.g. "water and gas pipelines" -> "water pipelines", "gas pipelines".
+        # Only single-word parts are treated as modifiers of the shared head; multi-word parts
+        # are complete entities already, e.g. "rail lines and local bus services"
         right_words = parts[-1].split()
 
         if len(right_words) >= 2:
             shared_head = right_words[-1]
 
             parts = [
-                (
-                    f"{part.strip()} {shared_head}"
-                    if not part.strip().lower().endswith(
-                        shared_head.lower()
-                    )
-                    else part.strip()
-                )
-                for part in parts
-            ]
+                f"{part} {shared_head}"
+                if len(part.split()) == 1 and part.lower() != shared_head.lower()
+                else part
+                for part in parts[:-1]
+            ] + [parts[-1]]
 
         return parts
 
