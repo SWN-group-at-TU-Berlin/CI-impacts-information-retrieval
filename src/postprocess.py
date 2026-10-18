@@ -36,26 +36,25 @@ def keep_ci_types(ci_list: list, ci_patterns) -> list:
 
     return ci_list
 
-
-def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.DataFrame) -> pd.DataFrame:
+def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.DataFrame, grouping_scheme: str = "subgroup_name") -> pd.DataFrame:
 
     # load regular expressions and subgroups from NER patterns as dict
     # # for general cases
     # try:
     #     regexes_3 = [
-    #         {ci_patterns["pattern"][i][0]["TEXT"] : ci_patterns["subgroup_name"][i]}
+    #         {ci_patterns["pattern"][i][0]["TEXT"] : ci_patterns[grouping_scheme][i]}
     #         for i in range(len(ci_patterns)) 
     #             if len(ci_patterns["pattern"][i])==1 
     #     ]
     # except Exception:
     regexes_1 = [
-            {ci_patterns["pattern"][i][0]["TEXT"]["REGEX"] : ci_patterns["subgroup_name"][i]}
+            {ci_patterns["pattern"][i][0]["TEXT"]["REGEX"] : ci_patterns[grouping_scheme][i]}
             for i in range(len(ci_patterns)) 
                 if len(ci_patterns["pattern"][i])==1 
     ]
     # for all special cases with "LOWER"-pattern
     regexes_2 = [
-        {ci_patterns["pattern"][i][0]["TEXT"]["REGEX"] + " " + ci_patterns["pattern"][i][1]["LOWER"] : ci_patterns["subgroup_name"][i] }
+        {ci_patterns["pattern"][i][0]["TEXT"]["REGEX"] + " " + ci_patterns["pattern"][i][1]["LOWER"] : ci_patterns[grouping_scheme][i] }
         for i in range(len(ci_patterns))
             if len(ci_patterns["pattern"][i])==2
     ]
