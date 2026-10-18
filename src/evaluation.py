@@ -209,9 +209,19 @@ def extract_numbers(text: str) -> list[float]:
 def numbers_must_match(scorer):
     """Wrap a string scorer (e.g. fuzz.partial_ratio) so that a pair scores 0 unless both strings
     contain the same numbers; if they do (or neither contains a number), the original scorer is applied
-    on the strings with normalized numbers."""
+    on the strings with normalized numbers.
+    Repeated numbers are ignored, e.g. "100 to 200, between 100 to 200 households" matches "100 to 200"."""
     def _scorer(pred: str, valid: str) -> float:
-        if extract_numbers(pred) != extract_numbers(valid):
+        if set(extract_numbers(pred)) != set(extract_numbers(valid)):
             return 0
         return scorer(normalize_numbers(pred), normalize_numbers(valid))
     return _scorer
+
+
+def calc_scores(tps: int, fps: int, fns: int, zero_division: float = 0.0) -> tuple[float, float, float]:
+    """Precision, recall, F1 from TPs, FPs, FNs; returns zero_division for a score whose denominator is 0
+    (e.g. precision when nothing was predicted)."""
+    precision = tps / (tps + fps) if tps + fps > 0 else zero_division
+    recall = tps / (tps + fns) if tps + fns > 0 else zero_division
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else zero_division
+    return precision, recall, f1
