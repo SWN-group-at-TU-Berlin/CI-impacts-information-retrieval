@@ -41,6 +41,7 @@ def calc_pooled_scores(counts: pd.DataFrame) -> pd.DataFrame:
         pooled["f1"] = 2 * pooled["precision"] * pooled["recall"] / (pooled["precision"] + pooled["recall"])
     pooled = pooled.fillna(0.0)
     pooled["n"] = pooled["tps"] + pooled["fns"]  # number of validation records
+    pooled["n_pred"] = pooled["tps"] + pooled["fps"]  # number of predicted records
 
     return pooled.reset_index()
 
@@ -50,15 +51,20 @@ def plot_pooled_precision_recall(
     title: str = "Precision and recall scores",
     save_path: str | None = None,
     ax: plt.Axes | None = None,
+    show_counts: bool = True,
 ) -> plt.Axes:
     """Plot precision and recall per impact column, pooled across all documents.
 
     counts: DataFrame with columns "impact", "tps", "fps", "fns", e.g. collected in the
         evaluation loop as {"impact": p_impact, "tps": sum(tps_list), "fps": sum(fps_list), "fns": sum(fns_list)}
     save_path: if given, the figure is stored there (e.g. "../figures/precision_recall.png")
+    show_counts: label each bar also with its number of cases: predicted cases (TPs + FPs) for the
+        precision bar, validation cases (TPs + FNs) for the recall bar
     """
     scores = calc_pooled_scores(counts)
     metrics = ["Precision", "Recall"]
+    # number of cases each score is based on: precision -> prediction set, recall -> validation set
+    counts_per_metric = {"Precision": (scores["n_pred"].to_numpy(), "pred."), "Recall": (scores["n"].to_numpy(), "valid.")}
 
     n_impacts = len(scores)
     if ax is None:
@@ -80,15 +86,17 @@ def plot_pooled_precision_recall(
             color=SERIES_COLORS[metric], label=metric, zorder=2,
         )
         # direct value labels at the bar ends, in text ink
-        for yi, v in zip(y + offsets[metric], values):
-            ax.text(v + 0.01, yi, f"{v:.2f}", va="center", ha="left", fontsize=8.5, color=INK_SECONDARY)
+        n_cases, set_name = counts_per_metric[metric]
+        for yi, v, n in zip(y + offsets[metric], values, n_cases):
+            label = f"{v:.2f}" + (f" · {int(n)} {set_name}" if show_counts else "")
+            ax.text(v + 0.01, yi, label, va="center", ha="left", fontsize=8.5, color=INK_SECONDARY)
 
     ax.set_yticks(y)
     ax.set_yticklabels(
         [f"{imp}" for imp in scores["impact"]],
         color=INK_PRIMARY, fontsize=9.5,
     )
-    ax.set_xlim(0, 1.08)
+    ax.set_xlim(0, 1.25 if show_counts else 1.08)  # room for the bar labels
     ax.set_xticks(np.linspace(0, 1, 6))
     ax.set_xlabel("Score", color=INK_MUTED, fontsize=9)
     ax.tick_params(axis="x", colors=INK_MUTED, labelsize=8.5, length=0)
@@ -101,6 +109,9 @@ def plot_pooled_precision_recall(
     ax.spines["left"].set_color(BASELINE)
 
     ax.set_title(title, loc="left", color=INK_PRIMARY, fontsize=11.5, pad=24)
+    if show_counts:
+        for handle in ax.get_legend_handles_labels()[0]:
+            handle.set_label(f"{handle.get_label()} (n = {'predicted' if handle.get_label() == 'Precision' else 'validation'} cases)")
     ax.legend(
         loc="lower left", bbox_to_anchor=(0, 1.0), ncol=len(metrics), frameon=False,
         fontsize=9, labelcolor=INK_SECONDARY, handlelength=1.0, borderaxespad=0.2,
