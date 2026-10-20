@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     if hostname == "abuch-ThinkPad-X1-Extreme-Gen-4i":
         print("Running on local machine")
-        PATH_DATA: Path = Path("../data/")
+        PATH_DATA: Path = Path("../../data/")
     else:
         print("Running on TUB cluster")
         PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
