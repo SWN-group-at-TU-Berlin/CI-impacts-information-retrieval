@@ -12,6 +12,76 @@ import pandas as pd
 import src.document_cleaning as dc
 
 
+# General damage categories of an infrastructure asset (InfrastructureCase.damage), ordered from most to least severe,
+# each with a short definition and the detailed damage keywords it replaces
+DAMAGE_CATEGORIES = {
+    "structural_damage": {
+        "definition": "physical damage to or destruction of the asset itself",
+        "keywords": ["damaged", "severely damaged", "highly damaged", "destroyed", "largely destroyed", "heavily destroyed",
+                     "dam failure(s)", "dyke break(s)", "dike break(s)", "breached dike(s)", "broken embankment(s)", "derailed"],
+    },
+    "inundation": {
+        "definition": "the asset is flooded or covered by water",
+        "keywords": ["flooded", "inundated", "water on"],
+    },
+    "contamination": {
+        "definition": "the asset or its service (e.g. drinking water) is contaminated or polluted",
+        "keywords": ["contaminated", "polluted"],
+    },
+    "service_loss": {
+        "definition": "the service provided by the asset is lost, e.g. outage, blackout, no supply of water, electricity or gas",
+        "keywords": ["outage(s)", "blackout", "loss of water/electricity", "no supply", "left without water/electricity", "failure(s)"],
+    },
+    "obstruction": {
+        "definition": "the asset is obstructed by debris or trees",
+        "keywords": ["debris", "debris on", "fallen tree(s)", "broken tree(s)", "overturned tree(s)", "uprooted tree(s)", "felled tree(s)"],
+    },
+    "disruption": {
+        "definition": "the operation of the asset is disrupted, restricted or stopped, e.g. closures, blockages, delays, cancellations, traffic jams",
+        "keywords": ["disrupted", "blocked", "impassable", "partly closed", "closed", "closure(s)", "traffic jam(s)",
+                     "traffic disruption(s)", "traffic congestion(s)", "delay(s)", "flight delay(s)", "train delay(s)",
+                     "train failure(s)", "cancellation(s)", "canceled"],
+    },
+    "affected": {
+        "definition": "the asset is reported as (indirectly) affected without further details",
+        "keywords": ["affected", "indirectly affected"],
+    },
+    "restored_recovered": {
+        "definition": "the asset or its service is restored, repaired, rebuilt or reconnected",
+        "keywords": ["re-established", "reestablished", "restored", "reconnected", "rebuild", "repaired", "debris removal"],
+    },
+}
+
+_DAMAGE_KEYWORD_TO_CATEGORY = {
+    keyword: category for category, entry in DAMAGE_CATEGORIES.items() for keyword in entry["keywords"]
+}
+
+
+def describe_damage_categories() -> str:
+    """Damage categories with definition and examples, one per line (e.g. for prompts and schema descriptions)."""
+    return "\n".join(
+        f"- {category}: {entry['definition']} (e.g. {', '.join(entry['keywords'])})"
+        for category, entry in DAMAGE_CATEGORIES.items()
+    )
+
+
+def map_damage_to_category(damage):
+    """Map a detailed damage keyword (or several, separated by ',', ';' or ' or ') to its general damage category,
+    e.g. "severely damaged" -> "structural_damage". Several keywords give the most severe category.
+    Values that are already a category are returned unchanged, unknown values and NaN give None."""
+    if damage is None or (isinstance(damage, float) and pd.isna(damage)):
+        return None
+    damage = str(damage).strip().lower()
+    if damage in DAMAGE_CATEGORIES:
+        return damage
+
+    parts = [p.strip() for p in re.split(r",|;|\bor\b|\band\b", damage) if p.strip()]
+    categories = {_DAMAGE_KEYWORD_TO_CATEGORY.get(p, p if p in DAMAGE_CATEGORIES else None) for p in parts} - {None}
+    if not categories:
+        return None
+    return min(categories, key=list(DAMAGE_CATEGORIES).index)  # most severe
+
+
 def keep_ci_types(ci_list: list, ci_patterns) -> list:
     
     # load regular expressions and subgroups from NER patterns as dict
