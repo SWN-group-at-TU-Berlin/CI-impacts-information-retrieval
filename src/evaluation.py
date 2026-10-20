@@ -218,6 +218,22 @@ def numbers_must_match(scorer):
     return _scorer
 
 
+MISSING_IMPACT_VALUES = ["", "none", "nan"]
+
+
+def is_missing_impact(value, pair_sep: str = " - ") -> bool:
+    """True when an impact value is missing (NaN, None, "", "none", "nan" - any case), also for combined
+    impact pairs such as "roads - nan" (e.g. cigroup_location) where one of the parts is missing."""
+    if value is None or (not isinstance(value, (list, tuple)) and pd.isna(value)):
+        return True
+    return any(part.strip().lower() in MISSING_IMPACT_VALUES for part in str(value).split(pair_sep))
+
+
+def drop_missing_impacts(values: list) -> list:
+    """Remove missing impact values (see is_missing_impact), i.e. evaluate only on cases with an impact value."""
+    return [x for x in values if not is_missing_impact(x)]
+
+
 def calc_scores(tps: int, fps: int, fns: int, zero_division: float = 0.0) -> tuple[float, float, float]:
     """Precision, recall, F1 from TPs, FPs, FNs; returns zero_division for a score whose denominator is 0
     (e.g. precision when nothing was predicted)."""
