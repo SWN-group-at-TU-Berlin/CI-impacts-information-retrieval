@@ -95,6 +95,7 @@ dependencies = [
     "pydantic-shapely>=1.0.0a6",
     "ipykernel>=7.3.0",
     "urllib3>=2.7.0",
+    "python-dotenv>=1.2.3",
 ]
 
 
