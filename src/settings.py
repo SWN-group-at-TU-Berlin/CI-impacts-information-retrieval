@@ -8,6 +8,8 @@ __email__ = "anna.buch@tu-berlin.de"
 import os
 from datetime import datetime
 from pathlib import Path
+import logging
+import functools
 from pydantic_settings import BaseSettings
 import subprocess
 
@@ -17,11 +19,12 @@ import subprocess
 hostname = subprocess.run(['hostname'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
 
 
+
 class Settings(BaseSettings):
 
     if hostname == "abuch-ThinkPad-X1-Extreme-Gen-4i":
         print("Running on local machine")
-        PATH_DATA: Path = Path("../../data/")
+        PATH_DATA: Path = Path("../data/")
     else:
         print("Running on TUB cluster")
         PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
@@ -40,7 +43,6 @@ class Settings(BaseSettings):
     #LLM_DATA_FILENAME: str = f'llm1_{datetime.now().strftime("%Y-%m-%d")}.csv'
     
     PATH_LX_DATA: Path = Path(PATH_DATA / "langextract_output/")
-    os.makedirs(PATH_LX_DATA, exist_ok=True)
     LX_DATA_FILENAME: str = f"lx1_mix_cigeo_{datetime.now().strftime('%Y-%m-%d')}.csv"
     # LX_DATA_FILENAME: str = 'llama3_48_documents_2026-01-28.csv'   #  replace with lx_modelname_xxx
 
@@ -48,7 +50,6 @@ class Settings(BaseSettings):
     PATH_VALID_DATA: Path = Path(PATH_DATA / 'evaluation/manual_extracted')
     VALID_DATA_FILENAME: str = 'table_ci_impacts_sm.csv'
     PATH_EVAL_RESULT: Path = Path(PATH_DATA / 'evaluation_results')
-    os.makedirs(PATH_EVAL_RESULT, exist_ok=True)
 
     # NOTE SIMILARITY_[LX]_FILENAME is set based on LLM_DATA_FILENAME or LX_DATA_FILENAME 
     SIMILARITY_LLM_FILENAME: str = f'smlrty_{LLM_DATA_FILENAME.replace(".csv", ".parquet")}'
@@ -111,8 +112,66 @@ class Settings(BaseSettings):
 
         # DATA DIR
         PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
-    # else:
-    #     print("Could not identify if code is executed on local or remote machine, adapt hostname and paths accordingly!")
-
 
 settings = Settings()
+
+
+
+## decorated/wrapped func
+# @decorate_init_logger # uncomment when to make decorator permanent
+def init_logger(name):
+    """
+    Set up a logger instance
+    Modified version based on code from <christina.ludwig@uni-heidelberg.de> for SM2T project
+    name (str): Name of logger
+    log_file (str): path to log file
+    """
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%m-%d-%Y %I:%M:%S",
+    )
+    # Add stream handler
+    streamhandler = logging.StreamHandler()
+    streamhandler.setLevel(logging.INFO)
+    streamhandler.setFormatter(formatter)
+    if not logger.handlers:
+        logger.addHandler(streamhandler)
+
+    # Add file handler
+    if not os.path.exists(PATH_LOGS):
+        os.makedirs(PATH_LOGS)
+    log_file = f"{PATH_LOGS}/logs_{name}.log"
+    if not os.path.exists(log_file):
+        open(log_file, "w+").close()
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    return logger
+
+
+## decorator for logger
+def decorate_init_logger(func):
+    """
+    Decorator for logger
+    """
+
+    @functools.wraps(func)  # preserve original func information from magic methods such as __repr__
+    def wrapper(*args):
+        # Call the wrapped function
+        logger = func(*args)
+
+        # Log file handler
+        log_file = f"./{PATH_LOGS}/warning_check_regression_coeffcients.log"
+        print(f"Creating log file {log_file} due to warning that regression coefficients are all non significant")
+        if not os.path.exists(log_file):
+            open(log_file, "w+").close()
+
+        return logger
+
+    return wrapper
+
