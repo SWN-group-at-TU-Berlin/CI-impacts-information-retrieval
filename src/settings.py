@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 import logging
 import functools
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 import subprocess
 
 
@@ -21,6 +21,9 @@ hostname = subprocess.run(['hostname'], stdout=subprocess.PIPE).stdout.decode('u
 
 
 class Settings(BaseSettings):
+
+    # fields can be overwritten by environment variables or by the .env file in the project root (e.g. LLM1_BASE_URL)
+    model_config = SettingsConfigDict(env_file=Path(__file__).resolve().parents[1] / ".env", extra="ignore")
 
     if hostname == "abuch-ThinkPad-X1-Extreme-Gen-4i":
         print("Running on local machine")
@@ -56,6 +59,14 @@ class Settings(BaseSettings):
     SIMILARITY_LX_FILENAME: str = f'smlrty_{LX_DATA_FILENAME.replace(".csv", ".parquet")}'
     # SIMILARITY_FILENAME: str = 'llama3_ci_impact_evaluation.parquet' # replace with lx_modelname_xxx
 
+
+    # self-hosted LLMs served by vLLM (OpenAI-compatible API), see scripts/serve_vllm_*.sbatch
+    # NOTE: from the local machine reach the HPC servers via ssh tunnel, e.g. ssh -N -L 8000:<node>:8000 -L 8001:<node>:8001 <hpc-login>
+    LLM1_BASE_URL: str = "http://localhost:8000/v1"     # LLM 1 (extraction)
+    LLM1_MODEL: str = "openai/gpt-oss-20b"              # served model name, see `vllm serve --served-model-name`
+    JUDGE_BASE_URL: str = "http://localhost:8001/v1"    # LLM-as-a-judge
+    JUDGE_MODEL: str = "google/gemma-4-31B-it"          # served model name, see `vllm serve --served-model-name`
+    VLLM_API_KEY: str = "EMPTY"                         # same key as `vllm serve --api-key`
 
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 50
