@@ -27,6 +27,11 @@ import requests
 # from docling.datamodel.base_models import InputFormat
 from docling.datamodel.settings import settings
 
+from src.settings import init_logger
+
+
+logger = init_logger(__name__)
+
 
 class DocumentParser:
     """Class for parsing and cleaning documents."""
@@ -106,14 +111,14 @@ def remove_references(document_text: str) -> str:
         document_text_no_references = document_text[:start_index].strip()
         return document_text_no_references
     else:
-        print("No References section found!")
+        logger.warning("No References section found!")
         return document_text
 
 
 def remove_headers_footers(conv_file: ConversionResult) -> ConversionResult:
     ## remove headers and footers from the document
     total_texts = len(conv_file.document.texts)
-    print(f"Total texts in document: {total_texts}")
+    logger.info(f"Total texts in document: {total_texts}")
 
     text_items = [x for x in conv_file.document.texts if isinstance(x, TextItem)]
 
@@ -138,7 +143,7 @@ def remove_headers_footers(conv_file: ConversionResult) -> ConversionResult:
     ## drop selected text items
     conv_file.document.delete_items(node_items=text_items_to_drop)
 
-    print(f"Total texts after deletion: {len(conv_file.document.texts)}")
+    logger.info(f"Total texts after deletion: {len(conv_file.document.texts)}")
 
     return conv_file, text_items_to_drop_visualization
 
@@ -206,7 +211,7 @@ def is_reference_section(document_text: str) -> bool:
     # re.MULTILINE in combination with "^" and case sensitive : find search words only when they are at beginning of a new line
     matches = re.findall(pattern, document_text)
     if matches:
-        print(f"Reference section found!" )
+        logger.info(f"Reference section found!" )
         return True
 
 def is_conclusions_section(document_text: str) -> bool:

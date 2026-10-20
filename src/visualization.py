@@ -2,6 +2,11 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from src.settings import init_logger
+
+
+logger = init_logger(__name__)
+
 
 # chart colors (categorical slots 1+2) and recessive chart chrome
 SERIES_COLORS = {"Precision": "#2a78d6", "Recall": "#eb6834"}

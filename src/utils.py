@@ -5,7 +5,10 @@ import torch
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import cos_sim
 
-from src.settings import settings as s
+from src.settings import settings as s, init_logger
+
+
+logger = init_logger(__name__)
 
 
 

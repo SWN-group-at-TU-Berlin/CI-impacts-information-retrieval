@@ -10,6 +10,10 @@ from io import StringIO
 import pandas as pd
 
 import src.document_cleaning as dc
+from src.settings import init_logger
+
+
+logger = init_logger(__name__)
 
 
 # General damage categories of an infrastructure asset (InfrastructureCase.damage), ordered from most to least severe,

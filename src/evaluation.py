@@ -8,6 +8,11 @@ import re
 import numpy as np
 import pandas as pd
 
+from src.settings import init_logger
+
+
+logger = init_logger(__name__)
+
 
 
 def true_positives(df_similarity: pd.DataFrame, df_valid, df_valid_col, df_pred, df_pred_col, similarity_threshold: float) -> int:

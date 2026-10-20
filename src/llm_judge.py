@@ -12,6 +12,11 @@ import typing
 import numpy as np
 import pandas as pd
 
+from src.settings import init_logger
+
+
+logger = init_logger(__name__)
+
 
 JUDGE_VERDICTS = ["correct", "adapted", "false"]
 NOT_JUDGED = "not_judged"  # judge gave no (valid) verdict for this record, record is kept unchanged

@@ -14,7 +14,10 @@ from typing import Optional, Dict, Any
 import psycopg2 as pg
 
 
-# logger = s.init_logger("__database__") # TODO init logger in settings
+from src.settings import init_logger
+
+
+logger = init_logger(__name__)
 
 
 class TextSource(BaseModel):
@@ -41,7 +44,7 @@ def connect_db():
         port="5432",
         password="postgres",
     )
-    print(conn)
+    logger.info(conn)
     return conn
 
 

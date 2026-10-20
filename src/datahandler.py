@@ -7,7 +7,10 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import matplotlib.pyplot as plt
 
-from src.settings import settings as s
+from src.settings import settings as s, init_logger
+
+
+logger = init_logger(__name__)
 
 class DataHandler:
 
@@ -21,7 +24,7 @@ class DataHandler:
         SIMILARITY_FILENAME = f"{entity_pred.replace('_pred', '')}_{self.SIMILARITY_LLM_FILENAME}"
         SIMILARITY_FILEPATH = Path(self.PATH_EVAL_RESULT / SIMILARITY_FILENAME)
         
-        print("Saving evaluation statistics, distribution plots, and scores to ", SIMILARITY_FILEPATH.stem, "[.parquet, _stats.json]")
+        logger.info(f"Saving evaluation statistics, distribution plots, and scores to {SIMILARITY_FILEPATH.stem} [.parquet, _stats.json]")
         
         with open(SIMILARITY_FILEPATH, "w") as f:
         

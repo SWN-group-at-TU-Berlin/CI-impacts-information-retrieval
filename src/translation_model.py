@@ -22,7 +22,10 @@ from transformers import (
 import torch
 import gc
 
-from src.settings import settings as s
+from src.settings import settings as s, init_logger
+
+
+logger = init_logger(__name__)
 
 nltk.download('punkt_tab')
 
@@ -50,7 +53,7 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
 
     base_dir = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/hub"# s.HF_HOME_DIR 
     model_dir = base_dir 
-    print(model_dir)
+    logger.info(model_dir)
 
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
@@ -62,11 +65,11 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device = transformers.infer_device()
     if device != "cuda":
-        print(f"Using device: {device}")
+        logger.info(f"Using device: {device}")
 
     # Model and Tokenizer initialization
     if not os.path.exists(model_dir):
-        print("Model directory not found. Downloading model...")
+        logger.warning("Model directory not found. Downloading model...")
         os.makedirs(model_dir, exist_ok=True)
 
         model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -137,7 +140,7 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
             try:
                 src_language = langdetect.detect(src_text)
             except langdetect.lang_detect_exception.LangDetectException as e:
-                print(f"Language detection failed for chunk {j} with text: {src_text[:30]}... Skipping translation for this chunk.")
+                logger.warning(f"Language detection failed for chunk {j} with text: {src_text[:30]}... Skipping translation for this chunk.")
                 continue
             # print(f"Detected language for chunk {j}: {src_language}")
 
@@ -184,7 +187,7 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
 
         supported_languages = ["fr", "de", "es", "it", "nl"]  # TODO make as global var in config file
         if (src_language == dst_language) or (src_language not in supported_languages):
-            print("Source and destination language for text are identical or unsupported. Skipping translation.")
+            logger.info("Source and destination language for text are identical or unsupported. Skipping translation.")
             # write back to document
             # doc = src_text.replace("\n", " ")
 

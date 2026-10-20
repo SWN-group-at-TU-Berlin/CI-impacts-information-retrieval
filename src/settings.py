@@ -99,7 +99,6 @@ class Settings(BaseSettings):
         # set working dir
         os.chdir("/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/")
     
-       
         # HF directory
         HF_HOME_DIR: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/hub"
         HF_TOKEN_PATH: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/token"
@@ -114,7 +113,6 @@ class Settings(BaseSettings):
         PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
 
 settings = Settings()
-
 
 
 ## decorated/wrapped func
@@ -133,19 +131,19 @@ def init_logger(name):
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         datefmt="%m-%d-%Y %I:%M:%S",
     )
+    # avoid duplicated handlers (and log lines) when the logger is initialized multiple times, e.g. module reloads
+    if logger.handlers:
+        return logger
+
     # Add stream handler
     streamhandler = logging.StreamHandler()
     streamhandler.setLevel(logging.INFO)
     streamhandler.setFormatter(formatter)
-    if not logger.handlers:
-        logger.addHandler(streamhandler)
+    logger.addHandler(streamhandler)
 
     # Add file handler
-    if not os.path.exists(PATH_LOGS):
-        os.makedirs(PATH_LOGS)
-    log_file = f"{PATH_LOGS}/logs_{name}.log"
-    if not os.path.exists(log_file):
-        open(log_file, "w+").close()
+    os.makedirs(settings.PATH_LOGS, exist_ok=True)
+    log_file = f"{settings.PATH_LOGS}/logs_{name}.log"
     file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
@@ -166,7 +164,7 @@ def decorate_init_logger(func):
         logger = func(*args)
 
         # Log file handler
-        log_file = f"./{PATH_LOGS}/warning_check_regression_coeffcients.log"
+        log_file = f"{settings.PATH_LOGS}/warning_check_regression_coeffcients.log"
         print(f"Creating log file {log_file} due to warning that regression coefficients are all non significant")
         if not os.path.exists(log_file):
             open(log_file, "w+").close()

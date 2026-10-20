@@ -20,7 +20,10 @@ from transformers import (
 )
 import torch
 
-from src.settings import settings as s
+from src.settings import settings as s, init_logger
+
+
+logger = init_logger(__name__)
 import src.utils as u
 
 
@@ -50,7 +53,7 @@ class DecoderModelCaching:
         base_dir =  s.HF_HOME_DIR   # use default dir in .cache/
         model_dir = base_dir # / f"models--{model_name.replace("/", "--")}"  # is already .._mirror/hub/
         
-        print(model_dir)
+        logger.info(model_dir)
 
         # quantization config
         # Load model with 4-bit quantization if applicable (use 4-bit integer instead of 32b floats) --> reduce the required VRAM for model application
@@ -78,12 +81,12 @@ class DecoderModelCaching:
         # use flash-attn when GPU type supports it (e.g., A100, not support:tesla P100)
         flash_attn_config = None
         if u.supports_flash_attention(0):  # check only for first GPU
-            print("Using flash attention")
+            logger.info("Using flash attention")
             flash_attn_config = "flash_attention_2"
 
         # Model and Tokenizer initialization
         if not os.path.exists(model_dir):
-            print("Model directory not found. Downloading model...")
+            logger.warning("Model directory not found. Downloading model...")
             os.makedirs(model_dir, exist_ok=True)
 
             model = AutoModelForCausalLM.from_pretrained(
@@ -100,10 +103,10 @@ class DecoderModelCaching:
             tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
             tokenizer.save_pretrained(model_dir)
 
-            print("Downloaded model and tokenizer")
+            logger.info("Downloaded model and tokenizer")
 
         else:
-            print(f"Using locally saved model from {model_dir}/{model_name}")
+            logger.info(f"Using locally saved model from {model_dir}/{model_name}")
 
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
@@ -132,7 +135,7 @@ class DecoderModelCaching:
         ## Caching
         # set iterative generation to avoid recomputing entire prompt
         # past_key_values = DynamicCache(config=model.config)
-        print("Using iterative caching of prompt key values to avoid recomputing entire prompt for each generation step.")
+        logger.info("Using iterative caching of prompt key values to avoid recomputing entire prompt for each generation step.")
         # print("Using offloading currently") # to CPU for prompt cache to reduce GPU memory usage")
         prompt_cache =  DynamicCache(config=model.config) #, offloading=True) 
         static_prompt = static_prompt.render()
