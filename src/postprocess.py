@@ -33,22 +33,22 @@ DAMAGE_CATEGORIES = {
         "keywords": ["contaminated", "polluted"],
     },
     "service_loss": {
-        "definition": "the service provided by the asset is lost, e.g. outage, blackout, no supply of water, electricity or gas",
-        "keywords": ["outage(s)", "blackout", "loss of water/electricity", "no supply", "left without water/electricity", "failure(s)"],
+        "definition": "the service (only water/wastewater/telecommunication/IT/energy/gas) provided by the asset is lost or the assets' capacity is limited or exceeded, e.g. outage, blackout, overloaded/overwhelmed, congested network(s), supply of water, electricity or gas",
+        "keywords": ["outage(s)", "blackout", "loss of water/electricity/gas/telecommunication/it", "no supply", "limited/exceeded capacity", "overwhelmed", "overheated", "left without water/electricity/gas/telecommunication/it", "failure(s)"],
     },
     "obstruction": {
         "definition": "the asset is obstructed by debris or trees",
         "keywords": ["debris", "debris on", "fallen tree(s)", "broken tree(s)", "overturned tree(s)", "uprooted tree(s)", "felled tree(s)"],
     },
     "disruption": {
-        "definition": "the operation of the asset is disrupted, restricted or stopped, e.g. closures, blockages, delays, cancellations, traffic jams",
-        "keywords": ["disrupted", "blocked", "impassable", "partly closed", "closed", "closure(s)", "traffic jam(s)",
-                     "traffic disruption(s)", "traffic congestion(s)", "delay(s)", "flight delay(s)", "train delay(s)",
+        "definition": "the operation of the asset (only transportation) is disrupted, restricted, or stopped, e.g. closures, blockages, delays, cancellations, traffic jams",
+        "keywords": ["disrupted", "blocked", "impassable", "partly closed", "closed", "closure(s)", "(partly) out of service", "cut off", "traffic jam(s)",
+                     "traffic disruption(s)", "traffic congestion(s)", "delay(s)", "flight delay(s)", "train delay(s)",  
                      "train failure(s)", "cancellation(s)", "canceled"],
     },
     "affected": {
-        "definition": "the asset is reported as (indirectly) affected without further details",
-        "keywords": ["affected", "indirectly affected"],
+        "definition": "the asset is reported as (indirectly) affected or impacted without further details, or reported as (indirectly) affected/impacted by a hazard (e.g., fire, wind, flood, heat, drought) without further details",
+        "keywords": ["affected", "affected by a hazard", "indirectly affected"],
     },
     "restored_recovered": {
         "definition": "the asset or its service is restored, repaired, rebuilt or reconnected",
