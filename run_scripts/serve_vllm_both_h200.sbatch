@@ -18,10 +18,13 @@
 # NOTE needs vLLM >= 0.19.1 (Gemma 4)
 #SBATCH --job-name=ci-impacts-vllm
 #SBATCH --partition=h200_short  #TestAndBuild  # check which partition hosts the H200 node: sinfo -o "%P %N %G"
+#SBATCH --account=swn
+#SBATCH --mail-user=anna.buch@tu-berlin.de
+#SBATCH --mail-type=END,FAIL
 #SBATCH --gres=gpu:h200:1      # one H200, both servers on it; adjust gres name to the output of sinfo
 #SBATCH --cpus-per-task=16     # 8 per server
 # #SBATCH --mem=96G
-#SBATCH --time=01:00:00        # server startups (up to 2 x 30 min worst case) + the workflow; check the partition's max time
+#SBATCH --time=02:00:00        # server startups (up to 2 x 30 min worst case) + the workflow; check the partition's max time
 #SBATCH --output=../logs/%x-%j.out
 #SBATCH --error=../logs/%x-%j.%N.err
 

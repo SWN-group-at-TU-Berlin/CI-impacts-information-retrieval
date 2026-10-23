@@ -1,6 +1,17 @@
 # %%
-use_geollama = False
+# %%
+import os
+import sys
+from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent     # .../ci-impacts-vllm/notebooks
+PROJECT_ROOT = SCRIPT_DIR.parent                  # .../ci-impacts-vllm
+os.chdir(PROJECT_ROOT)                 # "./ner_patterns.jsonl", "./spacy_model_pipeline", "./interim_results_debug" resolve in the project root
+sys.path.insert(0, str(PROJECT_ROOT))  # makes "import src..." work from anywhere
+
+use_geollama = False
+RUN_EXAMPLE = False      # True: run the single text2 example graph before the document loop
+# RUN_EVALUATION = False   # True: run the evaluation cells after the extraction
 
 # %%
 
@@ -50,8 +61,6 @@ from docling.chunking import HybridChunker
 
 
 # %%
-import sys
-sys.path.append("../")
 from src.settings import settings as s
 from src.document_cleaning import extract_citation_info
 import src.translation_model as tm
@@ -69,7 +78,7 @@ print(torch.cuda.is_available())
 # print(torch.cuda.get_device_properties(0))
 # print(torch.cuda.get_device_properties(1))
 # print(torch.cuda.get_device_capability())
-print(torch.cuda.get_arch_list())  # ['sm_70', 'sm_75', 'sm_80', 'sm_86', 'sm_90', 'sm_100', 'sm_120']
+# print(torch.cuda.get_arch_list())  # ['sm_70', 'sm_75', 'sm_80', 'sm_86', 'sm_90', 'sm_100', 'sm_120']
 # print(torch.__version__)
 # print(torch.version.cuda)
 
@@ -85,13 +94,12 @@ test_mode = True
 from dotenv import load_dotenv
 load_dotenv()
 
-
-try: 
-    login(token=os.getenv("HUGGINGFACE_TOKEN"))   # notebook_login
-except:
-    login(token=os.environ.get("HUGGINGFACE_TOKEN"))  # former HF_TOKEN
+token = os.getenv("HUGGINGFACE_TOKEN") or os.getenv("HF_TOKEN")
+if token:
+    login(token=token)
+else:
+    print("No HUGGINGFACE_TOKEN set, skipping HF login (public models still load)")
         
-# NOTE raises exception if not env.variable doesnt exist (compared to os.envrion.get and its shortcut os.getenv)
 
 
 # NOTE. disabled batch size as OOM for CUDA despite chunkwise memory cleaning, nvtop to find best batchsize
@@ -219,7 +227,7 @@ print(f"Using {len(search_path)} documents for processing.")
 # NER_PATTERNS_FILEPATH = Path("./ner_patterns.jsonl/")
 
 # # add CI_TYPE patterns to spacy nlp model pipeline
-# config = {"spans_key": None, "annotate_ents": True, "overwrite": False}
+# config = {"spans_ke": None, "annotate_ents": True, "overwrite": False}
 # ## see for more info: https://spacy.io/usage/rule-based-matching#entityruler
 # ## NOTE EntityRuler is hidden inside .add_pipe()
 # try:
@@ -1344,6 +1352,20 @@ llm = ChatOpenAI(
     max_tokens=2048,  # counts reasoning + answer: raise (e.g. 4096) if structured output comes back as None
     reasoning_effort="medium",  # gpt-oss: low | medium | high
 )
+
+# init LLM-as-a-judge (step 3)
+llm_judge = ChatOpenAI(
+    model=s.JUDGE_MODEL,
+    base_url=s.JUDGE_BASE_URL,
+    api_key=s.VLLM_API_KEY,
+    temperature=0,
+    seed=42,
+    timeout=300,
+    max_tokens=16384,  # the judge (reasoning model) needs tokens for reasoning + JSON answer; vLLM --max-model-len must be >= prompt + max_tokens
+)
+# NOTE judge replaced: nemotron-3-super-120b-a12b needs 2-4x 80 GB GPUs; gemma-4-31B-it (reasoning very good) fits on 1 GPU, on NIM it timed out (2026-10-18)
+# NOTE "openai/gpt-oss-20b"  # gpt-oss seems to have better reasoning for edge cases partly (germay+beligum, bridges) than "meta/llama-3.3-70b-instruct"
+
 
 
 ####################################
@@ -2650,28 +2672,10 @@ text2 = """Similar to Germany, severe damage had been observed to the gas networ
 # """
 
 # extract impacts
-# result = graph.invoke({
-#     "text": text,
-# })
-print(text2)
-# config = {"configurable": {"thread_id": "1"   }}
-result = graph.invoke({
-        "text": text2,
-        #"messages": [HumanMessage(content=text)],
-}) #,config=config)
-print(result)
-
-# df_resp = pd.DataFrame({"infrastructure_type":k.ci_asset, "location":k.location, "damage":k.damage} for k in result["infrastructure_cases"].cases)
-# df_resp
-
-
-# %%
-text2
-
-
-# %%
-r = result
-r["infrastructure_cases"].cases
+if RUN_EXAMPLE:
+    print(text2)
+    result = graph.invoke({"text": text2})
+    print(result)
 
 
 # %%
@@ -2926,11 +2930,11 @@ def impacts_to_dataframe(data):
     return df
 
 
-# %%
-print(text2)
-df_resp = impacts_to_dataframe(r).replace("; ",", ", regex=True)
-df_resp["has_cascading_impacts"] = r.get("has_cascading_impacts", []).has_cascading_impacts
-df_resp
+# # %%
+# print(text2)
+# df_resp = impacts_to_dataframe(r).replace("; ",", ", regex=True)
+# df_resp["has_cascading_impacts"] = r.get("has_cascading_impacts", []).has_cascading_impacts
+# df_resp
 
 # %%
 
@@ -2940,13 +2944,13 @@ df_resp
 #         (k, result[k]) for k in ['assets', "damages", 'locations'] if k in result)
 #     )
 
-# # disentangle rows which contain multiple locations or CIs
-df_resp = pp.split_text_into_multiple_rows(df_resp, "location",  split_at = " and ")
-df_resp = pp.split_text_into_multiple_rows(df_resp, "location",  split_at = " or ")
-df_resp = pp.split_text_into_multiple_rows(df_resp, "location",  split_at = "to ")
-df_resp = pp.split_text_into_multiple_rows(df_resp, "location",  split_at = ", ")  # Germany, Neterlands, Belgium
-df_resp = pp.split_text_into_multiple_rows(df_resp, "location",  split_at = "; ")
-df_resp
+# # # disentangle rows which contain multiple locations or CIs
+# df_resp = pp.split_text_into_multiple_rows(df_resp, "location",  split_at = " and ")
+# df_resp = pp.split_text_into_multiple_rows(df_resp, "location",  split_at = " or ")
+# df_resp = pp.split_text_into_multiple_rows(df_resp, "location",  split_at = "to ")
+# df_resp = pp.split_text_into_multiple_rows(df_resp, "location",  split_at = ", ")  # Germany, Neterlands, Belgium
+# df_resp = pp.split_text_into_multiple_rows(df_resp, "location",  split_at = "; ")
+# df_resp
 
 # %%
 # ## condense cascading infos
@@ -2963,7 +2967,6 @@ df_resp
 # df_resp_fig['societal_impacts'] = df_resp_fig['societal_impacts'].map({True:"societal_impacts"})
 # df_resp_fig
 
-df_resp
 # df_resp = pp.split_ci_entities(df_resp, ["ci_asset"]) # e.g "road and rail infrastructure" -> "road infrastructure", "rail infrastructure"
 # df_resp = pp.split_text_into_multiple_rows(df_resp, "ci_asset",  split_at = "; ") 
 
@@ -3303,26 +3306,6 @@ def convert_nan(series: pd.Series) -> pd.Series:
 
 
 # Settings
-# model_name = "meta-llama/Llama-3.1-8B-Instruct"
-model_name = s.LLM1_MODEL  # "openai/gpt-oss-20b": bit better performance than llama-3-70B but much smaller [~14-16 GB VRAM, MXFP4]
-model_name_step2 = s.JUDGE_MODEL  # LLM-as-a-judge: google/gemma-4-31B-it
-# NOTE judge replaced: nemotron-3-super-120b-a12b needs 2-4x 80 GB GPUs; gemma-4-31B-it (reasoning very good) fits on 1 GPU, on NIM it timed out (2026-10-18)
-# NOTE "openai/gpt-oss-20b"  # gpt-oss seems to have better reasoning for edge cases partly (germay+beligum, bridges) than "meta/llama-3.3-70b-instruct"
-
-# init LLM-as-a-judge (step 3)
-# served by vLLM on the HPC (see scripts/serve_vllm_gemma.sbatch)
-llm_judge = ChatOpenAI(
-    model=model_name_step2,
-    base_url=s.JUDGE_BASE_URL,
-    api_key=s.VLLM_API_KEY,
-    temperature=0,
-    seed=42,
-    timeout=300,
-    max_tokens=16384,  # the judge (reasoning model) needs tokens for reasoning + JSON answer; vLLM --max-model-len must be >= prompt + max_tokens
-)
-
-
-
 time0 = time.time()
 
 # clean up before applying CUDA
@@ -3395,6 +3378,7 @@ if test_mode:
 else:
     search_path = glob(str(Path(PARSED_TEXT_DIR, "*cleaned.jsonl")))
 
+os.makedirs("../../interim_results_debug", exist_ok=True)
 
 ## Start CI impact extraction
 for file_no, filename in enumerate(search_path):
@@ -3457,18 +3441,10 @@ for file_no, filename in enumerate(search_path):
     time_cleaning = time.time()
 
     if os.path.exists(cleaned_md_filepath):
-        print(f"Cleaned markdown file already exists, loading file and proceeding with Ci impact extraction")
-        # Load the existing cleaned markdown file
-        doclingdoc = md_converter.convert(cleaned_md_filepath).document      
-
-
-    elif not os.path.exists(org_filepath):
-        print(f"Cleaned markdown file does not exist yet. Cleaning document by using original PDF: '{filename}'")
-
-
-    # no pdf or md exists, skipping document
-    else:    
-        print(f"Neither cleaned markdown file nor original pdf file exists for document: '{filename}'. Skipping document.")
+        print("Cleaned markdown file exists, loading it")
+        doclingdoc = md_converter.convert(cleaned_md_filepath).document
+    else:
+        print(f"No cleaned markdown file for '{filename}' ({cleaned_md_filepath}). Skipping document.")
         continue
 
     print(f"Document cleaning took, {np.round((time.time() - time_cleaning) / 60, 1)} minutes")
@@ -3984,9 +3960,9 @@ for file_no, filename in enumerate(search_path):
 
     print(f"Safety: saving responses (Step 1 + 2) for doc: {citation} ")
     # chain of prompts
-    df_resp_step1_end.to_csv(f"../interim_results_debug/llm_geollm_chain_step1_{citation}.csv", encoding='utf-8', index=False)
-    df_resp_step2.to_csv(f"../interim_results_debug/llm_geollm_chain_step2_{citation}.csv", encoding='utf-8', index=False)
-    df_resp_judged.to_csv(f"../interim_results_debug/llm_geollm_chain_judge_{citation}.csv", encoding='utf-8', index=False)
+    df_resp_step1_end.to_csv(f"../../interim_results_debug/llm_geollm_chain_step1_{citation}.csv", encoding='utf-8', index=False)
+    df_resp_step2.to_csv(f"../../interim_results_debug/llm_geollm_chain_step2_{citation}.csv", encoding='utf-8', index=False)
+    df_resp_judged.to_csv(f"../../interim_results_debug/llm_geollm_chain_judge_{citation}.csv", encoding='utf-8', index=False)
 
 
     # # clean up after each document
@@ -4020,1196 +3996,9 @@ print(f"\n\n ######## -------- CI impact extraction took {(time.time() - time0) 
 # with geollm + cascading (e, s,second_ci) + one combi-call of CI_LOC_DAM + is_ci_case=T/F = 88 min
 # no geollm + casca (detialed prompts) +  direct_qunati_no + one combi-call of CI_LOC_DAM + is_ci_case=T/F: 133.0 minutes (local machine)
 
-
+# if not RUN_EVALUATION:
+#     print("Extraction finished, evaluation skipped (RUN_EVALUATION = False)")
+#     sys.exit(0)
 # %%
-df_resp_ci_loc_dam
-# if not df_resp_ci_loc_dam.empty:
-#     print("not empty")# judge_records(df_resp_ci_loc_dam, chunk.text, llm_judge)
-
-    # 120     df_judged = pd.concat(df_batches_judged)
-    # 121 
-    # 122     # re-assign CI groups for records where the judge changed the infrastructure type
-# type_changed = df_judged["judge_adapted_fields"].str.contains('"infrastructure_type"', na=False)
-
-df_resp
-
-# %%
-df_resp_step1_end.to_csv(f"../interim_results_debug/llm_geollm_chain_step1incomplete_{citation}.csv", encoding='utf-8', index=False)
-
-
-# %%
-df_resp_step2#[["location"]]
-
-# %%
-df_resp_step1_end#.tail(2)
-
-# %%
-df_resp_step2# [["infrastructure_type","infrastructure_group","location","damage","ci_entity", "chunk_text"]][10:20]
-
-# %%
-#df_resp_ci_loc_dam#["location"]
-df_resp_step1_end[["infrastructure_type","location", "damage", "chunk_text"]][20:40]
-# df_resp_ci_loc_dam
-
-# %%
-# print(df_resp_step2.chunk_text[0])
-# df_resp_step2[["infrastructure_type","location","damage","damage_value","verified_chunk_relevant"]]
-
-# df_resp_ci_loc_dam_step1[["infrastructure_type","location","damage","damage_value","verified_chunk_relevant"]]
-        # for i, df_row in df_resp_ci_loc_dam.iterrows():
-
-response_after_ci
-
-
-
-# %% [markdown]
-# 
-
-# %%
-## procesisng times  (nour, Khazai)
-# without tool, decoder model once called: 8 min, 9 min
-
-# with tool, decoder model once called: 4,35 min
-# with tool, decoder model per doc called: 11 min, 18 min
-
-# # without tool but EL prompt, decoder model per doc called (only ci, loc, el-linking): non Nour, 5 min
-# (qicker as CI-existance check before LLM checking+extraction starts )
-
-# # without tool but EL prompt, decoder model per doc called (all classes): non Nour, 10 min
-
-# STEP 1 + STEP 2
-# # without tool but EL prompt, decoder model per doc called (all classes): non Nour, 130 min
-
-
-# %% [markdown]
-# ## Evaluation CI-LOC pairs on DOC-level 
-# 
-# 
-
-# %% [markdown]
-# 
-
-# %%
-# citation = "Koks 2022"
-# df_pred = pd.read_csv(
-#     f"../interim_results_debug/llm_geollm_gpt120_chain_Koks 2022.csv",
-# )
-
-import glob
-df_pred = pd.DataFrame()
-
-for i, file in enumerate(glob.glob(os.path.join("../interim_results_debug", f'*chain*step2*.csv'))):
-# for i, file in enumerate(glob.glob(os.path.join("../interim_results_debug_chain_step12_nearlyall", f'*chain*step2*.csv'))):
-#for i, file in enumerate(glob.glob(os.path.join(s.PATH_DATA, "llm_outputs/responses_single_docs", f'*{step}*.csv'))):
-    print(i, file)
-    df_pred = pd.concat([df_pred, pd.read_csv(file)], ignore_index=True)
-
-## keep only rows which passed verification
-print(df_pred.shape)
-df_pred = df_pred[df_pred["verified_ci_loc"]==True]
-print(df_pred.shape)
-
-
-
-# %%
-
-
-# %%
-import ast
-
-
-df_valid_org = pd.read_csv(
-    "./../../_CLUSTERFOLDER/_PROJECTS/CI-impacts-information-retrieval/table_ci_impacts_sm_hpc.csv",
-    # usecols=["publication_id", "ci1_type", "ci1_damage", "ci1_location", "sentence_reference"],
-)
-print(len(df_valid_org))
-df_valid_org = df_valid_org[~df_valid_org.astype(str).apply(lambda x: x.str.contains("xx")).any(axis=1)]
-df_valid_org = df_valid_org.dropna(subset=["publication_id"], how="all") # drop rows where citation info is missing
-print(len(df_valid_org))
-#
-
-## get same document
-# df_valid = df_valid_org[df_valid_org["publication_id"].isin(["Nour 2011"])]
-# df_valid = df_valid_org[df_valid_org["publication_id"].isin(["Khazai 2013"])]
-df_valid = df_valid_org[df_valid_org["publication_id"].isin(df_pred["citation_id"])]
-
-
-# %%
-df_valid_org.publication_id.unique()
-
-# %%
-## PREP df_pred
-
-# # df_pred = df_resp_step1
-df_pred_pp = df_pred.copy(deep=True)
-
-
-
-# %%
-#  df_resp["infrastructure_type"] = df_resp["infrastructure_type"].replace(r"[\(\),]", "", regex=True)   # clean up CI from brackets and commas
-
-ci_patterns = pd.read_json("./ner_patterns.jsonl/patterns", lines=True)
-
-df_ci_cases_not_grouped_new = pd.DataFrame()
-
-if "infrastructure_group" in df_pred_pp.columns:
-    df_pred_pp = pp.group_ci_types(df_pred_pp, "infrastructure_type", "infrastructure_group", ci_patterns)
-else:
-    df_pred_pp["infrastructure_group"] = None            
-    df_pred_pp = pp.group_ci_types(df_pred_pp, "infrastructure_type", "infrastructure_group", ci_patterns)
-
-## store cases which could not be grouped
-df_ci_cases_not_grouped_new = pd.concat([df_ci_cases_not_grouped_new, df_pred_pp[df_pred_pp['infrastructure_group'].isna()]], ignore_index=True)
-print(f"CI cases not grouped in pred: {df_ci_cases_not_grouped_new.infrastructure_type.unique()}" )
-
-
-
-## df valid
-df_valid_ci_cases_not_grouped_new = pd.DataFrame()
-if "ci1_group" in df_valid.columns:
-    df_valid = pp.group_ci_types(df_valid, "ci1_type","ci1_group", ci_patterns)
-else:
-    df_valid["ci1_group"] = None            
-    df_valid = pp.group_ci_types(df_valid, "ci1_type", "ci1_group", ci_patterns)
-
-
-## store cases which could not be grouped
-df_valid_ci_cases_not_grouped_new = pd.concat([df_valid_ci_cases_not_grouped_new, df_valid[df_valid['ci1_group'].isna()]], ignore_index=True)
-print(f"CI cases not grouped in valid: {df_valid_ci_cases_not_grouped_new.ci1_type.unique()}" )
-
-# df_ci_cases_not_grouped_new
-
-
-# %%
-## explode lists to string
-#df_pred_pp["location"] = df_pred_pp["location"].apply(ast.literal_eval) #convert to list type
-df_pred_pp = df_pred_pp.explode("location")
-
-# #df_pred_pp["location_type"] = df_pred_pp["location_type"].apply(ast.literal_eval) #convert to list type
-# df_pred_pp = df_pred_pp.explode("location_type")
-
-# #df_pred_pp["damage"] = df_pred_pp["damage"].apply(ast.literal_eval) #convert to list type
-# df_pred_pp = df_pred_pp.explode("damage")
-
-# %%
-## remove "NAN"
-
-def convert_nan(series: pd.Series) -> pd.Series:
-    """ convert representations of "NAN" to np.nan """
-    # TODO use regex instead of ["NAN", "NaN", "nan"] by setting all possible representations of nan (e.g. "Nan") to lowercase 
-    series = series.replace(["NAN", "NaN", "nan"], np.nan)
-
-    return series
-
-
-
-print(df_pred_pp.info())
-df_pred_pp["infrastructure_type"] = convert_nan(df_pred_pp["infrastructure_type"])
-df_pred_pp["damage"] = convert_nan(df_pred_pp["damage"])
-df_pred_pp["location"] = convert_nan(df_pred_pp["location"])
-
-df_valid["infrastructure_type"] = convert_nan(df_valid["ci1_type"])
-df_valid["damage"] = convert_nan(df_valid["ci1_damage"])
-df_valid["location"] = convert_nan(df_valid["ci1_location"])
-
-
-
-print("Removing all records which have erroneous CI or missing LOC entry")
-
-df_pred_pp = df_pred_pp[~df_pred_pp.infrastructure_group.isna()]
-df_valid = df_valid[~df_valid.ci1_group.isna()]
-
-df_pred_pp = df_pred_pp[~df_pred_pp.location.isna()]
-df_valid = df_valid[~df_valid.ci1_location.isna()]
-
-
-# %%
-## split multiple LOCs
-
-def split_text_into_multiple_rows(df_org: pd.DataFrame, column: str, split_at = " and ") -> pd.DataFrame:
-    """ split text at splitting_point into multiple rows """
-    # split CIs and LOCs with "and" into multiple rows
-    # NOTE: Removes info from CI - drops info if CI is singular o plural (e.g, road and railway infrastrcutre --> "road", "railway infrastructure")
-    df = df_org.copy(deep=True)
-    try:
-        df[column] = df[column].str.split(split_at)   
-        df_e = df.explode(column=column)
-        df_e = df_e.drop_duplicates().reset_index(drop=True)
-    except TypeError:
-        ## explode lists to string
-        # df[column] = df[column].apply(ast.literal_eval) #convert to list type
-        df_e = df.explode(column).astype(str)
-        df_e[column] = df_e[column].str.split(split_at).explode(column)
-        df_e = df_e.drop_duplicates()
-    return df_e
-
-
-# disentangle rows which contain multiple locations or CIs
-df_pred_pp = split_text_into_multiple_rows(df_pred_pp, "location",  split_at = ", ")
-df_pred_pp = split_text_into_multiple_rows(df_pred_pp, "location",  split_at = " and ")
-df_pred_pp = split_text_into_multiple_rows(df_pred_pp, "location",  split_at = " or ")
-df_pred_pp = split_text_into_multiple_rows(df_pred_pp, "location",  split_at = r"^to ")
-df_pred_pp = split_text_into_multiple_rows(df_pred_pp, "infrastructure_type",  split_at = " and ").reset_index(drop=True) # make sure that same valid_sentences can occur multiple times, eg. in "Valencia and Sagunto port" (=2 rows)
-
-
-df_valid = split_text_into_multiple_rows(df_valid, "ci1_location",  split_at = ", ")
-df_valid = split_text_into_multiple_rows(df_valid, "ci1_location",  split_at = " and ")
-df_valid = split_text_into_multiple_rows(df_valid, "ci1_location",  split_at = " or ")
-df_valid = split_text_into_multiple_rows(df_valid, "ci1_location",  split_at = r"^to ")  # not split at "Sagunto", but at "to Estonia"
-df_valid = split_text_into_multiple_rows(df_valid, "ci1_type",  split_at = " and ").reset_index(drop=True) # make sure that same valid_sentences can occur multiple times, eg. in "Valencia and Sagunto port" (=2 rows)
-
-# rm trailing and leading whitespaces
-df_pred_pp = df_pred_pp.replace(r"^ +| +$", r"", regex=True)
-df_valid = df_valid.replace(r"^ +| +$", r"", regex=True)
-
-
-
-# %%
-# print(df_valid.value_counts("ci1_type"))
-# print(len(df_resp_step1))
-
-
-
-## drop numbers of highways in LOC
-def drop_numbers_in_location(df_pred, column):
-    print("remove rows which contain a number in a certain column, eg. B518")
-    df_pred = df_pred[~df_pred[column].str.contains(r'.*[0-9].*', na=True)]
-    print(len(df_pred))
-    return df_pred
-
-print(len(df_valid))
-df_valid = drop_numbers_in_location(df_valid, "ci1_location")
-print(len(df_pred_pp))
-df_pred_pp = drop_numbers_in_location(df_pred_pp, "location")
-
-
-df_pred_geolocalized = df_pred_pp#[["citation_id", "infrastructure_type", "location", "chunk_text",	"infrastructure_group"]]
-
-# 199
-# remove rows which contain a number in a certain column, eg. B518
-# 196
-# 450
-# remove rows which contain a number in a certain column, eg. B518
-# 443
-
-# %%
-# # df_pred_geolocalized.to_csv(f"./Khazai_find_hy_FPs_badrun.csv", encoding='utf-8', index=False)
-# df_resp_step1.to_csv(f"./Khazai_find_hy_FPs_df_resp_step1.csv", encoding='utf-8', index=False)
-# df_resp_step1_end.to_csv(f"./Khazai_find_hy_FPs_df_resp_step1_end.csv", encoding='utf-8', index=False)
-
-
-# %%
-# # df_pred_geolocalized.value_counts("location").astype(str).str.replace("]", "")
-
-# %%
-print(df_valid.value_counts("ci1_group"))
-print(df_pred_geolocalized.value_counts("infrastructure_group"))
-
-
-# %%
-
-
-# %%
-
-def calc_recall(tps_no: int, fns_no: int):
-    return tps_no / (tps_no + fns_no) 
-
-def calc_precision(tps_no: int, fps_no: int):
-    return tps_no / (tps_no + fps_no) 
-
-def calc_f1(recall: int, precision: int):
-    return 2 * (precision * recall) / (precision + recall)
-
-
-# %%
-
-fns_list = []
-fps_list = []   
-tps_list = []
-
-
-
-for publication in df_valid.publication_id.unique():
-
-    print(f"\n\nDocument: {publication}")
-    docs_valid = df_valid[df_valid["publication_id"] == publication]
-    docs_pred = df_pred_geolocalized[df_pred_geolocalized["citation_id"] == publication]
-
-    # if publication in ['Wildhagen 2013', "EFE 2024" ]:  # get all non-english texts
-    #     pass
-    # else:
-    #     continue  # english text , pass to ext doc
-
-    print(f"Document: {publication}")
-
-    # get all valid and predicted CI-LOC pairs for each publication
-    docs_valid_pairs = docs_valid[["ci1_group", "ci1_location"]].values.tolist()# .drop_duplicates().values.tolist()
-    docs_pred_pairs = docs_pred[["infrastructure_group", "location"]].values.tolist()#.drop_duplicates().values.tolist()
-    print(docs_valid_pairs)
-    print(docs_pred_pairs)
-    
-    # calc TPs, FPs, FNs
-    tps = len([t for t in docs_pred_pairs if t in docs_valid_pairs]) 
-    fps = len([t for t in docs_pred_pairs if t not in docs_valid_pairs]) 
-    fns = len([t for t in docs_valid_pairs if t not in docs_pred_pairs]) # geo-llama.trsting_on_news2024.ipynb
-    print(f"TPs: {tps}, FPs: {fps}, FNs: {fns}")
-    tps_list.append(tps)
-    fps_list.append(fps)
-    fns_list.append(fns)
-    print(f"  FPs: { [t for t in docs_pred_pairs if t not in docs_valid_pairs]}")
-    print(f"  FNs: { [t for t in docs_valid_pairs if t not in docs_pred_pairs]}")
-        
-
-    recall_score = calc_recall(tps_no=tps, fns_no=fns) 
-    precision_score = calc_precision(tps_no=tps, fps_no=fps)
-    try:
-        f1_score = calc_f1(precision=precision_score, recall=recall_score)
-    except ZeroDivisionError:
-        f1_score = 0.0
-
-    print(f"\n\n ---------- For each Document - Evaluation statistics (document-wise)-----------")
-    print(f"Recall: {recall_score}, Precision: {precision_score}, F1-score: {f1_score}")
-
-
-
-recall_score = u.calc_recall(tps_no=sum(tps_list), fns_no=sum(fns_list)) 
-precision_score = u.calc_precision(tps_no=sum(tps_list), fps_no=sum(fps_list))
-try:
-    f1_score = u.calc_f1(precision=precision_score, recall=recall_score)
-except ZeroDivisionError:
-    f1_score = 0.0
-
-print(f"\n\n ---------- Overall Evaluation statistics (document-wise)-----------")
-print(f"Recall: {recall_score}, Precision: {precision_score}, F1-score: {f1_score}")
-
-
-
-# %% [markdown]
-# ### check if Fps maybe correct (excl tables) 
-# 
-# Document: Khazai 2013
-# Document: Khazai 2013
-# TPs: 6, FPs: 22, FNs: 18
-# 
-#   FPs: [['water_others', 'Danube and Elbe catchment area'], ['waterprotection', 'Danube-Elbe catchment'], ['wastewater', 'Danube-Elbe basin'], ['motorways', 'German highways'], ['roads', 'German federal roads'], ['transport_others', 'German highways and federal roads'], ['transport_supply', 'Lkr. Deggendorf'], ['renewable_hydro', 'Alps'], ['waterprotection', 'Deggendorf'], ['rail', 'Stendal district'], ['motorways', '89 German districts'], ['roads', 'German districts'], ['motorways', 'Traunstein, Rosenheim'], ['roads', 'Stadt Heidelberg'], ['transport_supply', 'Wartburgkreis'], ['transport_others', 'Stadt Heidelberg'], ['roads', 'between Wittenberg and Jessen'], ['roads', 'Wittenberg to Jessen'], ['tunnels', 'Rhein'], ['roads', 'Oestrich'], ['waterways_ships', 'Rhein'], ['bridges', 'Stadtamhof, Regensburg']]
-# 
-#   FNs: [['roads', 'Germany'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['roads', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['roads', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Saxony-Anhalt'], ['roads', 'Wartburg district'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-# 
-# 
-#  ---------- Evaluation statistics (document-wise)-----------
-# Recall: 0.25, Precision: 0.21428571428571427, F1-score: 0.23076923076923075
-# 
-
-# %%
-## after vacaction (wit ci-loc both at once extracted)
-## before vacaction
-# debug/ Recall:           0.506993006993007, Precision: 0.4154727793696275, F1-score: 0.4566929133858268
-# debug_nearlyall_step12   0.5259515570934256, Precision: 0.4257703081232493, F1-score: 0.47058823529411764
-
-
-## no ci ner tool, no ner prompt [no s in response generatoin]
-# Document: Nour 2011
-# Document: Nour 2011
-# [['education_school', 'Maramureş County'], ['road_others', 'Maramureş County'], ['bridges', 'Maramureş County'], ['water_supply', 'Maramureş County'], ['renewable_hydro', 'Maramureş County'], ['electricity_distribution', 'Maramureş County'], ['it_telecommunication', 'Maramureş County'], ['transport_others', 'Maramureş County'], ['road_others', 'town of Seini'], ['road_others', 'city of Baia Mare'], ['bridges', 'Borşa Maramureş'], ['renewable_hydro', 'Dumbravita locality, Maramureş County '], ['water_supply', 'Borşa'], ['cable_poles', 'Leordina, Moisei and Rozavlea']]
-# [['road_others', 'Maramureş County'], ['bridges', 'Maramureş County'], ['electricity_distribution', 'Maramureş County'], ['gas_distribution', 'Maramureş County'], ['water_supply', 'Maramureş County'], ['renewable_hydro', 'Maramureş County'], ['it_telecommunication', 'Maramureş County'], ['road_others', 'Maramureş county'], ['road_others', 'town streets'], ['road_others', 'Seini'], ['road_others', 'Baia Mare'], ['transport_supply', 'Maramureş county'], ['bridges', 'Mar amureş county'], ['wastewater', 'Maramureş County'], ['gas_supply', 'Maramureş County'], ['renewable_hydro', 'Dumbravita locality'], ['water_supply', 'Borşa'], ['cable_poles', 'Leordina'], ['cable_poles', 'Moisei'], ['cable_poles', 'Rozavlea'], ['transport_supply', 'Maramureş Depression'], ['bridges', 'Maramureş Depression'], ['electricity_distribution', 'Maramureş Depression'], ['water_supply', 'Maramureş Depression'], ['it_telecommunication', 'Maramureş Depression']]
-# TPs: 7, FPs: 18, FNs: 7
-#   FPs: [['gas_distribution', 'Maramureş County'], ['road_others', 'Maramureş county'], ['road_others', 'town streets'], ['road_others', 'Seini'], ['road_others', 'Baia Mare'], ['transport_supply', 'Maramureş county'], ['bridges', 'Mar amureş county'], ['wastewater', 'Maramureş County'], ['gas_supply', 'Maramureş County'], ['renewable_hydro', 'Dumbravita locality'], ['cable_poles', 'Leordina'], ['cable_poles', 'Moisei'], ['cable_poles', 'Rozavlea'], ['transport_supply', 'Maramureş Depression'], ['bridges', 'Maramureş Depression'], ['electricity_distribution', 'Maramureş Depression'], ['water_supply', 'Maramureş Depression'], ['it_telecommunication', 'Maramureş Depression']]
-#  FNs: [['education_school', 'Maramureş County'], ['transport_others', 'Maramureş County'], ['road_others', 'town of Seini'], ['road_others', 'city of Baia Mare'], ['bridges', 'Borşa Maramureş'], ['renewable_hydro', 'Dumbravita locality, Maramureş County '], ['cable_poles', 'Leordina, Moisei and Rozavlea']]
-
-# Document: Khazai 2013
-# Document: Khazai 2013
-# [['road_others', 'Germany'], ['road_others', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['road_others', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['waterprotection', 'Fischbeck'], ['waterprotection', 'Saxony-Anhalt'], ['road_others', 'Saale-Holzland-Kreis'], ['road_others', 'Wartburg district'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-# [['water_others', 'Danube and Elbe catchment area'], ['motorways', 'Germany'], ['road_others', 'Germany'], ['waterprotection', 'Deggendorf district'], ['waterprotection', 'Bavaria, along the Elbe'], ['water_supply', 'towns and districts'], ['transport_others', 'inner cities'], ['motorways', 'federal highways'], ['rail', 'Stendal district'], ['transport_others', 'flooded regions'], ['motorways', '89 German districts'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['road_others', 'Wartburg district'], ['road_others', nan], ['transport_others', nan], ['road_others', 'B187 between Wittenberg and Jessen'], ['road_others', 'Zahna and Seyda'], ['road_others', 'B from Oestrich'], ['road_others', 'Jolie-Curie-Strasse'], ['road_others', 'Schellingstrasse'], ['road_others', 'Leibnizstrasse'], ['bridges', 'Regensburg'], ['waterprotection', nan], ['waterprotection', 'Fischbeck'], ['transport_others', 'Germany'], ['transport_supply', 'Germany']]
-# TPs: 5, FPs: 22, FNs: 19
-
-#   FPs: [['water_others', 'Danube and Elbe catchment area'], ['motorways', 'Germany'], ['waterprotection', 'Deggendorf district'], ['waterprotection', 'Bavaria, along the Elbe'], ['water_supply', 'towns and districts'], ['transport_others', 'inner cities'], ['motorways', 'federal highways'], ['rail', 'Stendal district'], ['transport_others', 'flooded regions'], ['motorways', '89 German districts'], ['road_others', nan], ['transport_others', nan], ['road_others', 'B187 between Wittenberg and Jessen'], ['road_others', 'Zahna and Seyda'], ['road_others', 'B from Oestrich'], ['road_others', 'Jolie-Curie-Strasse'], ['road_others', 'Schellingstrasse'], ['road_others', 'Leibnizstrasse'], ['bridges', 'Regensburg'], ['waterprotection', nan], ['transport_others', 'Germany'], ['transport_supply', 'Germany']]
-#   FNs: [['road_others', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['road_others', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['waterprotection', 'Saxony-Anhalt'], ['road_others', 'Saale-Holzland-Kreis'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-# Document: Khazai 2013
-# Document: Khazai 2013
-# [['road_others', 'Germany'], ['road_others', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['road_others', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['waterprotection', 'Fischbeck'], ['waterprotection', 'Saxony-Anhalt'], ['road_others', 'Saale-Holzland-Kreis'], ['road_others', 'Wartburg district'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-# [['water_others', 'Danube and Elbe catchment area'], ['motorways', 'Germany'], ['waterprotection', 'Deggendorf'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['water_supply', 'towns and districts'], ['transport_others', 'inner cities'], ['rail', 'district of Stendal'], ['transport_others', 'flooded regions'], ['motorways', '89 German districts'], ['road_others', 'Traunstein district'], ['motorways', 'Traunstein district'], ['motorways', 'Rosenheim district'], ['road_others', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland-Kreis'], ['road_others', 'Wartburg district'], ['transport_others', nan], ['transport_supply', 'Wartburgkreis'], ['transport_supply', 'Neckar-Odenwald-Kreis'], ['transport_supply', 'Ostallgäu'], ['transport_supply', 'Schmalkalden-Meiningen'], ['transport_supply', 'Weimarer Land'], ['transport_supply', 'Schwäbisch Hall'], ['transport_supply', 'Stadt Jena'], ['transport_supply', 'Altenburger Land'], ['transport_supply', 'Bergstraße'], ['transport_supply', 'Stadt Heidelberg'], ['transport_supply', 'Stadt Karlsruhe'], ['road_others', 'Wittenberg-Jessen'], ['road_others', 'Oestrich'], ['bridges', 'Regensburg'], ['waterprotection', nan], ['waterprotection', 'Fischbeck'], ['transport_others', 'Germany'], ['motorways', 'district']]
-# TPs: 7, FPs: 29, FNs: 17
-#   FPs: [['water_others', 'Danube and Elbe catchment area'], ['motorways', 'Germany'], ['waterprotection', 'Deggendorf'], ['water_supply', 'towns and districts'], ['transport_others', 'inner cities'], ['rail', 'district of Stendal'], ['transport_others', 'flooded regions'], ['motorways', '89 German districts'], ['road_others', 'Traunstein district'], ['motorways', 'Traunstein district'], ['motorways', 'Rosenheim district'], ['transport_others', nan], ['transport_supply', 'Wartburgkreis'], ['transport_supply', 'Neckar-Odenwald-Kreis'], ['transport_supply', 'Ostallgäu'], ['transport_supply', 'Schmalkalden-Meiningen'], ['transport_supply', 'Weimarer Land'], ['transport_supply', 'Schwäbisch Hall'], ['transport_supply', 'Stadt Jena'], ['transport_supply', 'Altenburger Land'], ['transport_supply', 'Bergstraße'], ['transport_supply', 'Stadt Heidelberg'], ['transport_supply', 'Stadt Karlsruhe'], ['road_others', 'Wittenberg-Jessen'], ['road_others', 'Oestrich'], ['bridges', 'Regensburg'], ['waterprotection', nan], ['transport_others', 'Germany'], ['motorways', 'district']]
-#   FNs: [['road_others', 'Germany'], ['road_others', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Saxony-Anhalt'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-
-
-# with ner tool,
-# Document: Nour 2011
-# Document: Nour 2011
-# [['education_school', 'Maramureş County'], ['road_others', 'Maramureş County'], ['bridges', 'Maramureş County'], ['water_supply', 'Maramureş County'], ['renewable_hydro', 'Maramureş County'], ['electricity_distribution', 'Maramureş County'], ['it_telecommunication', 'Maramureş County'], ['transport_others', 'Maramureş County'], ['road_others', 'town of Seini'], ['road_others', 'city of Baia Mare'], ['bridges', 'Borşa Maramureş'], ['renewable_hydro', 'Dumbravita locality, Maramureş County '], ['water_supply', 'Borşa'], ['cable_poles', 'Leordina, Moisei and Rozavlea']]
-# [['road_others', 'Maramureş County'], ['bridges', 'Maramureş County'], ['electricity_distribution', 'Maramureş County'], ['gas_distribution', 'Maramureş County'], ['water_supply', 'Maramureş County'], ['renewable_hydro', 'Maramureş County'], ['it_telecommunication', 'Maramureş County'], ['road_others', 'Maramureş county'], ['road_others', 'Seini'], ['road_others', 'Baia Mare'], ['transport_supply', 'Maramureş county'], ['road_others', 'towns and cities (Maramureş county)'], ['bridges', 'Maramureș County'], ['wastewater', 'Maramureş County'], ['gas_supply', 'Maramureş County'], ['renewable_hydro', 'Dumbravita locality'], ['water_supply', 'Borşa'], ['cable_poles', 'Leordina, Moisei, Rozavlea'], ['it_telecommunication', 'Leordina, Moisei, Rozavlea'], ['transport_supply', 'Maramureş Depression'], ['bridges', 'Maramureş Depression'], ['electricity_distribution', 'Maramureş Depression'], ['water_supply', 'Maramureş Depression'], ['it_telecommunication', 'Maramureş Depression']]
-# TPs: 7, FPs: 17, FNs: 7
-#   FPs: [['gas_distribution', 'Maramureş County'], ['road_others', 'Maramureş county'], ['road_others', 'Seini'], ['road_others', 'Baia Mare'], ['transport_supply', 'Maramureş county'], ['road_others', 'towns and cities (Maramureş county)'], ['bridges', 'Maramureș County'], ['wastewater', 'Maramureş County'], ['gas_supply', 'Maramureş County'], ['renewable_hydro', 'Dumbravita locality'], ['cable_poles', 'Leordina, Moisei, Rozavlea'], ['it_telecommunication', 'Leordina, Moisei, Rozavlea'], ['transport_supply', 'Maramureş Depression'], ['bridges', 'Maramureş Depression'], ['electricity_distribution', 'Maramureş Depression'], ['water_supply', 'Maramureş Depression'], ['it_telecommunication', 'Maramureş Depression']]
-#   FNs: [['education_school', 'Maramureş County'], ['transport_others', 'Maramureş County'], ['road_others', 'town of Seini'], ['road_others', 'city of Baia Mare'], ['bridges', 'Borşa Maramureş'], ['renewable_hydro', 'Dumbravita locality, Maramureş County '], ['cable_poles', 'Leordina, Moisei and Rozavlea']]
-# Document: Khazai 2013
-# Document: Khazai 2013
-# [['road_others', 'Germany'], ['road_others', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['road_others', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['waterprotection', 'Fischbeck'], ['waterprotection', 'Saxony-Anhalt'], ['road_others', 'Saale-Holzland-Kreis'], ['road_others', 'Wartburg district'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-# [['water_others', 'Danube and Elbe catchment area'], ['waterprotection', 'Danube and Elbe catchment area'], ['motorways', '89 districts in Germany'], ['road_others', 'NAN'], ['waterprotection', 'Deggendorf district'], ['waterprotection', 'Bavaria, along the Elbe'], ['water_supply', 'various towns and districts'], ['motorways', 'trans‑regional transport network'], ['transport_others', 'district of Stendal'], ['waterprotection', 'unspecified (break on 10.06)'], ['transport_others', 'flooded regions'], ['motorways', 'Germany'], ['motorways', '89 German districts'], ['transport_others', 'Erzgebirgsregion'], ['road_others', 'Wartburg district'], ['transport_others', 'NAN'], ['transport_supply', 'Stadt Jena'], ['transport_supply', 'Stadt Karlsruhe'], ['transport_supply', 'Wartburgkreis'], ['transport_supply', 'Neckar-Odenwald-Kreis'], ['transport_supply', 'Ostallgäu'], ['transport_supply', 'Schmalkalden-Meiningen'], ['transport_supply', 'Weimarer Land'], ['transport_supply', 'Schwäbisch Hall'], ['transport_supply', 'Altenburger Land'], ['transport_supply', 'Bergstraße'], ['transport_supply', 'Stadt Heidelberg'], ['road_others', 'Gera-Untermhaus'], ['bridges', 'Regensburg'], ['waterprotection', 'NAN'], ['waterprotection', 'Fischbeck'], ['transport_others', 'Germany']]
-# TPs: 2, FPs: 30, FNs: 22
-#   FPs: [['water_others', 'Danube and Elbe catchment area'], ['waterprotection', 'Danube and Elbe catchment area'], ['motorways', '89 districts in Germany'], ['road_others', 'NAN'], ['waterprotection', 'Deggendorf district'], ['waterprotection', 'Bavaria, along the Elbe'], ['water_supply', 'various towns and districts'], ['motorways', 'trans‑regional transport network'], ['transport_others', 'district of Stendal'], ['waterprotection', 'unspecified (break on 10.06)'], ['transport_others', 'flooded regions'], ['motorways', 'Germany'], ['motorways', '89 German districts'], ['transport_others', 'Erzgebirgsregion'], ['transport_others', 'NAN'], ['transport_supply', 'Stadt Jena'], ['transport_supply', 'Stadt Karlsruhe'], ['transport_supply', 'Wartburgkreis'], ['transport_supply', 'Neckar-Odenwald-Kreis'], ['transport_supply', 'Ostallgäu'], ['transport_supply', 'Schmalkalden-Meiningen'], ['transport_supply', 'Weimarer Land'], ['transport_supply', 'Schwäbisch Hall'], ['transport_supply', 'Altenburger Land'], ['transport_supply', 'Bergstraße'], ['transport_supply', 'Stadt Heidelberg'], ['road_others', 'Gera-Untermhaus'], ['bridges', 'Regensburg'], ['waterprotection', 'NAN'], ['transport_others', 'Germany']]
-#   FNs: [['road_others', 'Germany'], ['road_others', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['road_others', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['waterprotection', 'Saxony-Anhalt'], ['road_others', 'Saale-Holzland-Kreis'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-
-
-# ### WITH EL prompt (no tool)
-
-# Document: Khazai 2013
-# Document: Khazai 2013
-# [['road_others', 'Germany'], ['road_others', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['road_others', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['waterprotection', 'Fischbeck'], ['waterprotection', 'Saxony-Anhalt'], ['road_others', 'Saale-Holzland-Kreis'], ['road_others', 'Wartburg district'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-# [['water_others', 'Danube‑Elbe catchment area'], ['waterprotection', 'Danube‑Elbe catchment area'], ['motorways', 'Germany'], ['road_others', 'Germany'], ['transport_supply', 'Bavarian Danube'], ['transport_supply', 'Upper Rhine'], ['waterprotection', 'Deggendorf'], ['transport_supply', 'Bavaria'], ['waterprotection', 'Elbe'], ['water_supply', 'Stendal'], ['motorways', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Stendal'], ['transport_others', 'flooded regions'], ['motorways', '89 German districts'], ['road_others', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland-Kreis'], ['road_others', 'Wartburg district'], ['transport_others', nan], ['transport_supply', 'Wartburgkreis'], ['transport_supply', 'Neckar-Odenwald-Kreis'], ['transport_supply', 'Ostallgäu'], ['transport_supply', 'Schmalkalden-Meiningen'], ['transport_supply', 'Weimarer Land'], ['transport_supply', 'Schwäbisch Hall'], ['transport_supply', 'Stadt Jena'], ['transport_supply', 'Altenburger Land'], ['transport_supply', 'Bergstraße'], ['transport_supply', 'Stadt Heidelberg'], ['transport_supply', 'Stadt Karlsruhe'], ['road_others', 'Wittenberg-Jessen'], ['road_others', 'Zahna-Seyda'], ['road_others', 'Oestrich'], ['road_others', 'Jessen'], ['bridges', 'Regensburg'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Dresden'], ['nursing', 'Meißen'], ['waterprotection', nan], ['motorways', 'Sigmaringen, Alb-Donau-Kreis'], ['waterprotection', 'Fischbeck'], ['transport_supply', 'Germany'], ['waterprotection', 'Germany']]
-# TPs: 10, FPs: 34, FNs: 14
-#   FPs: [['water_others', 'Danube‑Elbe catchment area'], ['waterprotection', 'Danube‑Elbe catchment area'], ['motorways', 'Germany'], ['transport_supply', 'Bavarian Danube'], ['transport_supply', 'Upper Rhine'], ['waterprotection', 'Deggendorf'], ['transport_supply', 'Bavaria'], ['water_supply', 'Stendal'], ['motorways', 'Stendal'], ['transport_others', 'flooded regions'], ['motorways', '89 German districts'], ['transport_others', nan], ['transport_supply', 'Wartburgkreis'], ['transport_supply', 'Neckar-Odenwald-Kreis'], ['transport_supply', 'Ostallgäu'], ['transport_supply', 'Schmalkalden-Meiningen'], ['transport_supply', 'Weimarer Land'], ['transport_supply', 'Schwäbisch Hall'], ['transport_supply', 'Stadt Jena'], ['transport_supply', 'Altenburger Land'], ['transport_supply', 'Bergstraße'], ['transport_supply', 'Stadt Heidelberg'], ['transport_supply', 'Stadt Karlsruhe'], ['road_others', 'Wittenberg-Jessen'], ['road_others', 'Zahna-Seyda'], ['road_others', 'Oestrich'], ['road_others', 'Jessen'], ['bridges', 'Regensburg'], ['nursing', 'Dresden'], ['nursing', 'Meißen'], ['waterprotection', nan], ['motorways', 'Sigmaringen, Alb-Donau-Kreis'], ['transport_supply', 'Germany'], ['waterprotection', 'Germany']]
-#   FNs: [['road_others', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Saxony-Anhalt'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-
-## when all classes extracted --> more FPs !!
-# Document: Khazai 2013
-# Document: Khazai 2013
-# [['road_others', 'Germany'], ['road_others', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['road_others', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['waterprotection', 'Fischbeck'], ['waterprotection', 'Saxony-Anhalt'], ['road_others', 'Saale-Holzland-Kreis'], ['road_others', 'Wartburg district'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-# [['water_others', 'Danube and Elbe catchment area'], ['motorways', 'Germany'], ['road_others', 'Germany'], ['transport_supply', 'Bavarian Danube'], ['transport_supply', 'Upper Rhine'], ['road_others', nan], ['waterprotection', 'Deggendorf'], ['waterprotection', 'Bavaria, Elbe'], ['transport_supply', 'Bavaria, Elbe'], ['water_supply', 'Stendal'], ['motorways', 'Stendal'], ['rail', 'Stendal'], ['transport_others', 'flooded regions'], ['road_others', 'German Federal Motorways and Federal Roads'], ['motorways', '89 German districts'], ['road_others', 'Traunstein'], ['road_others', 'Rosenheim'], ['road_others', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland-Kreis'], ['motorways', 'Erzgebirgskreis'], ['motorways', 'Traunstein'], ['motorways', 'Vogtlandkreis'], ['motorways', 'Saale-Holzland-Kreis'], ['motorways', 'Rheingau-Taunus-Kreis'], ['motorways', 'Greiz'], ['motorways', 'Leipzig'], ['motorways', 'Miesbach'], ['motorways', 'Berchtesgadener Land'], ['motorways', 'Mittelsachsen'], ['road_others', 'Wartburg district'], ['transport_supply', nan], ['transport_others', nan], ['transport_supply', 'Wartburgkreis'], ['transport_supply', 'Neckar-Odenwald-Kreis'], ['transport_supply', 'Ostallgäu'], ['transport_supply', 'Schmalkalden-Meiningen'], ['transport_supply', 'Weimarer Land'], ['transport_supply', 'Schwäbisch Hall'], ['transport_supply', 'Stadt Jena'], ['transport_supply', 'Altenburger Land'], ['transport_supply', 'Bergstraße'], ['transport_supply', 'Stadt Heidelberg'], ['transport_supply', 'Stadt Karlsruhe'], ['road_others', 'Wittenberg-Jessen'], ['road_others', 'Oestrich'], ['road_others', 'Jessen'], ['bridges', 'Regensburg'], ['waterprotection', 'NAN'], ['motorways', 'Sigmaringen'], ['motorways', 'Alb-Donau-Kreis'], ['waterprotection', 'Fischbeck'], ['transport_others', 'Germany'], ['transport_supply', 'German highways'], ['waterprotection', 'Germany']]
-# TPs: 9, FPs: 46, FNs: 15
-#   FPs: [['water_others', 'Danube and Elbe catchment area'], ['motorways', 'Germany'], ['transport_supply', 'Bavarian Danube'], ['transport_supply', 'Upper Rhine'], ['road_others', nan], ['waterprotection', 'Deggendorf'], ['waterprotection', 'Bavaria, Elbe'], ['transport_supply', 'Bavaria, Elbe'], ['water_supply', 'Stendal'], ['motorways', 'Stendal'], ['transport_others', 'flooded regions'], ['road_others', 'German Federal Motorways and Federal Roads'], ['motorways', '89 German districts'], ['road_others', 'Rosenheim'], ['motorways', 'Erzgebirgskreis'], ['motorways', 'Vogtlandkreis'], ['motorways', 'Saale-Holzland-Kreis'], ['motorways', 'Rheingau-Taunus-Kreis'], ['motorways', 'Greiz'], ['motorways', 'Leipzig'], ['motorways', 'Miesbach'], ['motorways', 'Berchtesgadener Land'], ['motorways', 'Mittelsachsen'], ['transport_supply', nan], ['transport_others', nan], ['transport_supply', 'Wartburgkreis'], ['transport_supply', 'Neckar-Odenwald-Kreis'], ['transport_supply', 'Ostallgäu'], ['transport_supply', 'Schmalkalden-Meiningen'], ['transport_supply', 'Weimarer Land'], ['transport_supply', 'Schwäbisch Hall'], ['transport_supply', 'Stadt Jena'], ['transport_supply', 'Altenburger Land'], ['transport_supply', 'Bergstraße'], ['transport_supply', 'Stadt Heidelberg'], ['transport_supply', 'Stadt Karlsruhe'], ['road_others', 'Wittenberg-Jessen'], ['road_others', 'Oestrich'], ['road_others', 'Jessen'], ['bridges', 'Regensburg'], ['waterprotection', 'NAN'], ['motorways', 'Sigmaringen'], ['motorways', 'Alb-Donau-Kreis'], ['transport_others', 'Germany'], ['transport_supply', 'German highways'], ['waterprotection', 'Germany']]
-#   FNs: [['motorways', 'Rosenheim'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['waterprotection', 'Saxony-Anhalt'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-
-
-# ## STEP 1 + STEP 2 (base)
-    ## STEP 1
-# Document: Khazai 2013
-# Document: Khazai 2013
-# [['road_others', 'Germany'], ['road_others', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['roads', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['waterprotection', 'Fischbeck'], ['waterprotection', 'Saxony-Anhalt'], ['road_others', 'Saale-Holzland-Kreis'], ['road_others', 'Wartburg district'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-# [['water_others', 'south-east Europe'], ['waterprotection', 'south-east Europe'], ['motorways', 'Germany'], ['roads', 'Germany'], ['road_others', nan], ['waterprotection', 'Deggendorf'], ['transport_supply', 'Bavaria'], ['waterprotection', 'Bavaria, Elbe'], ['electricity_distribution', 'Stendal'], ['water_supply', 'Stendal'], ['transport_supply', 'Stendal'], ['motorways', 'Stendal'], ['waterprotection', 'Stendal'], ['rail_service', 'Stendal'], ['transport_others', 'flooded regions'], ['motorways', '89 German districts'], ['roads', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['roads', 'Erzgebirgskreis'], ['roads', 'Vogtlandkreis'], ['roads', 'Saale-Holzland-Kreis'], ['transport_supply', 'Traunstein'], ['motorways', 'Erzgebirgskreis'], ['motorways', 'Vogtlandkreis'], ['motorways', 'Saale-Holzland-Kreis'], ['motorways', 'Rheingau-Taunus-Kreis'], ['motorways', 'Greiz'], ['motorways', 'Leipzig'], ['motorways', 'Miesbach'], ['motorways', 'Berchtesgadener Land'], ['motorways', 'Mittelsachsen'], ['transport_supply', 'Erzgebirgsregion'], ['road_others', 'Wartburg district'], ['transport_supply', nan], ['transport_others', nan], ['transport_supply', 'Wartburgkreis (TH)'], ['transport_supply', 'Neckar-Odenwald-Kreis (BW)'], ['transport_supply', 'Ostallgäu (BY)'], ['transport_supply', 'Schmalkalden-Meiningen (TH)'], ['transport_supply', 'Weimarer Land (TH)'], ['transport_supply', 'Schwäbisch Hall (BW)'], ['transport_supply', 'Stadt Jena (TH)'], ['transport_supply', 'Altenburger Land (TH)'], ['transport_supply', 'Bergstraße (HE)'], ['transport_supply', 'Stadt Heidelberg (BW)'], ['transport_supply', 'Stadt Karlsruhe (BW)'], ['road_others', 'Wittenberg-Jessen'], ['tunnels', 'Erbacher'], ['road_others', 'Oestrich'], ['waterways_ships', 'Rhein'], ['bridges', 'Regensburg'], ['waterprotection', nan], ['motorways', 'Sigmaringen'], ['motorways', 'Alb-Donau-Kreis'], ['waterprotection', 'Fischbeck'], ['transport_others', 'Germany'], ['motorways', 'German highways']]
-# TPs: 6, FPs: 52, FNs: 18
-#   FPs: [['water_others', 'south-east Europe'], ['waterprotection', 'south-east Europe'], ['motorways', 'Germany'], ['roads', 'Germany'], ['road_others', nan], ['waterprotection', 'Deggendorf'], ['transport_supply', 'Bavaria'], ['waterprotection', 'Bavaria, Elbe'], ['electricity_distribution', 'Stendal'], ['water_supply', 'Stendal'], ['transport_supply', 'Stendal'], ['motorways', 'Stendal'], ['rail_service', 'Stendal'], ['transport_others', 'flooded regions'], ['motorways', '89 German districts'], ['roads', 'Traunstein'], ['roads', 'Vogtlandkreis'], ['roads', 'Saale-Holzland-Kreis'], ['transport_supply', 'Traunstein'], ['motorways', 'Erzgebirgskreis'], ['motorways', 'Vogtlandkreis'], ['motorways', 'Saale-Holzland-Kreis'], ['motorways', 'Rheingau-Taunus-Kreis'], ['motorways', 'Greiz'], ['motorways', 'Leipzig'], ['motorways', 'Miesbach'], ['motorways', 'Berchtesgadener Land'], ['motorways', 'Mittelsachsen'], ['transport_supply', 'Erzgebirgsregion'], ['transport_supply', nan], ['transport_others', nan], ['transport_supply', 'Wartburgkreis (TH)'], ['transport_supply', 'Neckar-Odenwald-Kreis (BW)'], ['transport_supply', 'Ostallgäu (BY)'], ['transport_supply', 'Schmalkalden-Meiningen (TH)'], ['transport_supply', 'Weimarer Land (TH)'], ['transport_supply', 'Schwäbisch Hall (BW)'], ['transport_supply', 'Stadt Jena (TH)'], ['transport_supply', 'Altenburger Land (TH)'], ['transport_supply', 'Bergstraße (HE)'], ['transport_supply', 'Stadt Heidelberg (BW)'], ['transport_supply', 'Stadt Karlsruhe (BW)'], ['road_others', 'Wittenberg-Jessen'], ['tunnels', 'Erbacher'], ['road_others', 'Oestrich'], ['waterways_ships', 'Rhein'], ['bridges', 'Regensburg'], ['waterprotection', nan], ['motorways', 'Sigmaringen'], ['motorways', 'Alb-Donau-Kreis'], ['transport_others', 'Germany'], ['motorways', 'German highways']]
-#   FNs: [['road_others', 'Germany'], ['road_others', 'Traunstein'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['waterprotection', 'Saxony-Anhalt'], ['road_others', 'Saale-Holzland-Kreis'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-
-    ## STEP 2
-# Document: Khazai 2013
-# Document: Khazai 2013
-# [['road_others', 'Germany'], ['road_others', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['roads', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['waterprotection', 'Fischbeck'], ['waterprotection', 'Saxony-Anhalt'], ['road_others', 'Saale-Holzland-Kreis'], ['road_others', 'Wartburg district'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-# [['water_others', 'Danube'], ['waterprotection', 'Danube'], ['motorways', 'Germany'], ['roads', 'Germany'], ['road_others', nan], ['waterprotection', 'Deggendorf'], ['transport_supply', nan], ['waterprotection', nan], ['water_supply', 'Stendal'], ['transport_supply', 'Stendal'], ['motorways', 'Stendal'], ['waterprotection', 'Stendal'], ['rail_service', 'Stendal'], ['transport_others', 'Zwickau'], ['roads', nan], ['motorways', nan], ['transport_supply', 'Traunstein'], ['motorways', 'Erzgebirgskreis'], ['motorways', 'NAN'], ['motorways', 'Vogtlandkreis'], ['motorways', 'Greiz'], ['motorways', 'Leipzig'], ['motorways', 'Miesbach'], ['motorways', 'Mittelsachsen'], ['transport_supply', 'Erzgebirgsregion'], ['road_others', 'Wartburg'], ['transport_supply', 'urban areas'], ['transport_others', 'urban areas'], ['transport_supply', 'NAN'], ['transport_supply', 'Schwäbisch Hall (BW)'], ['transport_supply', 'Stadt Jena (TH)'], ['transport_supply', 'Bergstraße (HE)'], ['transport_supply', 'Stadt Heidelberg (BW)'], ['transport_supply', 'Stadt Karlsruhe (BW)'], ['road_others', 'Wittenberg'], ['road_others', 'NAN'], ['bridges', 'Regensburg'], ['waterprotection', 'Sächsische Schweiz - Osterzgebirge'], ['motorways', 'Sigmaringen'], ['motorways', 'Alb-Donau-Kreis'], ['waterprotection', 'Fischbeck'], ['transport_others', 'Germany']]
-# TPs: 2, FPs: 40, FNs: 22
-#   FPs: [['water_others', 'Danube'], ['waterprotection', 'Danube'], ['motorways', 'Germany'], ['roads', 'Germany'], ['road_others', nan], ['waterprotection', 'Deggendorf'], ['transport_supply', nan], ['waterprotection', nan], ['water_supply', 'Stendal'], ['transport_supply', 'Stendal'], ['motorways', 'Stendal'], ['rail_service', 'Stendal'], ['transport_others', 'Zwickau'], ['roads', nan], ['motorways', nan], ['transport_supply', 'Traunstein'], ['motorways', 'Erzgebirgskreis'], ['motorways', 'NAN'], ['motorways', 'Vogtlandkreis'], ['motorways', 'Greiz'], ['motorways', 'Leipzig'], ['motorways', 'Miesbach'], ['motorways', 'Mittelsachsen'], ['transport_supply', 'Erzgebirgsregion'], ['road_others', 'Wartburg'], ['transport_supply', 'urban areas'], ['transport_others', 'urban areas'], ['transport_supply', 'NAN'], ['transport_supply', 'Schwäbisch Hall (BW)'], ['transport_supply', 'Stadt Jena (TH)'], ['transport_supply', 'Bergstraße (HE)'], ['transport_supply', 'Stadt Heidelberg (BW)'], ['transport_supply', 'Stadt Karlsruhe (BW)'], ['road_others', 'Wittenberg'], ['road_others', 'NAN'], ['bridges', 'Regensburg'], ['waterprotection', 'Sächsische Schweiz - Osterzgebirge'], ['motorways', 'Sigmaringen'], ['motorways', 'Alb-Donau-Kreis'], ['transport_others', 'Germany']]
-#   FNs: [['road_others', 'Germany'], ['road_others', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['roads', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['waterprotection', 'Saxony-Anhalt'], ['road_others', 'Saale-Holzland-Kreis'], ['road_others', 'Wartburg district'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-
-
-
-### from previous eval (local machine, step 2, vmtl non-geolocalized) ["before_tool"]
-# # Document: Khazai 2013
-# # Document: Khazai 2013
-# # [['road_others', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['road_others', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['waterprotection', 'Fischbeck'], ['waterprotection', 'Saxony-Anhalt'], ['road_others', 'Saale-Holzland-Kreis'], ['road_others', 'Wartburg'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-# # [['waterprotection', 'Deggendorf'], ['waterprotection', 'Bavaria'], ['water_supply', 's'], ['motorways', 'Stendal'], ['road_others', 'Traunstein'], ['road_others', 'Rosenheim'], ['road_others', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland-Kreis'], ['road_others', 'Gera'], ['bridges', 'Regensburg']]
-# # TPs: 5, FPs: 6, FNs: 18
-# #   FPs: [['waterprotection', 'Deggendorf'], ['water_supply', 's'], ['motorways', 'Stendal'], ['road_others', 'Rosenheim'], ['road_others', 'Gera'], ['bridges', 'Regensburg']]
-# #   FNs: [['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Elbe'], ['waterprotection', 'Fischbeck'], ['waterprotection', 'Saxony-Anhalt'], ['road_others', 'Wartburg'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-
-
-##### CHAIN of PROMPS (baseline)
-# Document: Khazai 2013
-# Document: Khazai 2013
-# [['road_others', 'Germany'], ['road_others', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['roads', 'Erzgebirgskreis'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['waterprotection', 'Fischbeck'], ['waterprotection', 'Saxony-Anhalt'], ['road_others', 'Saale-Holzland-Kreis'], ['road_others', 'Wartburg district'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-# [['water_others', 'Danube-Elbe catchment'], ['wastewater', 'Danube and Elbe catchment area'], ['waterprotection', 'Danube-Elbe catchment'], ['motorways', 'German highways'], ['roads', '89 districts'], ['transport_others', 'German highways'], ['waterprotection', 'Deggendorf'], ['waterprotection', 'Elbe'], ['electricity_distribution', 'NAN'], ['water_supply', 'NAN'], ['motorways', 'Stendal district'], ['rail', 'Stendal district'], ['motorways', '89 German districts'], ['roads', '89 German districts'], ['roads', 'Traunstein'], ['motorways', 'Traunstein, Rosenheim'], ['roads', 'Erzgebirgskreis'], ['roads', 'Vogtlandkreis'], ['roads', 'Saale-Holzland-Kreis'], ['road_others', 'Wartburgkreis'], ['bridges', 'NAN'], ['transport_supply', 'Stadt Heidelberg'], ['transport_supply', 'Wartburgkreis'], ['road_others', 'Wittenberg and Jessen'], ['road_others', 'Zahna'], ['road_others', 'Seyda'], ['tunnels', 'NAN'], ['road_others', 'Oestrich road'], ['bridges', 'Stadtamhof, Regensburg'], ['waterprotection', 'Fischbeck']]
-# TPs: 3, FPs: 27, FNs: 21
-#   FPs: [['water_others', 'Danube-Elbe catchment'], ['wastewater', 'Danube and Elbe catchment area'], ['waterprotection', 'Danube-Elbe catchment'], ['motorways', 'German highways'], ['roads', '89 districts'], ['transport_others', 'German highways'], ['waterprotection', 'Deggendorf'], ['electricity_distribution', 'NAN'], ['water_supply', 'NAN'], ['motorways', 'Stendal district'], ['rail', 'Stendal district'], ['motorways', '89 German districts'], ['roads', '89 German districts'], ['roads', 'Traunstein'], ['motorways', 'Traunstein, Rosenheim'], ['roads', 'Vogtlandkreis'], ['roads', 'Saale-Holzland-Kreis'], ['road_others', 'Wartburgkreis'], ['bridges', 'NAN'], ['transport_supply', 'Stadt Heidelberg'], ['transport_supply', 'Wartburgkreis'], ['road_others', 'Wittenberg and Jessen'], ['road_others', 'Zahna'], ['road_others', 'Seyda'], ['tunnels', 'NAN'], ['road_others', 'Oestrich road'], ['bridges', 'Stadtamhof, Regensburg']]
-#   FNs: [['road_others', 'Germany'], ['road_others', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['road_others', 'Vogtlandkreis'], ['road_others', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['road_others', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Saxony-Anhalt'], ['road_others', 'Saale-Holzland-Kreis'], ['road_others', 'Wartburg district'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-
-#### after remove of LOC=NAN  & changing "roads.*"  -> "road_others"
-# Document: Khazai 2013
-# Document: Khazai 2013
-# [['roads', 'Germany'], ['roads', 'Traunstein'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['roads', 'Erzgebirgskreis'], ['roads', 'Vogtlandkreis'], ['roads', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['roads', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Elbe'], ['waterprotection', 'Fischbeck'], ['waterprotection', 'Saxony-Anhalt'], ['roads', 'Saale-Holzland-Kreis'], ['roads', 'Wartburg district'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-# [['water_others', 'Danube-Elbe catchment'], ['wastewater', 'Danube and Elbe catchment area'], ['waterprotection', 'Danube-Elbe catchment'], ['motorways', 'German highways'], ['roads', '89 districts'], ['transport_others', 'German highways'], ['waterprotection', 'Deggendorf'], ['waterprotection', 'Elbe'], ['electricity_distribution', 'NAN'], ['water_supply', 'NAN'], ['motorways', 'Stendal district'], ['rail', 'Stendal district'], ['motorways', '89 German districts'], ['roads', '89 German districts'], ['roads', 'Traunstein'], ['motorways', 'Traunstein, Rosenheim'], ['roads', 'Erzgebirgskreis'], ['roads', 'Vogtlandkreis'], ['roads', 'Saale-Holzland-Kreis'], ['roads', 'Wartburgkreis'], ['bridges', 'NAN'], ['transport_supply', 'Stadt Heidelberg'], ['transport_supply', 'Wartburgkreis'], ['roads', 'Wittenberg and Jessen'], ['roads', 'Zahna'], ['roads', 'Seyda'], ['tunnels', 'NAN'], ['roads', 'Oestrich road'], ['bridges', 'Stadtamhof, Regensburg'], ['waterprotection', 'Fischbeck']]
-# TPs: 6, FPs: 24, FNs: 18
-#   FPs: [['water_others', 'Danube-Elbe catchment'], ['wastewater', 'Danube and Elbe catchment area'], ['waterprotection', 'Danube-Elbe catchment'], ['motorways', 'German highways'], ['roads', '89 districts'], ['transport_others', 'German highways'], ['waterprotection', 'Deggendorf'], ['electricity_distribution', 'NAN'], ['water_supply', 'NAN'], ['motorways', 'Stendal district'], ['rail', 'Stendal district'], ['motorways', '89 German districts'], ['roads', '89 German districts'], ['motorways', 'Traunstein, Rosenheim'], ['roads', 'Wartburgkreis'], ['bridges', 'NAN'], ['transport_supply', 'Stadt Heidelberg'], ['transport_supply', 'Wartburgkreis'], ['roads', 'Wittenberg and Jessen'], ['roads', 'Zahna'], ['roads', 'Seyda'], ['tunnels', 'NAN'], ['roads', 'Oestrich road'], ['bridges', 'Stadtamhof, Regensburg']]
-#   FNs: [['roads', 'Germany'], ['motorways', 'Traunstein'], ['motorways', 'Rosenheim'], ['roads', 'Saale-Holzland'], ['motorways', 'Thuringia'], ['roads', 'Rheingau-Taunus-Kreis'], ['waterprotection', 'Stendal'], ['rail', 'Stendal'], ['waterprotection', 'Bavaria'], ['waterprotection', 'Saxony-Anhalt'], ['roads', 'Wartburg district'], ['healthcare_hospitals_clinics', 'Magdeburg'], ['nursing', 'Magdeburg'], ['nursing', 'Wittenberg'], ['nursing', 'Salzlandkreis'], ['healthcare_hospitals_clinics', 'Jerichower Land'], ['healthcare_hospitals_clinics', 'Anhalt-Bitterfeld'], ['nursing', 'Anhalt-Bitterfeld']]
-
-# Document: Koks 2022
-# Document: Koks 2022
-# [['roads', 'Germany'], ['rail', 'Germany'], ['motorways', 'Germany'], ['bridges', 'Ahr valley'], ['bridges', 'Ahr valley'], ['bridges', 'Rhineland-Palatinate'], ['bridges', 'Rhineland-Palatinate'], ['roads', 'Ahr valley'], ['motorways', 'A1'], ['rail', 'Germany'], ['rail', 'Belgium'], ['rail', 'Germany'], ['rail', 'Belgium'], ['transport_others', 'Netherlands'], ['electricity_others', 'Germany'], ['rail', 'between Maastricht'], ['rail', 'Liége'], ['electricity_others', 'North Rhine-Westphalia'], ['electricity_others', 'Rhineland-Palatinate'], ['rail', 'Spa'], ['rail', 'Pepinster'], ['gas_distribution', 'Germany'], ['gas_distribution', 'Ahr valley'], ['gas_distribution', 'Ahr valley'], ['electricity_others', 'Belgium'], ['electricity_others', 'Netherlands'], ['gas_supply', 'Netherlands'], ['wastewater', 'Altenahr'], ['wastewater', 'Mayschoss'], ['wastewater', 'Sinzig'], ['waste_others', 'Erft region'], ['water_supply', 'flood region'], ['water_supply', 'Rhineland-Palatinate'], ['water_supply', 'Germany'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'North Rhine-Westphalia'], ['water_supply', 'Belgium'], ['water_supply', 'Belgium'], ['water_supply', 'Netherlands'], ['waste_others', 'Rhineland-Palatinate'], ['waste_others', 'Ahrweiler'], ['waste_others', 'Belgium'], ['waste_others', 'Netherlands'], ['waste_others', 'Ahr valley'], ['it_telecommunication', 'all severely affected areas'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Belgium'], ['it_telecommunication', 'Netherlands'], ['healthcare_others', 'Germany'], ['healthcare_others', 'Rhineland-Palatinate'], ['healthcare_hospitals_clinics', 'North Rhine-Westphalia'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Trier'], ['education_kita', 'Rhineland-Palatinate'], ['education_school', 'Rhineland-Palatinate'], ['healthcare_others', 'Belgium'], ['healthcare_hospitals_clinics', 'Netherlands'], ['nursing', 'Netherlands'], ['bridges', 'rivers Ahr'], ['bridges', 'Erft'], ['electricity_supply', 'Germany'], ['gas_distribution', 'Germany'], ['it_telecommunication', 'Germany']]
-# [['roads', 'A1 motorway'], ['bridges', 'Ahr valley'], ['rail', 'Spa'], ['rail', 'Pepinster'], ['motorways', 'A76'], ['rail', 'Maastricht'], ['rail', 'Liége'], ['electricity_others', 'North Rhine-Westphalia'], ['electricity_others', 'Rhineland-Palatinate'], ['gas_distribution', 'Ahr valley'], ['gas_distribution', 'Chaudfontaine'], ['electricity_supply', 'Netherlands'], ['water_supply', 'Rhineland-Palatinate'], ['wastewater', 'Altenahr'], ['wastewater', 'Mayschoss'], ['wastewater', 'Sinzig'], ['wastewater', 'Altenahr'], ['wastewater', 'Mayschoss'], ['wastewater', 'Sinzig'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Belgium'], ['motorways', 'Heimersheim'], ['rail', 'Altenburg'], ['bridges', 'Altenburg'], ['bridges', 'Ahr valley'], ['bridges', 'Altenburg'], ['electricity_others', 'Ahr valley'], ['roads', 'B266'], ['roads', 'Heimersheim'], ['it_telecommunication', 'Rhineland-Palatinate'], ['electricity_supply', 'Rhineland-Palatinate'], ['healthcare_others', 'Germany'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_others', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Trier'], ['education_kita', 'Rhineland-Palatinate'], ['education_kita', 'Germany'], ['education_school', 'Rhineland-Palatinate'], ['education_others', 'Bad Neuenahr-Ahrweiler'], ['healthcare_hospitals_clinics', 'Belgium'], ['healthcare_others', 'Belgium'], ['nursing', 'Netherlands'], ['roads', 'Ahr valley'], ['motorways', 'Ahr valley'], ['bridges', 'Ahr'], ['bridges', 'Erft']]
-# TPs: 30, FPs: 19, FNs: 37
-#   FPs: [['roads', 'A1 motorway'], ['motorways', 'A76'], ['rail', 'Maastricht'], ['gas_distribution', 'Chaudfontaine'], ['electricity_supply', 'Netherlands'], ['motorways', 'Heimersheim'], ['rail', 'Altenburg'], ['bridges', 'Altenburg'], ['bridges', 'Altenburg'], ['electricity_others', 'Ahr valley'], ['roads', 'B266'], ['roads', 'Heimersheim'], ['electricity_supply', 'Rhineland-Palatinate'], ['healthcare_others', 'Eschweiler'], ['education_kita', 'Germany'], ['education_others', 'Bad Neuenahr-Ahrweiler'], ['healthcare_hospitals_clinics', 'Belgium'], ['motorways', 'Ahr valley'], ['bridges', 'Ahr']]
-#   FNs: [['roads', 'Germany'], ['rail', 'Germany'], ['motorways', 'Germany'], ['bridges', 'Rhineland-Palatinate'], ['bridges', 'Rhineland-Palatinate'], ['motorways', 'A1'], ['rail', 'Germany'], ['rail', 'Belgium'], ['rail', 'Germany'], ['rail', 'Belgium'], ['transport_others', 'Netherlands'], ['electricity_others', 'Germany'], ['rail', 'between Maastricht'], ['gas_distribution', 'Germany'], ['electricity_others', 'Belgium'], ['electricity_others', 'Netherlands'], ['gas_supply', 'Netherlands'], ['waste_others', 'Erft region'], ['water_supply', 'flood region'], ['water_supply', 'Germany'], ['water_supply', 'North Rhine-Westphalia'], ['water_supply', 'Netherlands'], ['waste_others', 'Rhineland-Palatinate'], ['waste_others', 'Ahrweiler'], ['waste_others', 'Belgium'], ['waste_others', 'Netherlands'], ['waste_others', 'Ahr valley'], ['it_telecommunication', 'all severely affected areas'], ['it_telecommunication', 'Belgium'], ['it_telecommunication', 'Netherlands'], ['healthcare_others', 'Rhineland-Palatinate'], ['healthcare_hospitals_clinics', 'North Rhine-Westphalia'], ['healthcare_hospitals_clinics', 'Netherlands'], ['bridges', 'rivers Ahr'], ['electricity_supply', 'Germany'], ['gas_distribution', 'Germany'], ['it_telecommunication', 'Germany']]
-#  ---------- Evaluation statistics (document-wise)-----------
-# Recall: 0.44776119402985076, Precision: 0.6122448979591837, F1-score: 0.5172413793103449
-
-
-#### Chain of prompts with GPT =SS 120
-
-# Document: Koks 2022
-# Document: Koks 2022
-# [['roads', 'Germany'], ['rail', 'Germany'], ['motorways', 'Germany'], ['bridges', 'Ahr valley'], ['bridges', 'Ahr valley'], ['bridges', 'Rhineland-Palatinate'], ['bridges', 'Rhineland-Palatinate'], ['roads', 'Ahr valley'], ['rail', 'Germany'], ['rail', 'Belgium'], ['rail', 'Germany'], ['rail', 'Belgium'], ['transport_others', 'Netherlands'], ['electricity_others', 'Germany'], ['rail', 'between Maastricht'], ['rail', 'Liége'], ['electricity_others', 'North Rhine-Westphalia'], ['electricity_others', 'Rhineland-Palatinate'], ['rail', 'Spa'], ['rail', 'Pepinster'], ['gas_distribution', 'Germany'], ['gas_distribution', 'Ahr valley'], ['gas_distribution', 'Ahr valley'], ['electricity_others', 'Belgium'], ['electricity_others', 'Netherlands'], ['gas_supply', 'Netherlands'], ['wastewater', 'Altenahr'], ['wastewater', 'Mayschoss'], ['wastewater', 'Sinzig'], ['waste_others', 'Erft region'], ['water_supply', 'flood region'], ['water_supply', 'Rhineland-Palatinate'], ['water_supply', 'Germany'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'North Rhine-Westphalia'], ['water_supply', 'Belgium'], ['water_supply', 'Belgium'], ['water_supply', 'Netherlands'], ['waste_others', 'Rhineland-Palatinate'], ['waste_others', 'Ahrweiler'], ['waste_others', 'Belgium'], ['waste_others', 'Netherlands'], ['waste_others', 'Ahr valley'], ['it_telecommunication', 'all severely affected areas'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Belgium'], ['it_telecommunication', 'Netherlands'], ['healthcare_others', 'Germany'], ['healthcare_others', 'Rhineland-Palatinate'], ['healthcare_hospitals_clinics', 'North Rhine-Westphalia'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Trier'], ['education_kita', 'Rhineland-Palatinate'], ['education_school', 'Rhineland-Palatinate'], ['healthcare_others', 'Belgium'], ['healthcare_hospitals_clinics', 'Netherlands'], ['nursing', 'Netherlands'], ['bridges', 'rivers Ahr'], ['bridges', 'Erft'], ['electricity_supply', 'Germany'], ['gas_distribution', 'Germany'], ['it_telecommunication', 'Germany']]
-# [['bridges', 'Germany'], ['bridges', 'Belgium'], ['wastewater', 'Germany'], ['wastewater', 'Belgium'], ['wastewater', 'Netherlands'], ['education_school', 'Germany'], ['education_school', 'Belgium'], ['healthcare_hospitals_clinics', 'Germany'], ['healthcare_hospitals_clinics', 'Belgium'], ['water_supply', 'Netherlands'], ['water_supply', 'Belgium'], ['water_supply', 'Germany'], ['electricity_supply', 'Netherlands'], ['electricity_supply', 'Belgium'], ['electricity_supply', 'Germany'], ['bridges', 'Ahr valley'], ['bridges', 'Rhineland-Palatinate'], ['roads', 'Ahr valley'], ['rail', 'Germany'], ['rail', 'Maastricht '], ['rail', 'Liége'], ['electricity_supply', 'North Rhine-Westphalia'], ['electricity_supply', 'Rhineland-Palatinate'], ['electricity_supply', 'North Rhine-Westphalia'], ['electricity_supply', 'Rhineland-Palatinate'], ['electricity_distribution', 'Belgium'], ['gas_distribution', 'Ahr valley'], ['gas_distribution', 'Chaudfontaine'], ['gas_distribution', 'Pepinster'], ['electricity_supply', 'Netherlands'], ['water_supply', 'Rhineland-Palatinate'], ['wastewater', 'Altenahr'], ['wastewater', 'Mayschoss'], ['wastewater', 'Sinzig'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'North Rhine-Westphalia'], ['water_supply', 'Bad Münstereifel'], ['motorways', 'Heimersheim'], ['rail', 'Heimersheim'], ['rail', 'Ahrtalbahn'], ['bridges', 'Heimersheim'], ['bridges', 'Altenburg'], ['it_telecommunication', 'Ahr valley'], ['electricity_supply', 'Ahr valley'], ['electricity_supply', 'Rhineland-Palatinate'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Germany'], ['it_telecommunication', 'Belgium'], ['it_telecommunication', 'Netherlands'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Belgium'], ['it_telecommunication', 'Netherlands'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Rhineland-Palatinate'], ['bridges', 'Netherlands'], ['healthcare_others', 'Rhineland-Palatinate'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Germany'], ['healthcare_others', 'Eschweiler'], ['electricity_supply', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Trier'], ['healthcare_hospitals_clinics', 'Germany'], ['education_kita', 'Rhineland-Palatinate'], ['education_school', 'Rhineland-Palatinate'], ['healthcare_hospitals_clinics', 'Belgium'], ['healthcare_others', 'Belgium'], ['nursing', 'Netherlands'], ['motorways', 'Ahr valley'], ['motorways', 'Germany'], ['roads', 'Ahr valley'], ['bridges', 'Ahr'], ['bridges', 'Erft rivers'], ['bridges', 'Ahr'], ['bridges', 'Erft'], ['bridges', 'Germany'], ['bridges', 'Belgium'], ['roads', 'Germany'], ['roads', 'Belgium']]
-# TPs: 39, FPs: 44, FNs: 26
-#   FPs: [['bridges', 'Germany'], ['bridges', 'Belgium'], ['wastewater', 'Germany'], ['wastewater', 'Belgium'], ['wastewater', 'Netherlands'], ['education_school', 'Germany'], ['education_school', 'Belgium'], ['healthcare_hospitals_clinics', 'Germany'], ['healthcare_hospitals_clinics', 'Belgium'], ['electricity_supply', 'Netherlands'], ['electricity_supply', 'Belgium'], ['rail', 'Maastricht '], ['electricity_supply', 'North Rhine-Westphalia'], ['electricity_supply', 'Rhineland-Palatinate'], ['electricity_supply', 'North Rhine-Westphalia'], ['electricity_supply', 'Rhineland-Palatinate'], ['electricity_distribution', 'Belgium'], ['gas_distribution', 'Chaudfontaine'], ['gas_distribution', 'Pepinster'], ['electricity_supply', 'Netherlands'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['motorways', 'Heimersheim'], ['rail', 'Heimersheim'], ['rail', 'Ahrtalbahn'], ['bridges', 'Heimersheim'], ['bridges', 'Altenburg'], ['it_telecommunication', 'Ahr valley'], ['electricity_supply', 'Ahr valley'], ['electricity_supply', 'Rhineland-Palatinate'], ['bridges', 'Netherlands'], ['healthcare_hospitals_clinics', 'Germany'], ['healthcare_others', 'Eschweiler'], ['electricity_supply', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Germany'], ['healthcare_hospitals_clinics', 'Belgium'], ['motorways', 'Ahr valley'], ['bridges', 'Ahr'], ['bridges', 'Erft rivers'], ['bridges', 'Ahr'], ['bridges', 'Germany'], ['bridges', 'Belgium'], ['roads', 'Belgium']]
-#   FNs: [['rail', 'Belgium'], ['rail', 'Belgium'], ['transport_others', 'Netherlands'], ['electricity_others', 'Germany'], ['rail', 'between Maastricht'], ['electricity_others', 'North Rhine-Westphalia'], ['electricity_others', 'Rhineland-Palatinate'], ['rail', 'Spa'], ['rail', 'Pepinster'], ['gas_distribution', 'Germany'], ['electricity_others', 'Belgium'], ['electricity_others', 'Netherlands'], ['gas_supply', 'Netherlands'], ['waste_others', 'Erft region'], ['water_supply', 'flood region'], ['waste_others', 'Rhineland-Palatinate'], ['waste_others', 'Ahrweiler'], ['waste_others', 'Belgium'], ['waste_others', 'Netherlands'], ['waste_others', 'Ahr valley'], ['it_telecommunication', 'all severely affected areas'], ['healthcare_others', 'Germany'], ['healthcare_hospitals_clinics', 'North Rhine-Westphalia'], ['healthcare_hospitals_clinics', 'Netherlands'], ['bridges', 'rivers Ahr'], ['gas_distribution', 'Germany']]
-#  ---------- Evaluation statistics (document-wise)-----------
-# Recall: 0.6, Precision: 0.46987951807228917, F1-score: 0.5270270270270271
-
-# Document: Koks 2022
-# Document: Koks 2022
-# [['roads', 'Germany'], ['rail', 'Germany'], ['motorways', 'Germany'], ['bridges', 'Ahr valley'], ['bridges', 'Ahr valley'], ['bridges', 'Rhineland-Palatinate'], ['bridges', 'Rhineland-Palatinate'], ['roads', 'Ahr valley'], ['rail', 'Germany'], ['rail', 'Belgium'], ['rail', 'Germany'], ['rail', 'Belgium'], ['transport_others', 'Netherlands'], ['electricity_others', 'Germany'], ['rail', 'between Maastricht'], ['rail', 'Liége'], ['electricity_others', 'North Rhine-Westphalia'], ['electricity_others', 'Rhineland-Palatinate'], ['rail', 'Spa'], ['rail', 'Pepinster'], ['gas_distribution', 'Germany'], ['gas_distribution', 'Ahr valley'], ['gas_distribution', 'Ahr valley'], ['electricity_others', 'Belgium'], ['electricity_others', 'Netherlands'], ['gas_supply', 'Netherlands'], ['wastewater', 'Altenahr'], ['wastewater', 'Mayschoss'], ['wastewater', 'Sinzig'], ['waste_others', 'Erft region'], ['water_supply', 'flood region'], ['water_supply', 'Rhineland-Palatinate'], ['water_supply', 'Germany'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'North Rhine-Westphalia'], ['water_supply', 'Belgium'], ['water_supply', 'Belgium'], ['water_supply', 'Netherlands'], ['waste_others', 'Rhineland-Palatinate'], ['waste_others', 'Ahrweiler'], ['waste_others', 'Belgium'], ['waste_others', 'Netherlands'], ['waste_others', 'Ahr valley'], ['it_telecommunication', 'all severely affected areas'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Belgium'], ['it_telecommunication', 'Netherlands'], ['healthcare_others', 'Germany'], ['healthcare_others', 'Rhineland-Palatinate'], ['healthcare_hospitals_clinics', 'North Rhine-Westphalia'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Trier'], ['education_kita', 'Rhineland-Palatinate'], ['education_school', 'Rhineland-Palatinate'], ['healthcare_others', 'Belgium'], ['healthcare_hospitals_clinics', 'Netherlands'], ['nursing', 'Netherlands'], ['bridges', 'rivers Ahr'], ['bridges', 'Erft'], ['electricity_supply', 'Germany'], ['gas_distribution', 'Germany'], ['it_telecommunication', 'Germany']]
-# [['bridges', 'Germany'], ['bridges', 'Belgium'], ['bridges', 'Netherlands'], ['wastewater', 'Germany'], ['wastewater', 'Belgium'], ['education_school', 'Germany'], ['education_school', 'Belgium'], ['healthcare_hospitals_clinics', 'Germany'], ['electricity_supply', 'Netherlands'], ['electricity_supply', 'Belgium'], ['electricity_supply', 'Germany'], ['it_telecommunication', 'Western Europe'], ['motorways', 'Ahr valley'], ['bridges', 'Ahr valley'], ['bridges', 'Rhineland-Palatinate'], ['roads', 'Ahr valley'], ['roads', 'Rhineland-Palatinate'], ['rail', 'Germany'], ['rail', 'Maastricht'], ['rail', 'Liége'], ['rail', 'between Maastricht'], ['rail', 'Liége'], ['electricity_supply', 'North Rhine-Westphalia'], ['electricity_supply', 'Rhineland-Palatinate'], ['electricity_supply', 'North Rhine-Westphalia'], ['electricity_supply', 'Rhineland-Palatinate'], ['gas_distribution', 'Ahr valley'], ['gas_distribution', 'Ahr valley'], ['electricity_distribution', 'Belgium'], ['gas_distribution', 'Chaudfontaine'], ['gas_distribution', 'Pepinster'], ['gas_distribution', 'Belgium'], ['electricity_supply', 'Netherlands'], ['water_supply', 'Rhineland-Palatinate'], ['wastewater', 'Altenahr'], ['wastewater', 'Mayschoss'], ['wastewater', 'Sinzig'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Bad Münstereifel'], ['motorways', 'Heimersheim'], ['rail', 'Heimersheim'], ['bridges', 'Heimersheim'], ['bridges', 'Heimersheim'], ['roads', 'Heimersheim'], ['electricity_supply', 'Rhineland-Palatinate'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Rhineland-Palatinate'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'North Rhine-Westphalia'], ['healthcare_others', 'Eschweiler'], ['electricity_supply', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Trier'], ['education_kita', 'Rhineland-Palatinate'], ['education_school', 'Rhineland-Palatinate'], ['education_others', 'Bad Neuenahr-Ahrweiler'], ['healthcare_hospitals_clinics', 'Belgium'], ['nursing', 'Netherlands'], ['motorways', 'Ahr valley'], ['roads', 'Ahr valley'], ['bridges', 'Ahr'], ['bridges', 'Erft rivers'], ['bridges', 'Germany'], ['bridges', 'Belgium'], ['roads', 'Germany'], ['roads', 'Belgium'], ['roads', 'Germany'], ['roads', 'Belgium']]
-# TPs: 29, FPs: 43, FNs: 36
-#   FPs: [['bridges', 'Germany'], ['bridges', 'Belgium'], ['bridges', 'Netherlands'], ['wastewater', 'Germany'], ['wastewater', 'Belgium'], ['education_school', 'Germany'], ['education_school', 'Belgium'], ['healthcare_hospitals_clinics', 'Germany'], ['electricity_supply', 'Netherlands'], ['electricity_supply', 'Belgium'], ['it_telecommunication', 'Western Europe'], ['motorways', 'Ahr valley'], ['roads', 'Rhineland-Palatinate'], ['rail', 'Maastricht'], ['electricity_supply', 'North Rhine-Westphalia'], ['electricity_supply', 'Rhineland-Palatinate'], ['electricity_supply', 'North Rhine-Westphalia'], ['electricity_supply', 'Rhineland-Palatinate'], ['electricity_distribution', 'Belgium'], ['gas_distribution', 'Chaudfontaine'], ['gas_distribution', 'Pepinster'], ['gas_distribution', 'Belgium'], ['electricity_supply', 'Netherlands'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['motorways', 'Heimersheim'], ['rail', 'Heimersheim'], ['bridges', 'Heimersheim'], ['bridges', 'Heimersheim'], ['roads', 'Heimersheim'], ['electricity_supply', 'Rhineland-Palatinate'], ['healthcare_others', 'Eschweiler'], ['electricity_supply', 'Eschweiler'], ['education_others', 'Bad Neuenahr-Ahrweiler'], ['healthcare_hospitals_clinics', 'Belgium'], ['motorways', 'Ahr valley'], ['bridges', 'Ahr'], ['bridges', 'Erft rivers'], ['bridges', 'Germany'], ['bridges', 'Belgium'], ['roads', 'Belgium'], ['roads', 'Belgium']]
-#   FNs: [['motorways', 'Germany'], ['rail', 'Belgium'], ['rail', 'Belgium'], ['transport_others', 'Netherlands'], ['electricity_others', 'Germany'], ['electricity_others', 'North Rhine-Westphalia'], ['electricity_others', 'Rhineland-Palatinate'], ['rail', 'Spa'], ['rail', 'Pepinster'], ['gas_distribution', 'Germany'], ['electricity_others', 'Belgium'], ['electricity_others', 'Netherlands'], ['gas_supply', 'Netherlands'], ['waste_others', 'Erft region'], ['water_supply', 'flood region'], ['water_supply', 'Germany'], ['water_supply', 'North Rhine-Westphalia'], ['water_supply', 'Belgium'], ['water_supply', 'Belgium'], ['water_supply', 'Netherlands'], ['waste_others', 'Rhineland-Palatinate'], ['waste_others', 'Ahrweiler'], ['waste_others', 'Belgium'], ['waste_others', 'Netherlands'], ['waste_others', 'Ahr valley'], ['it_telecommunication', 'all severely affected areas'], ['it_telecommunication', 'Belgium'], ['it_telecommunication', 'Netherlands'], ['healthcare_others', 'Germany'], ['healthcare_others', 'Rhineland-Palatinate'], ['healthcare_others', 'Belgium'], ['healthcare_hospitals_clinics', 'Netherlands'], ['bridges', 'rivers Ahr'], ['bridges', 'Erft'], ['gas_distribution', 'Germany'], ['it_telecommunication', 'Germany']]
-#  ---------- Evaluation statistics (document-wise)-----------
-# Recall: 0.4461538461538462, Precision: 0.4027777777777778, F1-score: 0.4233576642335767
-
-
-#### Chain of prompts with GPT-OSS 20 (Step 2 - verification of loc is correct)
-## koks (inlc verif=true + verif=false)
-# Document: Koks 2022
-# Document: Koks 2022
-# [['roads', 'Germany'], ['rail', 'Germany'], ['motorways', 'Germany'], ['bridges', 'Ahr valley'], ['bridges', 'Ahr valley'], ['bridges', 'Rhineland-Palatinate'], ['bridges', 'Rhineland-Palatinate'], ['roads', 'Ahr valley'], ['rail', 'Germany'], ['rail', 'Belgium'], ['rail', 'Germany'], ['rail', 'Belgium'], ['transport_others', 'Netherlands'], [None, 'Netherlands'], ['electricity_others', 'Germany'], ['rail', 'between Maastricht'], ['rail', 'Liége'], ['electricity_others', 'North Rhine-Westphalia'], ['electricity_others', 'Rhineland-Palatinate'], ['rail', 'Spa'], ['rail', 'Pepinster'], ['gas_distribution', 'Germany'], [None, 'villages around Liége'], [None, 'Chaudfontaine'], [None, 'Pepinster'], ['gas_distribution', 'Ahr valley'], ['gas_distribution', 'Ahr valley'], ['electricity_others', 'Belgium'], ['electricity_others', 'Netherlands'], ['gas_supply', 'Netherlands'], ['wastewater', 'Altenahr'], ['wastewater', 'Mayschoss'], ['wastewater', 'Sinzig'], ['waste_others', 'Erft region'], ['water_supply', 'flood region'], ['water_supply', 'Rhineland-Palatinate'], ['water_supply', 'Germany'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'North Rhine-Westphalia'], ['water_supply', 'Belgium'], ['water_supply', 'Belgium'], ['water_supply', 'Netherlands'], ['waste_others', 'Rhineland-Palatinate'], ['waste_others', 'Ahrweiler'], ['waste_others', 'Belgium'], ['waste_others', 'Netherlands'], ['waste_others', 'Ahr valley'], ['it_telecommunication', 'all severely affected areas'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Belgium'], ['it_telecommunication', 'Netherlands'], ['healthcare_others', 'Germany'], ['healthcare_others', 'Rhineland-Palatinate'], ['healthcare_hospitals_clinics', 'North Rhine-Westphalia'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Trier'], ['education_kita', 'Rhineland-Palatinate'], ['education_school', 'Rhineland-Palatinate'], ['healthcare_others', 'Belgium'], ['healthcare_hospitals_clinics', 'Netherlands'], ['nursing', 'Netherlands'], ['bridges', 'rivers Ahr'], ['bridges', 'Erft'], ['electricity_supply', 'Germany'], ['gas_distribution', 'Germany'], ['it_telecommunication', 'Germany']]
-# [['bridges', 'Germany'], ['bridges', 'Belgium'], ['wastewater', 'Germany'], ['wastewater', 'Belgium'], ['rail', 'Ahr valley'], ['rail', 'Ahr valley'], ['motorways', 'Ahr valley'], ['bridges', 'Ahr valley'], ['bridges', 'Ahr valley'], ['bridges', 'Ahr valley'], ['bridges', 'Ahr valley'], ['bridges', 'Ahr valley'], ['it_telecommunication', 'Spa-Pepinster'], ['it_telecommunication', 'Spa-Pepinster'], ['electricity_supply', 'Ahr valley'], ['rail', 'Spa'], ['rail', 'Pepinster'], ['rail', 'Spa'], ['rail', 'Pepinster'], ['rail', 'Belgium'], ['rail', 'Spa-Pepinster'], ['rail', 'Spa-Pepinster'], ['rail', 'Spa'], ['rail', 'Pepinster'], ['rail', 'Belgium'], ['rail', 'Spa-Pepinster'], ['rail', 'Spa-Pepinster'], ['electricity_others', 'North Rhine-Westphalia'], ['electricity_others', 'Rhineland-Palatinate'], ['electricity_others', 'North Rhine-Westphalia'], ['electricity_others', 'Rhineland-Palatinate'], ['electricity_supply', 'North Rhine-Westphalia'], ['electricity_supply', 'Rhineland-Palatinate'], ['gas_distribution', 'Ahr valley'], ['gas_distribution', 'Ahr valley'], ['electricity_distribution', 'Belgium'], ['electricity_distribution', 'Belgium'], ['electricity_supply', 'North Rhine-Westphalia'], ['electricity_supply', 'Rhineland-Palatinate'], ['gas_distribution', 'Ahr valley'], ['gas_distribution', 'Ahr valley'], ['electricity_distribution', 'Belgium'], ['electricity_distribution', 'Belgium'], ['gas_distribution', 'Chaudfontaine'], ['gas_distribution', 'Pepinster'], ['gas_supply', 'Chaudfontaine'], ['gas_supply', 'Pepinster'], ['electricity_supply', 'Netherlands'], ['electricity_supply', 'Netherlands'], ['water_supply', 'Rhineland-Palatinate'], ['wastewater', 'Altenahr'], ['wastewater', 'Mayschoss'], ['wastewater', 'Sinzig'], ['wastewater', 'Erft region'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['wastewater', 'Altenahr'], ['wastewater', 'Mayschoss'], ['wastewater', 'Sinzig'], ['wastewater', 'Erft region'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Germany'], ['water_supply', 'Belgium'], ['water_supply', 'Netherlands'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Germany'], ['water_supply', 'Belgium'], ['water_supply', 'Netherlands'], ['water_supply', 'Bad Münstereifel'], ['water_supply', 'Bad Münstereifel'], ['motorways', 'Heimersheim'], ['rail', 'Heimersheim'], ['rail', 'Altenburg'], ['bridges', 'Altenburg'], ['bridges', 'Altenburg'], ['bridges', 'Ahr valley'], ['bridges', 'Ahr valley'], ['electricity_others', 'Schuld'], ['roads', 'Ahr valley'], ['roads', 'Ahr valley'], ['rail', 'Heimersheim'], ['rail', 'Altenburg'], ['bridges', 'Altenburg'], ['bridges', 'Altenburg'], ['bridges', 'Ahr valley'], ['bridges', 'Ahr valley'], ['roads', 'Ahr valley'], ['roads', 'Ahr valley'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Netherlands'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Rhineland-Palatinate'], ['electricity_supply', 'Rhineland-Palatinate'], ['it_telecommunication', 'Netherlands'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Rhineland-Palatinate'], ['it_telecommunication', 'Rhineland-Palatinate'], ['electricity_supply', 'Rhineland-Palatinate'], ['healthcare_others', 'Rhineland-Palatinate'], ['healthcare_others', 'Rhineland-Palatinate'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['electricity_supply', 'Eschweiler'], ['healthcare_others', 'Eschweiler'], ['healthcare_others', 'Eschweiler'], ['healthcare_others', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Eschweiler'], ['electricity_supply', 'Eschweiler'], ['healthcare_others', 'Eschweiler'], ['healthcare_others', 'Eschweiler'], ['healthcare_others', 'Eschweiler'], ['healthcare_hospitals_clinics', 'Trier'], ['healthcare_hospitals_clinics', 'Trier'], ['education_kita', 'Rhineland-Palatinate'], ['education_school', 'Rhineland-Palatinate'], ['education_others', 'Bad Neuenahr-Ahrweiler'], ['healthcare_hospitals_clinics', 'Belgium'], ['nursing', 'Netherlands'], ['healthcare_hospitals_clinics', 'Trier'], ['education_kita', 'Rhineland-Palatinate'], ['education_school', 'Rhineland-Palatinate'], ['healthcare_hospitals_clinics', 'Belgium'], ['nursing', 'Netherlands'], ['roads', 'Ahr valley'], ['motorways', 'Ahr valley'], ['bridges', 'Ahr'], ['bridges', 'Ahr'], ['bridges', 'Erft'], ['bridges', 'Erft'], ['bridges', 'Ahr'], ['bridges', 'Ahr'], ['bridges', 'Erft'], ['bridges', 'Erft'], ['bridges', 'Ahr'], ['bridges', 'Ahr'], ['bridges', 'Erft'], ['bridges', 'Erft'], ['bridges', 'Ahr'], ['bridges', 'Erft'], ['bridges', 'Ahr'], ['bridges', 'Erft rivers'], ['bridges', 'Ahr'], ['bridges', 'Erft'], ['electricity_supply', 'Germany']]
-# TPs: 98, FPs: 82, FNs: 36
-#   FPs: [['bridges', 'Germany'], ['bridges', 'Belgium'], ['wastewater', 'Germany'], ['wastewater', 'Belgium'], ['rail', 'Ahr valley'], ['rail', 'Ahr valley'], ['motorways', 'Ahr valley'], ['it_telecommunication', 'Spa-Pepinster'], ['it_telecommunication', 'Spa-Pepinster'], ['electricity_supply', 'Ahr valley'], ['rail', 'Spa-Pepinster'], ['rail', 'Spa-Pepinster'], ['rail', 'Spa-Pepinster'], ['rail', 'Spa-Pepinster'], ['electricity_supply', 'North Rhine-Westphalia'], ['electricity_supply', 'Rhineland-Palatinate'], ['electricity_distribution', 'Belgium'], ['electricity_distribution', 'Belgium'], ['electricity_supply', 'North Rhine-Westphalia'], ['electricity_supply', 'Rhineland-Palatinate'], ['electricity_distribution', 'Belgium'], ['electricity_distribution', 'Belgium'], ['gas_distribution', 'Chaudfontaine'], ['gas_distribution', 'Pepinster'], ['gas_supply', 'Chaudfontaine'], ['gas_supply', 'Pepinster'], ['electricity_supply', 'Netherlands'], ['electricity_supply', 'Netherlands'], ['wastewater', 'Erft region'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['wastewater', 'Erft region'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['waste_others', 'Altenahr'], ['waste_others', 'Mayschoss'], ['waste_others', 'Sinzig'], ['motorways', 'Heimersheim'], ['rail', 'Heimersheim'], ['rail', 'Altenburg'], ['bridges', 'Altenburg'], ['bridges', 'Altenburg'], ['electricity_others', 'Schuld'], ['rail', 'Heimersheim'], ['rail', 'Altenburg'], ['bridges', 'Altenburg'], ['bridges', 'Altenburg'], ['electricity_supply', 'Rhineland-Palatinate'], ['electricity_supply', 'Rhineland-Palatinate'], ['electricity_supply', 'Eschweiler'], ['healthcare_others', 'Eschweiler'], ['healthcare_others', 'Eschweiler'], ['healthcare_others', 'Eschweiler'], ['electricity_supply', 'Eschweiler'], ['healthcare_others', 'Eschweiler'], ['healthcare_others', 'Eschweiler'], ['healthcare_others', 'Eschweiler'], ['education_others', 'Bad Neuenahr-Ahrweiler'], ['healthcare_hospitals_clinics', 'Belgium'], ['healthcare_hospitals_clinics', 'Belgium'], ['motorways', 'Ahr valley'], ['bridges', 'Ahr'], ['bridges', 'Ahr'], ['bridges', 'Ahr'], ['bridges', 'Ahr'], ['bridges', 'Ahr'], ['bridges', 'Ahr'], ['bridges', 'Ahr'], ['bridges', 'Ahr'], ['bridges', 'Erft rivers'], ['bridges', 'Ahr']]
-#   FNs: [['roads', 'Germany'], ['rail', 'Germany'], ['motorways', 'Germany'], ['bridges', 'Rhineland-Palatinate'], ['bridges', 'Rhineland-Palatinate'], ['rail', 'Germany'], ['rail', 'Germany'], ['transport_others', 'Netherlands'], [None, 'Netherlands'], ['electricity_others', 'Germany'], ['rail', 'between Maastricht'], ['rail', 'Liége'], ['gas_distribution', 'Germany'], [None, 'villages around Liége'], [None, 'Chaudfontaine'], [None, 'Pepinster'], ['electricity_others', 'Belgium'], ['electricity_others', 'Netherlands'], ['gas_supply', 'Netherlands'], ['waste_others', 'Erft region'], ['water_supply', 'flood region'], ['water_supply', 'North Rhine-Westphalia'], ['waste_others', 'Rhineland-Palatinate'], ['waste_others', 'Ahrweiler'], ['waste_others', 'Belgium'], ['waste_others', 'Netherlands'], ['waste_others', 'Ahr valley'], ['it_telecommunication', 'all severely affected areas'], ['it_telecommunication', 'Belgium'], ['healthcare_others', 'Germany'], ['healthcare_hospitals_clinics', 'North Rhine-Westphalia'], ['healthcare_others', 'Belgium'], ['healthcare_hospitals_clinics', 'Netherlands'], ['bridges', 'rivers Ahr'], ['gas_distribution', 'Germany'], ['it_telecommunication', 'Germany']]
-#  ---------- For ech Document - Evaluation statistics (document-wise)-----------
-# Recall: 0.5555555555555556, Precision: 0.4166666666666667, F1-score: 0.4761904761904762  (step 1, koks)
-# Recall: 0.7513432835820896, Precision: 0.5444444444444444, F1-score: 0.6242038216560509 (step 2, koks)
-
-## all docs
-#  ---------- Overall Evaluation statistics (document-wise)-----------
-# Recall: 0.5, Precision: 0.3989071038251366, F1-score: 0.44376899696048633
-
-## koks (only verif=true)
-# TPs: 61, FPs: 39, FNs: 33
-# Recall: 0.648936170212766, Precision: 0.61, F1-score: 0.6288659793814433
-
-## all docs (ony verif=true)
-#  ---------- Overall Evaluation statistics (document-wise)-----------
-# 1 run
-# Recall: 0.4232558139534884, Precision: 0.4527363184079602, F1-score: 0.437500000000  (step 2 probably)
-# 2 run
-# Recall: 0.45662100456621, Precision: 0.4132231404958678, F1-score: 0.43383947939262474  (step 1)
-# Recall: 0.4351851851851852, Precision: 0.47715736040609136, F1-score: 0.4552058111380145  (step 2)
-## --> verification improves precision ~6-7 points, but drops recall ~2-7points  [2 runs]
-
-
-
-
-
-# %%
-### ---> no improvement with CI ner tool compared to without tool (base) (and latter much quicker)
-### ---> improvement with EL prompt compared to without EL (base)
-
-# %% [markdown]
-# ## Evaluation CI-LOC pairs on CHUNK-level 
-# 
-
-# %%
-df_pred_geolocalized.loc[:,"id_pred"] = df_pred_geolocalized.reset_index().index
-df_valid.loc[:,"id_valid"] = df_valid.reset_index().index
-
-
-# %%
-import re
-
-
-print("Match chunk text of each prediction entry with related validation entries (nth:1 pairs)")
-print("Align texts from valid and pred set by removing potential whitespaces")
-# NOTE Solves issue: of having doubled whitespace or whitespaces due to linebreaks. eg. "Bad Münstereifel" where valid senence differed to pred_chunk due to "- " (instead of "-") in fresh-water
-
-df_pred_valid_all = pd.DataFrame()
-threshold = 65  # keep low due to differences in the tranlsation and when linebreaks where used
-
-# find for each prediction entry all validation entries for respective chunk 
-# these validation entries are candidates from which the most similar one to the pred. entry is taken to calc. model performance 
-# including also entries where pred_info or valid_info is missing (e.g FNs, FPs)
-for _, pred_entry in df_pred_geolocalized.iterrows():
-    for _, valid_entry in df_valid.iterrows():  # all validation entries of all docs
-
-        if valid_entry.sentence_reference is np.nan:
-            continue
-
-        valid_entry.sentence_reference = re.sub(r"([^\s-])\n([^\s-])", r"\1 \2", valid_entry.sentence_reference) # replace linebreak symbols when they occur just once, with whitespace (two linebreaks - probably new subsection)
-        valid_entry.sentence_reference = valid_entry.sentence_reference.replace("/\n{2,}/g", "\n")  # remove linebreaks only when they occurred just once, but not for multiple linebreaks (e.g. before subsection)
-        valid_entry.sentence_reference = re.sub(r"\s+", " ", valid_entry.sentence_reference)  # replace >1 whitespaces with single whitespace
-        valid_entry.sentence_reference = re.sub(r"([^\s-])- ([^\s-])", r"\1-\2", valid_entry.sentence_reference)  # remove hypens in the middle of lines
-        
-        pred_entry.chunk_text = re.sub(r"([^\s-])\n([^\s-])", r"\1 \2", pred_entry.chunk_text) # replace linebreak symbols when they occur just once, with whitespace (two linebreaks - probably new subsection)
-        pred_entry.chunk_text = pred_entry.chunk_text.replace("/\n{2,}/g", "\n")  # remove linebreaks only when they occurred just once, but not for multiple linebreaks (e.g. before subsection)
-        pred_entry.chunk_text = re.sub(r"\s+", " ", pred_entry.chunk_text)  # replace >1 whitespaces with single whitespace
-        pred_entry.chunk_text = re.sub(r"([^\s-])- ([^\s-])", r"\1-\2", pred_entry.chunk_text)  # remove hypens in the middle of lines
-
-        # Calculate match score by accounting for partial string matches. 
-        # In detail, it calculates the similarity ratio using the shortest string (length n, here: "sentence_reference") against all n-length substrings of the larger string and returns the highest score 
-        score = fuzz.partial_ratio(valid_entry['sentence_reference'].replace(" ", ""), pred_entry['chunk_text'].replace(" ", ""))
-
-
-
-        if score >= threshold:
-            entry_pred_valid = {
-                "citation_id": pred_entry["citation_id"],
-                "ci_pred": pred_entry["infrastructure_type"],
-                "ci_group_pred": pred_entry["infrastructure_group"],
-                #"damage_pred": pred_entry["damage"],
-                "location_pred": pred_entry["location"],
-                #"coords_pred": pred_entry["coords"],
-                #"chunk_id_pred": pred_entry["chunk_id"],
-                "chunk_text_pred": pred_entry["chunk_text"],
-                "ci_valid": valid_entry["ci1_type"],
-                "ci_group_valid": valid_entry["ci1_group"],
-                #"damage_valid": valid_entry["ci1_damage"],
-                "location_valid": valid_entry["ci1_location"],
-                # "coords_valid": valid_entry["coords"],
-                "sentence_text_valid": valid_entry["sentence_reference"],
-                "text_similarity": score,
-                "id_pred": pred_entry["id_pred"],
-                "id_valid": valid_entry["id_valid"]
-            }
-            df_pred_valid_all = pd.concat([df_pred_valid_all, pd.DataFrame([entry_pred_valid])], ignore_index=True)  # n:1 relationship DF
-        
-print(len(df_pred_valid_all))
-
-# 85 threshold - 778 entries
-# 75 threshold - 778 entries
-# 75 threshold + CI subgrou - 513 entries
-
-
-
-
-# %%
-list_entity_valid = [["ci_group_valid", "location_valid"]]
-list_entity_pred = [["ci_group_pred", "location_pred"]]
-
-
-
-#  Set similarity threshold (self-defined) when CI case is valid or not FN/FP
-cos_smlrty_thresh = 0.7
-norm_pr_smlrty_thresh = 0.7
-
-
-print(" --- For each unique valid case (unique combi: [ci_valid, damage_valid, location_valid, sentence_text]) calculate similarity ---")
-print("Using 100% match for CI types based on subgroups")
-print("Using cosine similarity threshold for damages", cos_smlrty_thresh)
-print("Using normalized partial ratio similarity threshold for locations", norm_pr_smlrty_thresh)
-
-## AIM of evaluation loop below: 
-# remove all cases in df_pred_valid_all where pred_entities were wrongly assigned to a valid_entity
-## ie keep only pre-valid pairs with highest similarity per unique valid case
-
-## call embedding model for semantic similarity calculation
-# embedding_model = u.EmbeddingModel()
-
-
-# store evaluation results
-df_eval_records = pd.DataFrame()
-
-
-# For each impact case (rows) 
-for record_no, impact_record in df_pred_valid_all.iterrows():
-
-    print(f"Record: {record_no } / {len(df_pred_valid_all)}")
-
-    # init dict to store results for each records (row=)
-    df_eval = {
-        "citation": impact_record.citation_id,
-        "chunk_text_pred": impact_record.chunk_text_pred,
-        "sentence_text_valid": impact_record.sentence_text_valid,
-        "id_pred": impact_record.id_pred,
-        "id_valid": impact_record.id_valid
-    }
-    
-    # iterate over the three entity classes (ci, damage, location) to assess LLM performance
-    for ci_loc_valid, ci_loc_pred in zip(list_entity_valid, list_entity_pred):
-
-        # Calculate similarities for entries in column pair: entity_pred - entity_valid
-
-        ## calc similarity when both valid_info exist (not NAN) 
-        # NOTE df_pred model can put out NAN when case exists but it couldnt find suitable value (e.g. damage_pred="NaN", damage_valid="polluted")
-        if impact_record[ci_loc_valid] is not np.nan:
-        # if impact_record[entity_pred] and impact_record[entity_valid] is not np.nan:
-            ci_pred_impact = impact_record[ci_loc_pred][0]            
-            loc_pred_impact = impact_record[ci_loc_pred][1]
-            ci_valid_impact = impact_record[ci_loc_valid][0]            
-            loc_valid_impact = impact_record[ci_loc_valid][1]
-
-            ## CI 
-            # similarity for CI-LOC pairs  
-            # NOTE - when CI AND LOC are correct - then this is calculated as a TP
-            if (ci_pred_impact == ci_valid_impact) & ((fuzz.partial_ratio(loc_pred_impact, loc_valid_impact)/100) > 0.7):
-                ci_loc_smlrty = 1
-            else:
-                ci_loc_smlrty = 0
-
-            # store result for ci-loc pairs 
-            df_eval["ci_pred"] = ci_pred_impact  # CI subgroup
-            df_eval["ci_valid"] = ci_valid_impact # CI subgroup
-            df_eval["loc_pred"] = loc_pred_impact  
-            df_eval["loc_valid"] = loc_valid_impact
-            
-            df_eval["ci_loc_smlrty"] = ci_loc_smlrty
-
-
-#             if entity_pred == "damage_pred": 
-
-#                 if isinstance(pred_impact, str) & isinstance(valid_impact, str): # check that pred or valid are not NAN
-#                     # contextual vectors (transformer-based)
-#                     embedded_list = embedding_model.vector_calculation(pred_impact, valid_impact)
-#                     # calculate cosine similarity for each pred-valid damage pair
-#                     similarity_score_cos = embedding_model.cosine_similarity(embedded_list[0], embedded_list[1])  # 0-1 value, the higher the more similar
-                
-#                 # if nan -> then it is either FP or FN
-#                 elif isinstance(pred_impact, float) | isinstance(np.nan, float):
-#                     similarity_score_cos = 0.0     
-
-#                 # store result for DAM and LOC entity 
-#                 df_eval["dam_pred"] = pred_impact  
-#                 df_eval["dam_valid"] = valid_impact 
-#                 df_eval["dam_smlrty"] = similarity_score_cos
-
-
-    # collect all single records (row) with similarity scores
-    df_eval_records = pd.concat([df_eval_records, pd.DataFrame([df_eval])], ignore_index=True)
-
-df_smltry_selmax = df_eval_records.groupby("id_valid").apply(lambda s: s.sort_values(["ci_loc_smlrty"], ascending=False).head(1))
-
-
-
-print("for each unique valid record keep only pred-valid pairs of highest similarity")
-
-
-# iterate over the three entity classes (ci, damage, location) to assess LLM performance
-for _, column_pred in zip(list_entity_valid, list_entity_pred):
-
-    if column_pred == ["ci_group_pred", "location_pred"]:
-
-        # remove cases where no CI could be found (for Ci unlikelky, but more common for location or damage)
-        df_valid_ci_loc = df_valid[df_valid[["ci1_group", "ci1_location"]].notnull()]
-        df_pred_ci_loc = df_pred_geolocalized[df_pred_geolocalized[["infrastructure_group", "location"]].notnull()]
-
-
-        # TPs 
-        tps = df_smltry_selmax.loc[df_smltry_selmax["ci_loc_smlrty"] == 1]
-        print(len(tps), len(df_smltry_selmax ), len(df_smltry_selmax[~df_smltry_selmax[["ci_pred", "ci_valid"]].isna().any(axis=1)]))
-        
-        
-        # # FPs
-        # --> make mask where records in df-eval record are identical to df_pred.columns (must be 1:1), 
-        #     aplly mask on df_pred and substract from output all cases which are in TPs 
-        # assert len(output) == fps_len
-        
-        # FNs
-        ## missed docs
-        df_valid_ci_pred_missed_docs = df_valid_ci_loc[df_valid_ci_loc["publication_id"].isin(df_pred["citation_id"]) == False]
-        ## missed entries
-        # extracts all duplicates (except first occurrence eg. id_Pred==537 occurs in df_smltry_selmax_p three times (1st case: TP or FP, 2nd and 3rd are FNs)
-        df_valid_cases_missed_by_model = df_smltry_selmax[df_smltry_selmax.duplicated(subset="id_pred", keep="first")]
-     
-        # FIXME WORKAROUND for FP and FN calculation, but not extract respective cases (only numbers of FPs and FNs)
-        fps_len = len(df_pred_ci_loc[["infrastructure_group", "location"]]) - tps.shape[0]
-        fns_len = len(df_valid_ci_loc[["ci1_group", "ci1_location"]]) - tps.shape[0]
-
-        print("tps", len(tps), " fps:", fps_len, " fns:", fns_len)
-                    
-        # performance scores
-        recall_score = u.calc_recall(tps_no=len(tps), fns_no=fns_len) 
-        precision_score = u.calc_precision(tps_no=len(tps), fps_no=fps_len)
-        try:
-            f1_score = u.calc_f1(precision=precision_score, recall=recall_score)
-        except ZeroDivisionError:
-            f1_score = 0.0
-
-        print(f" ---------- Evaluation statistics: {column_pred}-----------")
-        print(f"Recall: {recall_score}, Precision: {precision_score}, F1-score: {f1_score}")
-
-        # saving
-        # dh.DataHandler().save_evaluation_results(column_pred, df_smltry_selmax, recall_score, precision_score, f1_score)
-
-
-
-## no pairs
-# only geolocalized + imporved valid set (koks + 2paper)
-# Precision: 0.5625, Recall: 0.627906976744186, F1-score: 0.5934065934065934  tps 27  fps: 21  fns: 16
-# incl non-geolocalized + imporved valid set (koks + 2paper)
-#  Precision: 0.6923076923076923, Recall: 0.627906976744186, F1-score: 0.6585365853658537, tps 27  fps: 12  fns: 16
-
-
-# %%
-### CHIAN of prompts
-## khazai
-# tps 14  fps: 22  fns: 21
-#  ---------- Evaluation statistics: ['ci_group_pred', 'location_pred']-----------
-# Recall: 0.4, Precision: 0.3888888888888889, F1-score: 0.39436619718309857
-# 14 18 18
-# tps 14  fps: 19  fns: 21
-#  ---------- Evaluation statistics: ['ci_group_pred', 'location_pred']-----------
-# Recall: 0.4, Precision: 0.42424242424242425, F1-score: 0.411764705882353
-
-# koks
-# tps 25  fps: 37  fns: 35
-#  ---------- Evaluation statistics: ['ci_group_pred', 'location_pred']-----------
-# Recall: 0.4166666666666667, Precision: 0.4032258064516129, F1-score: 0.4098360655737705
-
-# Recall: 0.31746031746031744, Precision: 0.4444444444444444, F1-score: 0.37037037037037035
-
-## all (gpt 120)
-# tps 70  fps: 256  fns: 111
-#  ---------- Evaluation statistics: ['ci_group_pred', 'location_pred']-----------
-# Recall: 0.3867403314917127, Precision: 0.2147239263803681, F1-score: 0.27613412228796846
-# /tmp/ipykernel_11028/4210585134.py:94: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
-#   df_smltry_selmax = df_eval_records.groupby("id_valid").apply(lambda s: s.sort_values(["ci_loc_smlrty"], ascending=False).head(1))
-
-
-# %%
-
-
-# %% [markdown]
-# ### Benachmark against Ni Li - per doc and Ci sector 
-# 
-# score for boolean or str : 
-# if identical = 0
-# if not identical = 1
-# 
-# score for lists
-# = 1 - |{schnittmenge von a und r}|  / |{Vereiningunsmenge von a un d r}
-# 
-# -->  no. of common elements ["identicals"] / entire number of elements which occur at least in a or r or in both
-# 
-# ```
-# Schnittmenge (\(\cap \)): Elemente, die in beide Mengen gehören.
-# Vereinigung (\(\cup \)): Elemente, die in mindestens einer der beiden Mengen liegen (Zeichen: \(A \cup B\), sieht aus wie ein normales „u“).
-# ```
-
-# %%
-def common_elements(list1, list2):
-    return [element for element in list1 if element in list2]
-
-
-# %%
-print(df_pred_geolocalized.infrastructure_group.unique())
-
-
-ci_sectors = {
-    "airports" : "Transportation",
-    "aviation" : "Transportation",
-    "roads" : "Transportation",
-    "bridges" : "Transportation",
-    "motorways" : "Transportation",
-    "rail" : "Transportation",
-    "rail_service" : "Transportation",
-    "metro" : "Transportation",
-    "ports" : "Transportation",
-    "port_operation": "Transportation",
-    "transport_others": "Transportation",
-    "transport_supply": "Transportation",
-    "tunnels" : "Transportation",
-    "waterways_ships": "Transportation",
-
-    "water_others" : "Water",
-    "water_supply" : "Water",
-    "waterprotection" : "Water",
-
-    "electricity_others" : "Energy",
-    "electricity_supply" : "Energy",
-    "electricity_distribution": "Energy",
-    "gas_distribution" : "Energy",
-    "gas_supply" : "Energy",
-    "renewable_wind": "Energy",
-    "renewable_hydro": "Energy",
-    "cable_poles": "Energy",
-    "petrol_gas_stations_consumers": "Energy",
-
-
-    "wastewater" : "Waste",
-    "waste_others" : "Waste",
-
-    "it_telecommunication" : "IT / communication", #Not specified",
-
-    "healthcare_others" : "Social", # Not specified",
-    "healthcare_hospitals_clinics" : "Social",
-    "nursing" : "Social",
-    "education_kita" : "Social",
-    "education_others" : "Social",
-    "education_school" : "Social",
-}
-
-
-
-docs_valid = df_valid.copy(deep=True)
-docs_pred = df_pred_geolocalized.copy(deep=True)
-
-## create ci sector columns
-docs_valid["infrastructure_sector"] = docs_valid["ci1_group"].map(ci_sectors)  # non-matched entries are set to NAN
-docs_pred["infrastructure_sector"] = docs_pred["infrastructure_group"].map(ci_sectors)  # non-matched entries are set to NAN
-
-
-print(docs_valid["infrastructure_sector"].value_counts())
-print(docs_pred["infrastructure_sector"].value_counts())
-
-
-
-# %%
-from itertools import chain
-
-list_entity_valid = ["ci1_group", "ci1_location", "ci1_damage"]
-list_entity_pred = ["infrastructure_group", "location", "damage"]
-
-# calc share of loc=1 and loc=0 (to benchmark against Ni li)
-
-
-
-print(f"Using all Documents")
-df_performamce_doc_ci = pd.DataFrame()
-
-for doc_id in docs_valid["publication_id"].unique(): 
-
-    # get alls cases of same doc 
-    docs_pred_doc = docs_pred[docs_pred["citation_id"] == doc_id]
-    docs_valid_doc = docs_valid[docs_valid["publication_id"] == doc_id]
-
-    # get perofamcne for each ci sector within a doc
-    for ci_sector in docs_valid_doc["infrastructure_sector"].unique():
-
-        # for each ci secotr get perofmance score
-        docs_pred_ci = docs_pred_doc[docs_pred_doc["infrastructure_sector"] == ci_sector]
-        docs_valid_ci = docs_valid_doc[docs_valid_doc["infrastructure_sector"] == ci_sector]
-
-        for pred_ci_loc_dam, valid_ci_loc_dam in zip(list_entity_pred, list_entity_valid):
-
-            docs_valid_citype = docs_valid_ci[valid_ci_loc_dam].values.astype(str).tolist()
-            docs_pred_citype = docs_pred_ci[pred_ci_loc_dam].values.astype(str).tolist()#.drop_duplicates().values.tolist()
-            docs_valid_citype = sorted(docs_valid_citype)
-            docs_pred_citype = sorted(docs_pred_citype)
-            # docs_valid_citype = sorted(list(chain.from_iterable(docs_valid_citype)))
-            # docs_pred_citype = sorted(list(chain.from_iterable(docs_pred_citype)))
-            # if docs_valid_citype or docs_pred_citype:
-            print(doc_id, "-", ci_sector, "-", pred_ci_loc_dam)
-            print(docs_valid_citype)
-            print(docs_pred_citype)
-
-            # calc similarities
-            if len(docs_pred_citype)!=0 and len(docs_valid_citype)!=0:
-                identical = common_elements(docs_pred_citype, docs_valid_citype) # TP
-            elif len(docs_pred_citype)==0 and len(docs_valid_citype)==0:
-                # print(f"no CI {ci_sector} [field: {valid_ci_loc_dam}] in: {doc_id}")
-                continue
-            else:
-                identical = common_elements(docs_pred_citype, docs_valid_citype) # TP
-
-            # fns = np.abs(len(docs_valid_citype) - len(identical))
-            # fps = np.abs(len(docs_pred_citype) - len(identical))
-            # print("Identical [score 0]", len(identical))
-            # print("FNs [score 1]", fns)
-            # print("FPs [score 1]", fps)
-            print("share according to Ni Li - list",  np.round(1 -  (len(identical)/ (len(docs_pred_citype) + len(docs_valid_citype))), 3))
-            print("share according to Ni Li -set ",  np.round(1 - (len(set(identical))/ (len(set(docs_pred_citype)) + len(set(docs_valid_citype)))), 3))
-
-            df_performamce_doc_ci = pd.concat([df_performamce_doc_ci, pd.DataFrame(
-                {
-                    "citation_id": [doc_id],
-                    "ci_sector": [ci_sector],
-                    "number_cases_pred": [len(docs_pred_citype)],
-                    "number_cases_valid": [len(docs_valid_citype)],
-                    f"{pred_ci_loc_dam}": [(1 -  (len(identical)/ (len(docs_pred_citype) + len(docs_valid_citype))))],
-                }
-            ) ])
-            #(37/ (docs_pred_citype + docs_valid_citype))
-
-            del docs_valid_citype
-            del docs_pred_citype
-
-
-
-
-# %%
-## avg performance 
-print("Performance scores for each sector averaged across all documents")
-
-for ci_sector in df_performamce_doc_ci["ci_sector"].unique():
-    df_performance_avg = df_performamce_doc_ci[df_performamce_doc_ci["ci_sector"] == ci_sector]
-
-    df_performance_avg = {
-        "CI sector": ci_sector,
-        "CI group": np.round(df_performance_avg["infrastructure_group"].mean(), 3),
-        "location": np.round(df_performance_avg["location"].mean(), 3),
-        "damage": np.round(df_performance_avg["damage"].mean(), 3),
-    }
-    print(df_performance_avg)
-
-print("\nPerformance scores for all sectors in total, averaged across all documents")
-df_performance_avg = {
-    "CI sector": ci_sector,
-    "CI group": np.round(df_performamce_doc_ci["infrastructure_group"].mean(), 3),
-    "location": np.round(df_performamce_doc_ci["location"].mean(), 3),
-    "damage": np.round(df_performamce_doc_ci["damage"].mean(), 3),
-}
-print(df_performance_avg)
-
-# %% [markdown]
-# ### Benchmark against Ni Li Wiki-impacts - Loc calculation
-# 
-# score for boolean or str : 
-# if identical = 0
-# if not identical = 1
-# 
-# score for lists
-# = 1 - |{schnittmenge von a und r}|  / |{Vereiningunsmenge von a un d r}
-# 
-# -->  no. of common elements ["identicals"] / entire number of elements which occur at least in a or r or in both
-# 
-# ```
-# Schnittmenge (\(\cap \)): Elemente, die in beide Mengen gehören.
-# Vereinigung (\(\cup \)): Elemente, die in mindestens einer der beiden Mengen liegen (Zeichen: \(A \cup B\), sieht aus wie ein normales „u“).
-# ```
-
-# %%
-def common_elements(list1, list2):
-    return [element for element in list1 if element in list2]
-
-
-# %%
-from itertools import chain
-
-list_entity_valid = ["ci1_group", "ci1_location", "ci1_damage"]
-list_entity_pred = ["infrastructure_group", "location", "damage"]
-
-# calc share of loc=1 and loc=0 (to benchmark against Ni li)
-
-
-fns_list = []
-fps_list = []   
-tps_list = []
-
-
-
-# for publication in df_valid.publication_id.unique():
-
-#     print(f"\n\nDocument: {publication}")
-#     docs_valid = df_valid[df_valid["publication_id"] == publication]
-#     docs_pred = df_pred_geolocalized[df_pred_geolocalized["citation_id"] == publication]
-
-print(f"Using all Documents")
-docs_valid = df_valid
-docs_pred = df_pred_geolocalized
-
-
-for pred_ci_loc_dam, valid_ci_loc_dam in zip(list_entity_pred, list_entity_valid):
-
-    docs_valid_citype = docs_valid[valid_ci_loc_dam].values.astype(str).tolist()#
-    docs_pred_citype = docs_pred[pred_ci_loc_dam].values.astype(str).tolist()#.drop_duplicates().values.tolist()
-    docs_valid_citype = sorted(docs_valid_citype)
-    docs_pred_citype = sorted(docs_pred_citype)
-    # docs_valid_citype = sorted(list(chain.from_iterable(docs_valid_citype)))
-    # docs_pred_citype = sorted(list(chain.from_iterable(docs_pred_citype)))
-    print(sorted(docs_valid_citype))
-    print(sorted(docs_pred_citype))
-
-    # print(docs_valid_citype)
-
-    # calc similarities
-    identical = common_elements(docs_pred_citype, docs_valid_citype)# TP
-    fns = np.abs(len(docs_valid_citype) - len(identical))
-    fps = np.abs(len(docs_pred_citype) - len(identical))
-    print("Identical [score 0]", len(identical))
-    print("FNs [score 1]", fns)
-    print("FPs [score 1]", fps)
-    print("share according to Ni Li - list",  np.round(1 -  (len(identical)/ (len(docs_pred_citype) + len(docs_valid_citype))), 3))
-    print("share according to Ni Li -set ",  np.round(1 - (len(set(identical))/ (len(set(docs_pred_citype)) + len(set(docs_valid_citype)))), 3))
-    #(37/ (docs_pred_citype + docs_valid_citype))
-
-
-
-
-# %%
-# Using all Documents
-# ['None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'None', 'airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'aviation', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'education_kita', 'education_school', 'education_school', 'electricity_others', 'electricity_others', 'electricity_others', 'electricity_others', 'electricity_others', 'electricity_others', 'electricity_others', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'gas_distribution', 'gas_distribution', 'gas_distribution', 'gas_distribution', 'gas_supply', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_others', 'healthcare_others', 'healthcare_others', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'motorways', 'motorways', 'motorways', 'motorways', 'motorways', 'motorways', 'motorways', 'motorways', 'motorways', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nursing', 'nursing', 'nursing', 'nursing', 'nursing', 'ports', 'ports', 'ports', 'ports', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail_service', 'rail_service', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'transport_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'wastewater', 'wastewater', 'wastewater', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'waterprotection', 'waterprotection', 'waterprotection', 'waterprotection', 'waterprotection', 'waterprotection']
-# ['airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'airports', 'aviation', 'aviation', 'aviation', 'aviation', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'bridges', 'education_kita', 'education_kita', 'education_others', 'education_others', 'education_others', 'education_others', 'education_others', 'education_school', 'education_school', 'education_school', 'education_school', 'education_school', 'electricity_distribution', 'electricity_distribution', 'electricity_distribution', 'electricity_distribution', 'electricity_distribution', 'electricity_distribution', 'electricity_distribution', 'electricity_others', 'electricity_others', 'electricity_others', 'electricity_others', 'electricity_others', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'electricity_supply', 'gas_distribution', 'gas_distribution', 'gas_distribution', 'gas_distribution', 'gas_distribution', 'gas_distribution', 'gas_supply', 'gas_supply', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_hospitals_clinics', 'healthcare_others', 'healthcare_others', 'healthcare_others', 'healthcare_others', 'healthcare_others', 'healthcare_others', 'healthcare_others', 'healthcare_others', 'inland_waterways', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'it_telecommunication', 'motorways', 'motorways', 'motorways', 'motorways', 'motorways', 'motorways', 'motorways', 'motorways', 'motorways', 'motorways', 'motorways', 'motorways', 'nursing', 'nursing', 'nursing', 'nursing', 'nursing', 'nursing', 'port_operation', 'port_operation', 'port_operation', 'port_operation', 'ports', 'ports', 'ports', 'ports', 'ports', 'ports', 'power_offshore_others', 'power_plants', 'power_turbines_others', 'power_turbines_others', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail', 'rail_service', 'rail_service', 'rail_service', 'rail_service', 'rail_service', 'rail_service', 'rail_service', 'rail_service', 'rail_service', 'rail_service', 'rail_service', 'rail_service', 'rail_service', 'rail_service', 'rail_service', 'rail_service', 'rail_service', 'rail_service', 'renewable_hydro', 'renewable_hydro', 'renewable_hydro', 'renewable_hydro', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'renewable_wind', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'roads', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_others', 'transport_supply', 'transport_supply', 'transport_supply', 'transport_supply', 'transport_supply', 'transport_supply', 'transport_supply', 'transport_supply', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'waste_others', 'wastewater', 'wastewater', 'wastewater', 'wastewater', 'wastewater', 'wastewater', 'wastewater', 'wastewater', 'wastewater', 'wastewater', 'water_others', 'water_others', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'water_supply', 'waterprotection', 'waterprotection', 'waterprotection', 'waterprotection', 'waterprotection', 'waterways_ships', 'waterways_ships']
-# Identical [score 0] 370
-# FNs [score 1] 168
-# FPs [score 1] 74
-# share according to Ni Li - list 0.427
-# share according to Ni Li -set  0.617
-# ['', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahrweiler', 'Algemes', 'Alicante', 'Altenahr', 'Alzira', 'Anhalt-Bitterfeld', 'Anhalt-Bitterfeld', 'Avenida Herrera Oria-Virgen de las Flores', 'Avenida Lope de Vega - Atabal', 'Azucarera - Interhorce road', 'Bad Münstereifel', 'Barcelona', 'Bavaria', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Benalmádena', 'Blas Infante Avenue', 'Buol', 'Camino Suárez', 'Campillos', 'Casabermeja', 'Castilla-La Mancha', 'Catania', 'Catania', 'Catania', 'Catania Airport', 'Catania Airport', 'Catania Airport', 'Chaudfontaine', 'Chemnitz', 'Chiva', 'Cártama', 'Cártama', 'Elbe', 'Erft', 'Erft region', 'Erzgebirgskreis', 'Erzgebirgskreis', 'Erzgebirgskreis', 'Eschweiler', 'Fischbeck', 'Fuengirola', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Guadassuar', 'Guerrero Strachan Avenue', 'Jerichower Land', 'Juan XXIII Avenue', 'La Alcudia', 'Leipzig', 'Liége', 'Lope de Vega Avenue', 'Lope de Vega Avenue', 'Madrid', 'Madrid', 'Madrid', 'Magdeburg', 'Magdeburg', 'Makarska', 'Malaga', 'Malaga', 'Malaga', 'Mayschoss', 'Mijas', 'Milan', 'Milan', 'Milan', 'Netherlands', 'Netherlands', 'Netherlands', 'Netherlands', 'Netherlands', 'Netherlands', 'Netherlands', 'Netherlands', 'Netherlands', 'North Rhine-Westphalia', 'North Rhine-Westphalia', 'North Rhine-Westphalia', 'Oberbayern', 'Palermo', 'Palermo', 'Palermo', 'Partinico', 'Pasillo Santa Isabel - Puente de la Aurora', 'Pasillo del Matadero Puente del Carmen', 'Pepinster', 'Pepinster', 'Picassent', 'Pisak', 'Plaza Manuel Azaña', 'Port of Valencia', 'Raubling', 'Requena', 'Rheingau-Taunus-Kreis', 'Rheingau-Taunus-Kreis', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Ronda', 'Rosenheim', 'Rosenheim', 'Saale-Holzland', 'Saale-Holzland-Kreis', 'Saale-Holzland-Kreis', 'Sagun', 'Salzlandkreis', 'Santa Rosa de Lima', 'Saxony-Anhalt', 'Sinzig', 'Spa', 'Stendal', 'Stendal', 'Stendal', 'Stendal', 'Sueca', 'Thuringia', 'Thuringia', 'Thuringia', 'Torrox', 'Traunstein', 'Traunstein', 'Traunstein', 'Trier', 'Utiel', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia area', 'Valencia area', 'Valencia area', 'Valencia city', 'Valencia port', 'Valencian Community', 'Velázquez Avenue', 'Victoria', 'Vogtlandkreis', 'Vogtlandkreis', 'Wartburg district', 'Wittenberg', 'all severely affected areas', 'between Maastricht', 'between Omiš', 'between Partinico', 'between Valencia', 'between Valencia', 'between Valencia', 'between Valencia city', 'direction of Zwickau', 'eastern', 'flood region', 'near Churriana intersection', 'near Julio Cortázar Avenue', 'near Malaga', 'near Malaga', 'near Malaga', 'near Polizzi Generosa', 'near Polizzi Generosa', 'parts of Marušići', 'port', 'province of Valencia', 'province of Valencia', 'rivers Ahr', 'southern Spain', 'surrounding areas', 'the sanctuary of the Madonna del Ponte', 'villages around Liége']
-# ['Ahr', 'Ahr', 'Ahr', 'Ahr', 'Ahr', 'Ahr', 'Ahr', 'Ahr', 'Ahr', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Ahr valley', 'Alps', 'Altenahr', 'Altenahr', 'Altenahr', 'Altenahr', 'Altenahr', 'Altenahr', 'Altenahr', 'Altenahr', 'Altenburg', 'Altenburg', 'Altenburg', 'Altenburg', 'Altenburg', 'Altenburg', 'Andalusia', 'Andalusia', 'Bad Münstereifel', 'Bad Münstereifel', 'Bad Münstereifel', 'Bad Münstereifel', 'Bad Münstereifel', 'Bad Münstereifel', 'Bad Münstereifel', 'Bad Münstereifel', 'Bad Münstereifel', 'Bad Münstereifel', 'Bad Neuenahr-Ahrweiler', 'Barcelona', 'Barcelona', 'Barcelona', 'Barcelona', 'Belgian rail network', 'Belgian rail network', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Belgium', 'Caithness WindFarm', 'Caithness WindFarm', 'Caithness WindFarm', 'Castellón de la Plana', 'Catania', 'Catania', 'Catania', 'Catania', 'Catania', 'Catania', 'Catania', 'Catania', 'Catania', 'Catania', 'Catania airport', 'Catania airport', 'Central Mountains', 'Central Mountains', 'Chaudfontaine', 'Chaudfontaine', 'Chemnitz-Glauchau', 'Copenhagen airport', 'Copenhagen airport', 'Copenhagen airport', 'Cártama', 'Cártama', 'Cártama', 'Cártama', 'Cártama', 'Cártama', 'Danube', 'Danube-Elbe catchment', 'Deggendorf district', 'Elbe catchment area', 'Erft', 'Erft', 'Erft', 'Erft', 'Erft', 'Erft', 'Erft', 'Erft', 'Erft region', 'Erft region', 'Erft rivers', 'Erzgebirgskreis', 'Erzgebirgskreis', 'Erzgebirgskreis', 'Erzgebirgskreis', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Eschweiler', 'Fischbeck', 'German Bight', 'German Bight', 'German Bight north of Borkum', 'German Bight north of Borkum', 'German Bight north of Borkum', 'German Bight north of Borkum', 'German Bight north of Borkum', 'German districts', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Germany', 'Greece', 'Guerrero Strachan Avenue', 'Guerrero Strachan Avenue', 'Gujarat', 'Gujarat', 'Hamburg', 'Hamburg', 'Heimersheim', 'Heimersheim', 'Heimersheim', 'Humboldt County', 'Immingham', 'Immingham', 'Ireland', 'Ireland', 'Ireland', 'Juan XXIII Avenue', 'Juan XXIII Avenue', 'Julio Cortázar Avenue', 'Julio Cortázar Avenue', 'Kattegat', 'Kattegat', 'Lope de Vega Ave', 'Lowestoft', 'Lowestoft', 'Lowestoft', 'Lowestoft', 'Lowestoft', 'Lowestoft', 'Lowestoft', 'Lowestoft', 'Madrid', 'Madrid', 'Madrid', 'Madrid', 'Magdeburg', 'Magdeburg', 'Magdeburg', 'Magdeburg', 'Magdeburg', 'Malaga', 'Malaga', 'Malaga', 'Malaga', 'Malaga', 'Malaga', 'Malaga Airport', 'Malaga Airport', 'Malaga airport', 'Malaga airport', 'Malaga province', 'Malaga province', 'Malpensa airport', 'Marušići', 'Mayschoss', 'Mayschoss', 'Mayschoss', 'Mayschoss', 'Mayschoss', 'Mayschoss', 'Mayschoss', 'Mayschoss', 'Milan', 'Milan', 'Milan', 'Milan', 'Milan', 'Málaga', 'Málaga', 'Málaga', 'Málaga', 'Málaga', 'Málaga', 'National highway', 'Netherlands', 'Netherlands', 'Netherlands', 'Netherlands', 'Netherlands', 'Netherlands', 'Netherlands', 'Netherlands', 'North Rhine-Westphalia', 'North Rhine-Westphalia', 'North Rhine-Westphalia', 'North Rhine-Westphalia', 'North Sea', 'North Sea', 'North Sea', 'North Sea', 'North Sea', 'North Sea', 'North Sea', 'North Sea', 'North Sea', 'North Sea', 'North Sea', 'North Sea', 'Okinawa', 'Palermo', 'Palermo', 'Palermo', 'Palermo', 'Palermo', 'Palermo', 'Pepinster', 'Pepinster', 'Pepinster', 'Pepinster', 'Pepinster', 'Pisak', 'Polizzi Generosa', 'Polizzi Generosa', 'Porbandar', 'Porbandar', 'Porbandar', 'Porbandar', 'Porbandar', 'Port of Valencia', 'Port of Valencia', 'Port of Valencia', 'Port of Valencia', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rhineland-Palatinate', 'Rome', 'Rosenheim', 'Rosenheim', 'Rosenheim', 'Sagunto', 'Samsø', 'Samsø', 'Samsø wind farm', 'Schuld', 'Sicilian airport', 'Sicilian airport', 'Sinzig', 'Sinzig', 'Sinzig', 'Sinzig', 'Sinzig', 'Sinzig', 'Sinzig', 'Sinzig', 'Spa', 'Spa', 'Spa', 'Spa-Pepinster', 'Spa-Pepinster', 'Spa-Pepinster', 'Spa-Pepinster', 'Spa-Pepinster', 'Spa-Pepinster', 'Spain', 'Spain', 'Sweden', 'Sweden', 'Traunstein', 'Traunstein', 'Traunstein', 'Traunstein', 'Traunstein', 'Traunstein', 'Traunstein', 'Trier', 'Trier', 'Trier', 'UK', 'UK', 'UK', 'UK', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia', 'Valencia airport', 'Valencian Community', 'Valencian Community', 'Valencian Community', 'Valencian Community', 'Valencian Community', 'Valencian Community', 'Valencian Community', 'Velázquez Avenue', 'Velázquez Avenue', 'Wallonia', 'Wallonia', 'Walloon rail network', 'Zermatt', 'along the Elbe', 'city', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'district of Stendal', 'eastern China', 'inland coastal areas', 'near Malaga', 'near Malaga', 'near Malaga', 'near Malaga', 'near Malaga', 'near Malaga', 'near Malaga', 'near Malaga', 'near Malaga', 'near Malaga', 'near Malaga', 'northern Europe', 'northern Europe', 'northern Europe', 'province of Valencia', 'sanctuary', 'southern China']
-# Identical [score 0] 281
-# FNs [score 1] 79
-# FPs [score 1] 163
-# share according to Ni Li - list 0.565
-# share according to Ni Li -set  0.825
-# ['Closures (complete)', 'Dam failure', 'Dam failure', 'Dam failure', 'Due to water/debris/risk aquaplaning on road', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'affected', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'closed', 'closed', 'closed', 'closed', 'closed', 'closure', 'closure', 'closure', 'closures', 'closures', 'closures', 'closures', 'closures', 'closures', 'closures', 'closures', 'closures', 'closures', 'closures', 'closures', 'closures', 'closures', 'closures', 'closures', 'closures', 'closures', 'contaminated', 'contaminated', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'delays', 'derailed', 'derailed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'dike break', 'dike break', 'dike breaks', 'dike breaks', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'evacuated', 'evacuated', 'evacuated', 'evacuated', 'evacuated', 'evacuated', 'evacuated', 'flooded', 'flooded', 'flooded', 'flooded', 'increase in patients', 'indirectly affected', 'interrupted', 'interrupted', 'interrupted', 'interrupted', 'largely destroyed', 'largely destroyed', 'largely destroyed', 'largely destroyed', 'little to no', 'little to no', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'nan', 'out of service', 'out of service', 'outages', 'outages', 'outages', 'outages', 'outages', 'partly closed', 'polluted', 'power outages', 'power outages', 'power outages', 'power outages', 'power outages', 're-established', 're-established', 'reopened', 'restored', 'restored', 'severe damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'was  fully recovered', 'was  fully recovered', 'was  fully recovered']
-# ['NAN', 'NAN', 'NAN', 'NAN', 'NAN', 'NAN', 'NAN', 'affected', 'affected', 'affected', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'breached dike(s)', 'breached dike(s)', 'closed', 'closed', 'closed', 'closure', 'closure', 'closure', 'closure', 'closure', 'closure', 'closure', 'closure', 'closure', 'closure(s)', 'closure(s)', 'closure(s)', 'closure(s)', 'closure(s)', 'closure(s)', 'closure(s)', 'closure(s)', 'collapsed', 'collapsed', 'collapsed', 'collapsed', 'collapsed', 'collapsed', 'collapsed', 'collapsed', 'collapsed', 'completely destroyed', 'completely destroyed', 'completely destroyed', 'completely destroyed', 'dam failure(s)', 'dam failure(s)', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged', 'damaged, underwater', 'delay(s)', 'delay(s)', 'derailed', 'derailed', 'derailed', 'derailed', 'derailed', 'derailed', 'derailed', 'derailed', 'derailed', 'derailed', 'derailed', 'derailed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'destroyed', 'devastating flooding', 'dike break', 'dike break', 'dike failure', 'dike failure', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted', 'disrupted high-speed trains', 'disrupted high-speed trains', 'disrupted high-speed trains', 'disrupted high-speed trains', 'disrupted rail service', 'disrupted rail services', 'disrupted rail services', 'disrupted rail services', 'disrupted rail services', 'exposed', 'exposed', 'exposed power cables', 'fallen tree(s)', 'fallen trees', 'fallen trees', 'fallen trees', 'fire damage', 'flight delay(s)', 'flight delay(s)', 'flood damage', 'flood damage', 'flood damage', 'flood damage', 'flood damage', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooded', 'flooding', 'flooding', 'flooding', 'flooding', 'flooding', 'foundation grout failure', 'impassable', 'inundated', 'irreparably damaged', 'irreparably damaged', 'irreparably damaged', 'irreparably damaged', 'landslide', 'landslide', 'landslide', 'largely destroyed', 'largely destroyed', 'largely destroyed', 'largely destroyed', 'largely destroyed', 'largely destroyed', 'largely destroyed', 'largely destroyed', 'largely destroyed', 'largely destroyed', 'largely destroyed', 'largely destroyed', 'largely destroyed', 'largely destroyed', 'long delays', 'long delays', 'lost blades', 'lost blades', 'lost blades', 'lost blades', 'lost blades', 'outage', 'outages', 'outages', 'outages', 'outages', 'outages', 'outages', 'outages', 'outages', 'outages', 'outages', 'outages', 'outages', 'outages', 'outages', 'outages', 'outages', 'outages', 'outages', 'partially destroyed', 'polluted', 'polluted', 'polluted', 'polluted', 'polluted', 'polluted', 'polluted', 'polluted', 'polluted', 'polluted', 'polluted', 're-established', 'rebuild', 'rebuild', 'rebuild', 'rebuild', 'rebuild', 'rebuild', 'rebuilt', 'rebuilt', 'reduced output', 'reopened', 'road closure(s)', 'road erosion', 'road erosion', 'road erosion', 'road erosion', 'road subsidence', 'road subsidence', 'scrambled', 'seriously damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely damaged', 'severely disrupted', 'severely disrupted', 'switched off', 'switched off', 'traffic congestion', 'traffic congestion', 'traffic congestion', 'traffic congestion', 'traffic congestion', 'traffic congestion', 'traffic delay', 'traffic disruption', 'traffic disruption', 'traffic disruption', 'traffic disruption', 'traffic disruption', 'traffic disruption', 'traffic disruption', 'traffic disruption(s)', 'traffic jam', 'traffic jam', 'traffic jam', 'traffic jam', 'traffic jam', 'traffic jam(s)', 'traffic jam(s)', 'traffic jam(s)', 'traffic jam(s)', 'traffic obstructions', 'traffic obstructions', 'traffic obstructions', 'traffic obstructions', 'train failure', 'train failure', 'train failure', 'train failures', 'train failures', 'turbine tower collapse', 'turbine tower collapse', 'turbine tower collapse', 'turbine tower collapse', 'turbine tower collapse', 'turbine tower collapse', 'turbine tower collapse', 'turbine tower collapse', 'turbine tower collapse', 'waterlogged runway']
-# Identical [score 0] 293
-# FNs [score 1] 91
-# FPs [score 1] 151
-# share according to Ni Li - list 0.546
-# share according to Ni Li -set  0.843
-
-# %%
-
-
-# %% [markdown]
-# 
-
-# %% [markdown]
-# ## Reste
-
-# %%
-# # df_resp = decoder_model_1.generate_response(
-# #     max_new_tokens = 2048,
-# #     user_prompt = user_prompt,
-# #     # user_dynamic_prompt: load_prompt_template,     
-# # )     
-# system_prompt=em.load_prompt_template(template_filename="gpt_system_prompt.txt")
-# system_prompt = system_prompt.render()
-# # user_prompt = user_prompt.render()
-# # user_dynamic_prompt = user_dynamic_prompt.render(
-# #     context=context,  # includes also df_ci_geo info
-# #     question=question,
-# # )
-
-# response = client.chat.completions.parse(
-# # with client.chat.completions.stream(
-# # response = client.responses.parse(  # use it with Pydantic List[str] for multi-output
-#     model=model_name, # "openai/gpt-oss-20b", #:fireworks-ai",
-#     temperature=0.0,
-#     top_p=0.01,
-#     reasoning_effort= "medium",
-#     # seed=42,
-#     #stream=False,
-#     # max_completion_tokens=1024,
-#     #max_tokens=1024,
-#     # prompt_cache_key
-#     # prompt_cache_retention= "24h",  # test past_key_value (iterative caching)
-#     messages=[
-#         {"role": "system", "content": f"{system_prompt}"},
-#         #{"role": "developer", "content": f"These are the single steps you should conduct for extracting the information about the impacts to critical infrastructure assets: {user_content}",},
-#         {"role": "user", "content": f"""{user_prompt}"""},
-#     ],
-#     #stop=["<extraction>"],
-#     response_format=Response,
-#     #include=["infrastructure_type", "location"],
-# )
-
-# try:
-#     # parsed_output = json.loads(response.output_text)
-#     parsed_output = json.loads(response.to_json())["choices"][0]["message"]["content"]
-#     # json.loads(response.to_json())["output"][1]["content"][0]["text"].split("ANSWER:")[1] 
-#     # print(parsed_output)    
-#     df_resp = pp.postprocess_response(parsed_output)
-    
-# except Exception as e:
-#     print("Could not parse response as JSON:", e)
-#     parsed_output = None
-#     for output in response.choices[0]:
-#         if output[0] != "message":
-#             continue
-
-#         for item in output[1].content:
-#             if item.type == "refusal":
-#                 # If the model refuses to respond, you will get a refusal message
-#                 print(item.refusal)
-#                 continue
-
-#             if not item.parsed:
-#                 raise Exception("Could not parse response")
-            
-#             print(item.parsed)
-
-
-# %%
-
-
-# %%
-
-
+df_resp_step1_end.to_csv(f"../../interim_results_debug/llm_geollm_chain_step1incomplete_{citation}.csv", encoding='utf-8', index=False)
 
