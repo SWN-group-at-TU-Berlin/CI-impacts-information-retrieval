@@ -62,11 +62,13 @@ class Settings(BaseSettings):
 
     # self-hosted LLMs served by vLLM (OpenAI-compatible API), see scripts/serve_vllm_*.sbatch
     # NOTE: from the local machine reach the HPC servers via ssh tunnel, e.g. ssh -N -L 8000:<node>:8000 -L 8001:<node>:8001 <hpc-login>
-    LLM1_BASE_URL: str = "http://localhost:8000/v1"     # LLM 1 (extraction)
+    # LLM1_BASE_URL: str = "http://localhost:8000/v1"     # LLM 1 (extraction)
+    # JUDGE_BASE_URL: str = "http://localhost:8001/v1"    # LLM-as-a-judge
+    LLM1_BASE_URL = os.getenv("LLM1_BASE_URL", "http://localhost:8000/v1") # use env var if set otherwise default
+    JUDGE_BASE_URL = os.getenv("JUDGE_BASE_URL", "http://localhost:8001/v1")
     LLM1_MODEL: str = "openai/gpt-oss-20b"              # served model name, see `vllm serve --served-model-name`
-    JUDGE_BASE_URL: str = "http://localhost:8001/v1"    # LLM-as-a-judge
     JUDGE_MODEL: str = "google/gemma-4-31B-it"          # served model name, see `vllm serve --served-model-name`
-    VLLM_API_KEY: str = "EMPTY"                         # same key as `vllm serve --api-key`
+    VLLM_API_KEY: str = os.getenv("VLLM_API_KEY", "youshallnotpass-lotr")  # TODO remove default  # same key as `vllm serve --api-key`
 
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 50
