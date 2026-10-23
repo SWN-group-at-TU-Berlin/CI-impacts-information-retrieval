@@ -2,7 +2,7 @@
 # both vLLM servers + the Python workflow in ONE job on ONE H200 NVL 141 GB (everything runs on the compute node):
 #   LLM 1 (extraction): openai/gpt-oss-20b              on port 8000
 #   judge:              google/gemma-4-31B-it (FP8)     on port 8001
-#   workflow:           $SCRIPT (default notebooks/langgraph.py), started once both servers are ready,
+#   workflow:           $SCRIPT (default notebooks/extract_ciimpacts.py), started once both servers are ready,
 #                       talks to the servers via http://localhost:<port>/v1 (no ssh tunnel needed)
 # usage (from the project root):
 #   VLLM_API_KEY=<key> sbatch run_scripts/serve_vllm_both_h200.sbatch
@@ -35,7 +35,7 @@ set -euo pipefail
  PROJECTROOT=${PROJECTROOT:-$HOME/_PROJECTS/ci-impacts-vllm}
  VLLM_ENV=${VLLM_ENV:-$HOME/_PROJECTS/vllm/.venv}   # separate environment with vllm installed (not the project venv)
  PYTHON_ENV=${PYTHON_ENV:-$PROJECTROOT/.venv}       # project venv (runs the workflow)
- SCRIPT=${SCRIPT:-notebooks/langgraph.py}           # workflow script, relative to PROJECTROOT
+ SCRIPT=${SCRIPT:-notebooks/extract_ciimpacts.py}           # workflow script, relative to PROJECTROOT
  # absolute log dir (resolved from the submit dir, same place as --output/--error), so a later cd does not break it
  LOG_DIR=$(realpath -m "${LOG_DIR:-../logs}")
  mkdir -p "$LOG_DIR"
