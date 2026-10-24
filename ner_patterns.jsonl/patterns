@@ -78,7 +78,7 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectric.*grid.*|^[Ee]lectric.*grid.*"}}], "subgroup_name":"electricity_distribution", "group_name":"electricity", "sector":"Energy"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectric.*plant.*|^[Ee]lectric.*plant.*"}}], "subgroup_name":"power_plants", "group_name":"electricity", "sector":"Energy"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectric.*service.*|^[Ee]lectric.*service.*"}}], "subgroup_name":"electricity_supply", "group_name":"electricity", "sector":"Energy"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectricity|^[Ee]lectricity", "sector":"Energy"}}], "subgroup_name":"electricity_supply", "group_name":"electricity", "sector":"Energy"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]lectricity|^[Ee]lectricity"}}], "subgroup_name":"electricity_supply", "group_name":"electricity", "sector":"Energy"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]nergy.*system.*|^[Ee]nergy.*system.*"}}], "subgroup_name":"electricity_distribution", "group_name":"electricity", "sector":"Energy"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]nergy.*supply.*|^[Ee]nergy.*supply.*"}}], "subgroup_name":"electricity_supply", "group_name":"electricity", "sector":"Energy"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]nergy.*|^[Ee]nergy.*"}}], "subgroup_name":"electricity_supply", "group_name":"electricity", "sector":"Energy"}
