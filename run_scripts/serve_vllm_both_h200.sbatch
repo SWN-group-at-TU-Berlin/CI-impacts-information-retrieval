@@ -111,6 +111,7 @@ set -euo pipefail
      --served-model-name openai/gpt-oss-20b \
      --host 0.0.0.0 --port "$GPTOSS_PORT" \
      --enable-auto-tool-choice --tool-call-parser openai \
+     --reasoning-parser openai_gptoss \
      --max-model-len 16384 \
      --gpu-memory-utilization "$GPTOSS_MEM" \
      --api-key "$VLLM_API_KEY" \

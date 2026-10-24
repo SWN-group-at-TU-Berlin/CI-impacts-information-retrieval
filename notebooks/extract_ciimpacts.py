@@ -300,6 +300,8 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.graph import StateGraph, MessagesState, add_messages, END
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableLambda
+import openai
 from pydantic import BaseModel
 from langchain.agents.middleware import wrap_tool_call, wrap_model_call, ModelRequest, ModelResponse
 from langchain.messages import ToolMessage
@@ -1348,9 +1350,32 @@ llm = ChatOpenAI(
     temperature=0,
     seed=42,
     timeout=300,
-    max_tokens=2048,  # counts reasoning + answer: raise (e.g. 4096) if structured output comes back as None
-    reasoning_effort="medium",  # gpt-oss: low | medium | high
+    max_tokens=8192,  # counts reasoning + answer: prompt + max_tokens must be <= vLLM --max-model-len (16384)
+    reasoning_effort="low",  # gpt-oss: low | medium | high
 )
+
+
+class LengthLimitError(RuntimeError):
+    """gpt-oss used up max_tokens (mostly for reasoning) before returning the structured answer"""
+
+
+def structured_llm(schema):
+    """llm.with_structured_output via tool calling, raising LengthLimitError when max_tokens is reached.
+    With method="function_calling" langchain returns None instead of raising openai.LengthFinishReasonError,
+    which would make the `while result is None` retries loop on the same (deterministic) overrun."""
+
+    def _parse(output):
+        if output["parsed"] is None and output["raw"].response_metadata.get("finish_reason") == "length":
+            usage = output["raw"].usage_metadata or {}
+            raise LengthLimitError(
+                f"{schema.__name__}: max_tokens reached ({usage.get('output_tokens')} output tokens) "
+                "before the structured answer. Increase max_tokens or lower reasoning_effort of llm."
+            )
+        if output["parsing_error"] is not None:
+            raise output["parsing_error"]  # keep the behaviour of include_raw=False
+        return output["parsed"]
+
+    return llm.with_structured_output(schema, method="function_calling", include_raw=True) | RunnableLambda(_parse)
 
 # init LLM-as-a-judge (step 3)
 llm_judge = ChatOpenAI(
@@ -1418,7 +1443,7 @@ from langchain_core.messages import HumanMessage
 def extract_asset_information(state: GraphState) -> GraphState:
 
     # Structured-output model
-    llm_structured = llm.with_structured_output(InfrastructureCases)
+    llm_structured = structured_llm(InfrastructureCases)
 
     # The ToolNode puts the tool result into the message history
     tool_message = state["messages"][-1]
@@ -1449,7 +1474,7 @@ def extract_asset_information(state: GraphState) -> GraphState:
         if i == 1:
             response_list = []
 
-            llm_structured = llm.with_structured_output(InfrastructureCase)
+            llm_structured = structured_llm(InfrastructureCase)
 
             for asset in assets_list:
                 result = llm_structured.invoke(
@@ -1523,7 +1548,7 @@ def extract_assets(state):
 
 def determine_infrastructure_case(state):
 
-    llm_structured = llm.with_structured_output(InfrastructureCase)
+    llm_structured = structured_llm(InfrastructureCase)
     
     messages = [
         HumanMessage(
@@ -1591,7 +1616,7 @@ def extract_locations(state) -> GraphState:
         # rag_estimated: List[bool]
 
     # bind PydanticSchema to LLM
-    llm_structured = llm.with_structured_output(Location)
+    llm_structured = structured_llm(Location)
 
     result = llm_structured.invoke([
                 HumanMessage(
@@ -1627,7 +1652,7 @@ def extract_locations(state) -> GraphState:
             class SingleLocation(BaseModel):
                 location: Annotated[List[str], Len(min_length=1, max_length=1)] | str="NAN"
             # bind PydanticSchema to LLM
-            llm_structured = llm.with_structured_output(SingleLocation)
+            llm_structured = structured_llm(SingleLocation)
 
             for asset in assets_list:
                 result = llm_structured.invoke([
@@ -1657,7 +1682,7 @@ def extract_damage(state) -> GraphState:
     class Damage(BaseModel):
         damage: Annotated[List[str], Len(min_length=len(state["assets"]), max_length=len(state["assets"]))]
 
-    llm_structured = llm.with_structured_output(Damage)
+    llm_structured = structured_llm(Damage)
 
     result = llm_structured.invoke(
         [HumanMessage(
@@ -1697,7 +1722,7 @@ def extract_damage(state) -> GraphState:
             class SingleDamage(BaseModel):
                 damage: Annotated[List[str], Len(min_length=1, max_length=1)] | str="NAN"
             # bind PydanticSchema to LLM
-            llm_structured = llm.with_structured_output(SingleDamage)
+            llm_structured = structured_llm(SingleDamage)
 
             assets_list = state["assets"]
             damages_list = []
@@ -1737,7 +1762,7 @@ def extract_damage(state) -> GraphState:
 def verify(state):
 
     # define Output Schema
-    llm_structured = llm.with_structured_output(InfrastructureCases)
+    llm_structured = structured_llm(InfrastructureCases)
     
     chain = verification_prompt | llm_structured
 
@@ -1854,7 +1879,7 @@ def detect_cascade(state) -> GraphState:
         has_cascading_impacts: bool
         # has_cascading_impacts: Annotated[List[bool], Len(min_length=len(state["assets"]), max_length=len(state["assets"]))]
 
-    llm_structured = llm.with_structured_output(CascadingImpactDetection)
+    llm_structured = structured_llm(CascadingImpactDetection)
     result = None
     while not result:
         result = llm_structured.invoke([
@@ -2068,7 +2093,7 @@ def extract_economic_impacts(state: GraphState) -> GraphState:
         # impacts: list[EconomicImpact]
         impacts:  Annotated[List[EconomicImpact], Len(min_length=len(state["ci_damages"]), max_length=len(state["ci_damages"]))]
 
-    llm_structured = llm.with_structured_output(EconomicImpacts)
+    llm_structured = structured_llm(EconomicImpacts)
 
     result = llm_structured.invoke([
         HumanMessage(content=economic_impact_prompt.format(
@@ -2343,7 +2368,7 @@ def extract_infrastructure_impacts(state: GraphState) -> GraphState:
         # impacts: list[SecondaryInfrastructureImpact]
         impacts:  Annotated[List[SecondaryInfrastructureImpact], Len(min_length=len(state["ci_damages"]), max_length=len(state["ci_damages"]))]
 
-    llm_structured = llm.with_structured_output(SecondaryInfrastructureImpacts)
+    llm_structured = structured_llm(SecondaryInfrastructureImpacts)
 
     result = llm_structured.invoke([
             HumanMessage(content=infrastructure_impact_prompt.format(
@@ -2531,7 +2556,7 @@ def extract_societal_impacts(state: GraphState) -> GraphState:
         # impacts: list[SocietalImpact]
         impacts:  Annotated[List[SocietalImpact], Len(min_length=len(state["ci_damages"]), max_length=len(state["ci_damages"]))]
 
-    llm_structured = llm.with_structured_output(SocietalImpacts)
+    llm_structured = structured_llm(SocietalImpacts)
 
 
     result = llm_structured.invoke([
@@ -3264,8 +3289,12 @@ def judge_records(df_records: pd.DataFrame, chunk_text: str, llm, max_retries: i
 print(" SMOKE TEST of the vLLM servers ")
 print(llm.root_client.models.list())
 print(llm.invoke("What is 17 * 23?").content)
-print(llm_tool.invoke("Flood damage to railway track worth tens of millions of euros").tool_calls)
-print(llm.with_structured_output(InfrastructureCases).invoke("Flood damage to railway track worth tens of millions of euros"))
+smoke_prompt = ChatPromptTemplate.from_messages([
+    ("system","Extract the damaged infrastructure assets from the TEXT using the tool."), 
+    ("human", "TEXT: {text}")])
+messages = smoke_prompt.format_messages(text="Flood damage to railway track worth tens of millions of euros")
+print(llm_tool.invoke(messages).tool_calls)
+print(structured_llm(InfrastructureCases).invoke(messages))
 
 print(llm_judge.root_client.models.list())
 print(llm_judge.invoke("What is 17 * 23?").content)
@@ -3588,8 +3617,19 @@ for file_no, filename in enumerate(search_path):
             df_resp.rename(columns={"ci_asset": "infrastructure_type", "ci_asset_amount": "infrastructure_amount"},  inplace=True)
                             
             # df_resp = pd.DataFrame({"infrastructure_type":k.ci_asset, "location":k.location, "damage":k.damage} for k in result["infrastructure_cases"].cases)
-        
-        except Exception  as e: 
+
+        # gpt-oss reasoned until max_tokens: retrying is deterministic (temperature=0, seed), so skip the chunk
+        except (LengthLimitError, openai.LengthFinishReasonError) as e:
+            print(f"! Token limit reached, going to next chunk: {e}")
+            responses_error_list.append({
+                "citation_id": citation,
+                "chunk_id": chunk_no,
+                "response": None,
+                "error": f"{type(e).__name__}: {e}"
+            })
+            continue
+
+        except Exception  as e:
             print(f"! ERROR {e}. Sleeping for 1 min and then try again")
             time.sleep(60)
 
