@@ -1041,7 +1041,7 @@ def get_infrastructure_location_pairs(text:str) -> List[str] | None:
 # %%
 from shapely.geometry import Point, Polygon, MultiPolygon, MultiLineString, LineString
 from pydantic_shapely import GeometryField
-from pydantic import Field, PrivateAttr
+from pydantic import Field, PrivateAttr, field_validator
 import typing
 
 
@@ -1164,6 +1164,9 @@ class SecondaryInfrastructureImpact(BaseModel):
     )
     # impact_description: str = Field(description="Explicitly stated downstream impact on the infrastructure asset or service.")
 
+    # tool calling does not enforce the Literal: map free-text damage (e.g. "severely damaged") to its category, unknown -> None
+    _map_target_damage = field_validator("target_damage", mode="before")(lambda v: pp.map_damage_to_category(v))
+
 
 # class SecondaryInfrastructureImpact(BaseModel):
 
@@ -1226,8 +1229,10 @@ class InfrastructureCase(BaseModel):
             "If several categories apply, use the most severe one (the first one in this list):\n" + pp.describe_damage_categories()
         ),
     )
-    
-        
+
+    # tool calling does not enforce the Literal: map free-text damage (e.g. "severely damaged") to its category, unknown -> None
+    _map_damage = field_validator("damage", mode="before")(lambda v: pp.map_damage_to_category(v))
+
    
 # damage categories of the schema must be the same as in src/postprocess.py (DAMAGE_CATEGORIES)
 assert [c for c in typing.get_args(typing.get_args(InfrastructureCase.model_fields["damage"].annotation)[0]) if c] == list(pp.DAMAGE_CATEGORIES)
@@ -2091,7 +2096,7 @@ def extract_economic_impacts(state: GraphState) -> GraphState:
     print("state[infrastructure_cases]", state["ci_damages"])
     class EconomicImpacts(BaseModel):
         # impacts: list[EconomicImpact]
-        impacts:  Annotated[List[EconomicImpact], Len(min_length=len(state["ci_damages"]), max_length=len(state["ci_damages"]))]
+        impacts:  Annotated[List[EconomicImpact], Len(min_length=0, max_length=len(state["ci_damages"]))]  # empty list allowed
 
     llm_structured = structured_llm(EconomicImpacts)
 
@@ -2366,7 +2371,7 @@ def extract_infrastructure_impacts(state: GraphState) -> GraphState:
 
     class SecondaryInfrastructureImpacts(BaseModel):
         # impacts: list[SecondaryInfrastructureImpact]
-        impacts:  Annotated[List[SecondaryInfrastructureImpact], Len(min_length=len(state["ci_damages"]), max_length=len(state["ci_damages"]))]
+        impacts:  Annotated[List[SecondaryInfrastructureImpact], Len(min_length=0, max_length=len(state["ci_damages"]))]  # empty list allowed
 
     llm_structured = structured_llm(SecondaryInfrastructureImpacts)
 
@@ -2554,7 +2559,7 @@ def extract_societal_impacts(state: GraphState) -> GraphState:
 
     class SocietalImpacts(BaseModel):
         # impacts: list[SocietalImpact]
-        impacts:  Annotated[List[SocietalImpact], Len(min_length=len(state["ci_damages"]), max_length=len(state["ci_damages"]))]
+        impacts:  Annotated[List[SocietalImpact], Len(min_length=0, max_length=len(state["ci_damages"]))]  # empty list allowed
 
     llm_structured = structured_llm(SocietalImpacts)
 
