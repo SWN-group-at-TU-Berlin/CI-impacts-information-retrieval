@@ -1046,6 +1046,26 @@ import typing
 
 
 
+def coerce_category(value, keywords: dict, fallback: str):
+    """Map a free-text category (tool calling does not enforce Literal values, e.g. 'insured_loss') to an allowed one:
+    allowed values and None are kept, else the first category whose keyword occurs in the value, else the fallback."""
+    if value is None or value in keywords or value == fallback:
+        return value
+    text = str(value).lower()
+    return next((category for category, words in keywords.items() if any(w in text for w in words)), fallback)
+
+
+ECONOMIC_ORIGIN_KEYWORDS = {
+    "repair_recovery_cost": ["direct", "repair", "recover", "restor", "reconstruct", "rebuild", "replac"],
+    "downstream_economic_consequence": ["downstream", "indirect", "business", "interrupt", "supply", "production", "revenue", "trade", "freight", "logistic"],
+}
+SOCIETAL_ORIGIN_KEYWORDS = {
+    "evacuation_or_displacement": ["evacuat", "displac", "relocat", "homeless"],
+    "loss_of_critical_service_or_inaccessibility": ["service", "access", "without", "isolat", "cut off", "outage", "supply"],
+    "disruption_of_mobility": ["mobility", "travel", "commut", "passenger", "strand", "journey"],
+}
+
+
 class EconomicImpact(BaseModel):
     source_asset: str = Field(
         description=("Infrastructure asset or service whose damage or disruption caused the economic impact."
@@ -1077,6 +1097,10 @@ class EconomicImpact(BaseModel):
         default=None,
         description=("Currency or unit associated with amount, if explicitly stated. Examples: 'EUR', '€', 'euros', 'GBP'"
     ))
+
+    # tool calling does not enforce the Literal: e.g. 'direct_cost' -> 'repair_recovery_cost', 'insured_loss' -> 'other_costs_or_losses'
+    _map_impact_origin = field_validator("impact_origin", mode="before")(
+        lambda v: coerce_category(v, ECONOMIC_ORIGIN_KEYWORDS, fallback="other_costs_or_losses"))
 
 
 
@@ -1113,6 +1137,9 @@ class SocietalImpact(BaseModel):
             "'disruption_of_mobility' (people, passengers or commuters unable to travel, stranded or with disrupted journeys); "
             "'other_affected_population' (any other explicitly reported consequence for people, households or communities, e.g. generally affected people or disrupted living conditions)."
     ))
+    # tool calling does not enforce the Literal: e.g. 'power_outage' -> 'loss_of_critical_service_or_inaccessibility'
+    _map_impact_origin = field_validator("impact_origin", mode="before")(
+        lambda v: coerce_category(v, SOCIETAL_ORIGIN_KEYWORDS, fallback="other_affected_population"))
     impact_type: str = Field(
         description=("Specific type of societal impact, for example: evacuated households, affected people, population displacement, affected community, loss of access to essential services, school closure, inoperability of hospital or medical facilities, inoperability of essential services, residential area without water, loss of electricity supply to households, or disruption of mobility."
     ))
@@ -2096,7 +2123,7 @@ def extract_economic_impacts(state: GraphState) -> GraphState:
     print("state[infrastructure_cases]", state["ci_damages"])
     class EconomicImpacts(BaseModel):
         # impacts: list[EconomicImpact]
-        impacts:  Annotated[List[EconomicImpact], Len(min_length=0, max_length=len(state["ci_damages"]))]  # empty list allowed
+        impacts: List[EconomicImpact]  # any number: empty if none is mentioned, several per asset possible (matched by source_asset)
 
     llm_structured = structured_llm(EconomicImpacts)
 
@@ -2371,7 +2398,7 @@ def extract_infrastructure_impacts(state: GraphState) -> GraphState:
 
     class SecondaryInfrastructureImpacts(BaseModel):
         # impacts: list[SecondaryInfrastructureImpact]
-        impacts:  Annotated[List[SecondaryInfrastructureImpact], Len(min_length=0, max_length=len(state["ci_damages"]))]  # empty list allowed
+        impacts: List[SecondaryInfrastructureImpact]  # any number: empty if none is mentioned, several per asset possible (matched by source_asset)
 
     llm_structured = structured_llm(SecondaryInfrastructureImpacts)
 
@@ -2559,7 +2586,7 @@ def extract_societal_impacts(state: GraphState) -> GraphState:
 
     class SocietalImpacts(BaseModel):
         # impacts: list[SocietalImpact]
-        impacts:  Annotated[List[SocietalImpact], Len(min_length=0, max_length=len(state["ci_damages"]))]  # empty list allowed
+        impacts: List[SocietalImpact]  # any number: empty if none is mentioned, several per asset possible (matched by source_asset)
 
     llm_structured = structured_llm(SocietalImpacts)
 
