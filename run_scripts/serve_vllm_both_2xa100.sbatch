@@ -18,15 +18,15 @@
 # NOTE no cuda module needed: vLLM/torch wheels bundle their own CUDA runtime (a module can even break the import)
 # NOTE needs vLLM >= 0.19.1 (Gemma 4)
 #SBATCH --job-name=ci-impacts-vllm-a100
-#SBATCH --partition=TestAndBuild  # pick a partition with 2 A100 on one node: sinfo -o "%P %N %G"; check its max time
+#SBATCH --partition=gpu_short  # pick a partition with 2 A100 on one node: sinfo -o "%P %N %G"; check its max time
 #SBATCH --account=swn
 #SBATCH --mail-user=anna.buch@tu-berlin.de
 #SBATCH --mail-type=END,FAIL
-#SBATCH --gres=gpu:tesla:2     # 2 A100 on the same node; adjust gres name to the output of sinfo
-#SBATCH --cpus-per-task=16     # 8 per server
-#SBATCH --time=02:00:00        # server startups + the workflow
-#SBATCH --output=../logs/%x-%j.out
-#SBATCH --error=../logs/%x-%j.%N.err
+#SBATCH --gres=gpu:a100:2     # 2 A100 on the same node; adjust gres name to the output of sinfo
+#SBATCH --cpus-per-task=8     # 8 per server
+#SBATCH --time=05:00:00        # server startups + the workflow
+#SBATCH --output=../logs/a100-%j.out
+#SBATCH --error=../logs/a100-%j.%N.err
 
 set -euo pipefail
 

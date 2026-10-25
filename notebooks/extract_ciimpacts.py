@@ -1417,7 +1417,7 @@ llm_judge = ChatOpenAI(
     temperature=0,
     seed=42,
     timeout=300,
-    max_tokens=16384,  # the judge (reasoning model) needs tokens for reasoning + JSON answer; vLLM --max-model-len must be >= prompt + max_tokens
+    max_tokens=8000 # adapt in respect to GEMMA_MAX_LEN=12288, TODO try out to increase with lower batch size, for h200: 16384,  # the judge (reasoning model) needs tokens for reasoning + JSON answer; vLLM --max-model-len must be >= prompt + max_tokens
 )
 # NOTE judge replaced: nemotron-3-super-120b-a12b needs 2-4x 80 GB GPUs; gemma-4-31B-it (reasoning very good) fits on 1 GPU, on NIM it timed out (2026-10-18)
 # NOTE "openai/gpt-oss-20b"  # gpt-oss seems to have better reasoning for edge cases partly (germay+beligum, bridges) than "meta/llama-3.3-70b-instruct"
@@ -3238,7 +3238,7 @@ judge_last_error = None  # shown when the judge is skipped, as the per-attempt m
 
 # max. number of records judged in one LLM call; larger chunks are judged in several calls
 # (keeps reasoning + answer of the judge within max_tokens of llm_judge)
-judge_batch_size = 10
+judge_batch_size = 5 # for a100: less request in parallel processed, default: 10 
 
 
 def call_judge(df_batch: pd.DataFrame, chunk_text: str, ner_entities: list[str], llm, max_retries: int = 1) -> list[dict] | None:
@@ -4035,7 +4035,13 @@ for file_no, filename in enumerate(search_path):
     df_resp_step1_end.to_csv(f"../../interim_results_debug/llm_geollm_chain_step1_{citation}.csv", encoding='utf-8', index=False)
     df_resp_step2.to_csv(f"../../interim_results_debug/llm_geollm_chain_step2_{citation}.csv", encoding='utf-8', index=False)
     df_resp_judged.to_csv(f"../../interim_results_debug/llm_geollm_chain_judge_{citation}.csv", encoding='utf-8', index=False)
-
+    
+    
+    # errors of all documents so far (incl. chunks skipped due to LengthLimitError), overwritten after each document
+    df_errors = pd.DataFrame(responses_error_list, columns=["citation_id", "chunk_id", "response", "error"])
+    df_errors["response"] = df_errors["response"].astype(str)  # graph results / pydantic objects -> readable text
+    df_errors.to_csv(f"../../interim_results_debug/llm_responses_errors_{citation}.csv", encoding='utf-8', index=False)
+    print(f"! WARN {len(df_errors)} faulty or skipped chunks so far, of these {df_errors['error'].str.startswith('LengthLimitError').sum()} due to the token limit")
 
     # # clean up after each document
     # gc.collect()
