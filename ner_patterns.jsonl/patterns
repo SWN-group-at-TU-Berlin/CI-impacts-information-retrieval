@@ -6,6 +6,7 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Bb]undesstraße.*|^[Bb]undesstraße.*"}}], "subgroup_name":"roads",  "group_name":"roads", "sector":"Transportation"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ss]treet.*|^[Ss]treet.*"}}], "subgroup_name":"roads",  "group_name":"roads", "sector":"Transportation"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Aa]venue.*|^[Aa]venue.*"}}], "subgroup_name":"roads",  "group_name":"roads", "sector":"Transportation"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ii]ntersection.*|^[Ii]ntersection.*"}}], "subgroup_name":"transport_general",  "group_name":"transport_general", "sector":"Transportation"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Hh]ighway.*|^[Hh]ighway.*"}}], "subgroup_name":"motorways",  "group_name":"roads", "sector":"Transportation"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ff]ederal.*highway.*|^[Ff]ederal.*highway.*"}}], "subgroup_name":"motorways",  "group_name":"roads", "sector":"Transportation"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Mm]otorway.*|^[Mm]otorway.*"}}], "subgroup_name":"motorways",  "group_name":"roads", "sector":"Transportation"}
