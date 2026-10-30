@@ -1057,12 +1057,22 @@ def coerce_category(value, keywords: dict, fallback: str):
 
 ECONOMIC_ORIGIN_KEYWORDS = {
     "repair_recovery_cost": ["direct", "repair", "recover", "restor", "reconstruct", "rebuild", "replac"],
-    "downstream_economic_consequence": ["downstream", "indirect", "business", "interrupt", "supply", "production", "revenue", "trade", "freight", "logistic"],
+    "downstream_economic_consequence": ["downstream", "indirect", "business", "employe", "workers", "customer", "companies", "company", "interrupt", "supply", "production", "revenue", "trade", "freight", "logistic"],
 }
 SOCIETAL_ORIGIN_KEYWORDS = {
-    "evacuation_or_displacement": ["evacuat", "displac", "relocat", "homeless"],
+    "evacuation_or_displacement": ["evacuat", "displac", "relocat", "homeless", "rescu"],
     "loss_of_critical_service_or_inaccessibility": ["service", "access", "without", "isolat", "cut off", "outage", "supply"],
     "disruption_of_mobility": ["mobility", "travel", "commut", "passenger", "strand", "journey"],
+}
+# only human-related impact types, specific groups first, generic 'people' last
+# NOTE: 'residential_area' before 'people', otherwise "residential" would match "resident"
+SOCIETAL_TYPE_KEYWORDS = {
+    "households": ["household", "homes", "famil"],
+    "students": ["student", "pupil", "school"],
+    "passengers": ["passenger", "commut", "traveller", "traveler"],
+    "community": ["region", "communit", "municipalit", "village", "residential", "neighbourhood", "neighborhood"],
+    "population": ["population", "inhabitant", "citizen"],
+    "people": ["people", "person", "children", "elderl", "resident", "individual", "patient", "cases", "victim", "evacu", "fatalit", "injur"],
 }
 
 
@@ -1080,7 +1090,7 @@ class EconomicImpact(BaseModel):
     ))
     impact_type: str | None = Field(
         default=None,
-        description=("Specific type of economic impact, for example: repair cost, reconstruction/replacement cost, total/general cost, total/general losses, business interruption, supply-chain disruption, production loss, freight disruption, logistics disruption, revenue loss, agricultural loss, trade disruption, insurance loss, additional operating cost, or other explicitly reported economic consequence."
+        description=("Specific type of economic impact, for example: affected employees, affected companies, affected customers, repair cost, reconstruction/replacement cost, total/general cost, total/general losses, business interruption, supply-chain disruption, production interruption or loss, freight or logistics or trade disruption, revenue loss, agricultural loss, insurance loss, additional operating cost, or other explicitly reported economic consequence."
     ))
     # damage_type: str | None = Field(
     #     default=None,
@@ -1132,17 +1142,19 @@ class SocietalImpact(BaseModel):
         default=None,
         description=("Category of the societal impact: "
             "'evacuation_or_displacement' (people or households evacuated, displaced, relocated or made homeless); "
-            "'loss_of_critical_service_or_inaccessibility' (people, households or communities without electricity, water, gas, heating or telecommunication, "
-            "without access to healthcare, schools or other essential services or facilities, or communities isolated or cut off); "
+            "'loss_of_critical_service_or_inaccessibility' (people, households or communities without electricity, water, gas, heating or telecommunication, without access to healthcare, schools or other essential services or facilities, or communities isolated or cut off); "
             "'disruption_of_mobility' (people, passengers or commuters unable to travel, stranded or with disrupted journeys); "
-            "'other_affected_population' (any other explicitly reported consequence for people, households or communities, e.g. generally affected people or disrupted living conditions)."
+            "'other_affected_population' (any other explicitly reported consequence for people, households or communities, e.g. generally affected people or disrupted living conditions, missing people, fatalities)."
     ))
     # tool calling does not enforce the Literal: e.g. 'power_outage' -> 'loss_of_critical_service_or_inaccessibility'
     _map_impact_origin = field_validator("impact_origin", mode="before")(
         lambda v: coerce_category(v, SOCIETAL_ORIGIN_KEYWORDS, fallback="other_affected_population"))
-    impact_type: str = Field(
-        description=("Specific type of societal impact, for example: evacuated households, affected people, population displacement, affected community, loss of access to essential services, school closure, inoperability of hospital or medical facilities, inoperability of essential services, residential area without water, loss of electricity supply to households, or disruption of mobility."
+    impact_type: str | None = Field(
+        description=("Specific type of societal impact, for example: affected households / families / people / passengers / commuters / students or pupils / population /community / residential area, who are displaced, affected by loss or access to essential services or by disruption of mobility."
     ))
+    # keep only human-related impact types: e.g. 'evacuated residents' -> 'people', 'school pupils' -> 'students', 'power outage' -> None
+    _map_impact_type = field_validator("impact_type", mode="before")(
+        lambda v: coerce_category(v, SOCIETAL_TYPE_KEYWORDS, fallback=None))
     # damage_type: str | None = Field(
     #     default=None,
     #     description=("Original damage, failure, or disruption affecting the source infrastructure."
