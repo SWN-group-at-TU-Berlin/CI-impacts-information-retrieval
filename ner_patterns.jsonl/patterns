@@ -181,7 +181,8 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Mm]obile.*network.*|^[Mm]obile.*network.*"}}], "subgroup_name":"it_telecom_distribution",  "group_name":"it_telecommunication", "sector":"IT / Communication"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Pp]hone.*network.*|.*phone.*network.*|^[Pp]hone.*network.*"}}], "subgroup_name":"it_telecom_distribution",  "group_name":"it_telecommunication", "sector":"IT / Communication"}
 
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]able.*pole.*|^[Cc]able.*pole.*"}}], "subgroup_name":"cable_poles",  "group_name":"telecommunication_or_energy", "sector":"Energy / Communication"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]able.*pole.*|^[Cc]able.*pole.*"}}], "subgroup_name":"cables",  "group_name":"telecommunication_or_energy", "sector":"Energy / Communication"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]able.*|^[Cc]able.*"}}], "subgroup_name":"cables",  "group_name":"telecommunication_or_energy", "sector":"Energy / Communication"}
 
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]ommunication.*|^[Cc]ommunication.*"}}], "subgroup_name":"it_telecom_supply",  "group_name":"it_telecommunication", "sector":"IT / Communication"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Tt]elecommunication.*|^[Tt]elecommunication.*"}}], "subgroup_name":"it_telecom_supply",  "group_name":"it_telecommunication", "sector":"IT / Communication"}
@@ -221,7 +222,8 @@
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.*hospital.*|^[Ee]mergency.*hospital.*"}}], "subgroup_name":"healthcare_clinics",  "group_name":"healthcare", "sector":"Health"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.*clinic.*|^[Ee]mergency.*clinic.*"}}], "subgroup_name":"healthcare_clinics",  "group_name":"healthcare", "sector":"Health"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.*services.*|^[Ee]mergency.*services.*"}}], "subgroup_name":"healthcare_clinics",  "group_name":"healthcare", "sector":"Health"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.*care.*|^[Ee]mergency.*care.*"}}], "subgroup_name":"healthcare_clinics",  "group_name":"healthcare", "sector":"Health"}
+{"label":"CI_TYPE_not_sure-maybe instead of medical*","pattern": [{"TEXT": {"REGEX": ".* [Ee]mergency.*care.*|^[Ee]mergency.*care.*"}}], "subgroup_name":"healthcare_clinics",  "group_name":"healthcare", "sector":"Health"}
+{"label":"CI_TYPE_not_sure-maybe instead of medical*","pattern": [{"TEXT": {"REGEX": ".* [Ii]ntensive.*care.*|^[Ii]ntensive.*care.*"}}], "subgroup_name":"healthcare_clinics",  "group_name":"healthcare", "sector":"Health"}
 
 
 {"label":"LOC_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Cc]ity.*|^[Cc]ity.*|.* [Cc]ities.*|^[Cc]ities.*"}}], "group_name":"loc"}

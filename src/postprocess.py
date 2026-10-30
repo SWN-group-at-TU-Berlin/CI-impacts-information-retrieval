@@ -81,6 +81,7 @@ def map_damage_to_category(damage):
     if damage in DAMAGE_CATEGORIES:
         return damage
 
+    # TODO FIXME not most severe category should be returned but rather the one that occurs most often, adapt also asset_information_prompt
     parts = [p.strip() for p in re.split(r",|;|\bor\b|\band\b", damage) if p.strip()]
     categories = {_DAMAGE_KEYWORD_TO_CATEGORY.get(p, p if p in DAMAGE_CATEGORIES else None) for p in parts} - {None}
     if not categories:
