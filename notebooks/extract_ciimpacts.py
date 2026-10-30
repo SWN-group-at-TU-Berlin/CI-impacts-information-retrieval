@@ -1189,6 +1189,39 @@ class SocietalImpact(BaseModel):
 #     ] | None = Field(default=None, description="Currency or Unit of the economic consequence.")
 
 
+class EnvironmentalImpact(BaseModel):
+
+    source_asset: str = Field(
+        description=("Infrastructure asset or service whose damage or disruption caused the environmental impact."
+    ))
+    source_location: str | None = Field(
+        default=None,
+        description=("Location of the infrastructure asset associated with the environmental impact."
+    ))
+    impact_origin: Literal[None, "environmental_impact"] = Field(
+        default=None,
+        description=("Category of the impact: 'environmental_impact' (any explicitly reported consequence for the natural environment, e.g. land, soil, groundwater, rivers or regions)."
+    ))
+    # tool calling does not enforce the Literal: only one category for now, any reported origin -> 'environmental_impact'
+    _map_impact_origin = field_validator("impact_origin", mode="before")(
+        lambda v: None if v is None else "environmental_impact")
+    impact_type: str | None = Field(
+        default=None,
+        description=("Specific type of environmental impact, for example: "
+            "'waste fills and debris' (waste, debris or rubble deposited on land, in or along rivers); "
+            "'inundated' (flooded or inundated land, fields, areas, or regions); "
+            "'pollution of environment' (land, soil, groundwater, rivers etc.)"  # polluted by oil, diesel, chemicals, sewage etc.)."
+    ))
+    amount: str | None = Field(
+        default=None,
+        description=("Quantitative magnitude explicitly stated in the text, if available. Preserve the original wording and do not calculate or infer values. Examples: '15 cm thick', 'around 100 hectares', 'more than 2,000 tonnes', '7 out of 31'."
+    ))
+    unit: str | None = Field(
+        default=None,
+        description=("Unit associated with the quantitative amount, if explicitly stated. Examples: 'cm', 'hectares', 'square kilometres', 'km²', 'tonnes', 'litres', 'cubic metres'."
+    ))
+
+
 class SecondaryInfrastructureImpact(BaseModel):
     source_asset: str = Field(description="Infrastructure asset that was originally damaged or disrupted.")
     source_location: str | None = Field(default=None, description="Original location of the source asset.")
@@ -1312,6 +1345,7 @@ class GraphState(MessagesState): # TypedDict
     economic_impacts: List[EconomicImpact]
     secondary_infrastructure_impacts: List[SecondaryInfrastructureImpact]
     societal_impacts: List[SocietalImpact]
+    environmental_impacts: List[EnvironmentalImpact]
 
 
 
@@ -2649,6 +2683,140 @@ def extract_societal_impacts(state: GraphState) -> GraphState:
 
 
 # %%
+
+environmental_impact_prompt = ChatPromptTemplate.from_messages([
+    (
+        "system", """
+You are an environmental-impact extraction agent.
+
+Your task is to identify ALL environmental impacts mentioned in the TEXT that are caused by the damage, destruction, failure, or disruption of the infrastructure described in CI_DAMAGES.
+
+The impacts must concern the natural environment, such as land, soil, groundwater, rivers, lakes, fields or regions.
+
+Do NOT verify, modify, or reinterpret the infrastructure extraction in CI_DAMAGES.
+
+
+------------------------------------------------------------
+ENVIRONMENTAL IMPACTS TO EXTRACT
+------------------------------------------------------------
+
+Extract both QUALITATIVE and QUANTITATIVE environmental consequences.
+
+Examples of impact types:
+- waste fills and debris: waste, debris or rubble from damaged infrastructure deposited on land, in rivers or in regions
+- flooded/inundated: land, fields or regions flooded or inundated as a consequence of the infrastructure damage (e.g. after a dike break or dam failure)
+- pollution of environment: land, soil, groundwater, rivers etc. polluted by oil, diesel, chemicals, fertilizers or sewage released from damaged infrastructure
+
+------------------------------------------------------------
+IMPORTANT RULES
+------------------------------------------------------------
+
+1. Extract BOTH qualitative and quantitative environmental impacts.
+
+2. A numerical value is NOT required.
+   For example: "The river was polluted with oil." is a valid environmental impact.
+
+3. Preserve quantitative information exactly as stated.
+   Examples: "15 cm thick", "around 100 hectares"
+
+4. Do NOT calculate or infer values.
+
+5. Extract multiple environmental impacts separately when multiple impacts are mentioned. The same infrastructure asset can have multiple environmental impacts.
+
+6. Do NOT extract economic impacts (e.g. repair costs, financial losses), societal impacts (e.g. affected households or people) or impacts on other infrastructure (e.g. disrupted water supply).
+
+7. Do NOT extract the original infrastructure damage itself. For example: "The sewage treatment plant was flooded." is an infrastructure damage, NOT an environmental impact.
+   However: "The flooded sewage treatment plant released wastewater into the river." is an environmental impact.
+
+8. Only extract impacts explicitly stated or clearly described in the TEXT. Do NOT invent pollutants, affected areas, quantities or consequences.
+
+9. The source_asset MUST correspond to an infrastructure asset in CI_DAMAGES. The source_location MUST correspond to the location associated with that infrastructure in CI_DAMAGES
+
+10. Assign each environmental impact to the impact_origin category "environmental_impact".
+
+11. Return an empty list when no environmental impact is explicitly mentioned.
+
+
+The objective is HIGH PRECISION while remaining fully grounded in the TEXT.
+
+
+------------------------------------------------------------
+EXAMPLES
+------------------------------------------------------------
+
+TEXT: The flooding of the industrial plant led to pollutions of the downstream river.
+CI_DAMAGES: ci_asset="industrial plant", location=None, damage="inundation"
+source_asset: industrial plant
+source_location: None
+impact_origin: environmental_impact
+impact_type: pollution of environment
+amount: None
+unit: None
+
+
+TEXT: After the dike break near Fischbeck, around 150 square kilometres of land were inundated.
+CI_DAMAGES: ci_asset="dike", location="Fischbeck", damage="structural_damage"
+source_asset: dike
+source_location: Fischbeck
+impact_origin: environmental_impact
+impact_type: flooded/inundated
+amount: around 150 square kilometres
+unit: square kilometres
+
+
+TEXT: Debris of the destroyed bridges in the Ahr valley was washed into the river.
+CI_DAMAGES: ci_asset="bridges", location="Ahr valley", damage="structural_damage"
+source_asset: bridges
+source_location: Ahr valley
+impact_origin: environmental_impact
+impact_type: waste fills and debris
+amount: None
+unit: None
+
+
+Now extract all environmental impacts for each infrastructure case.
+TEXT: {text}
+CI_DAMAGES: {ci_damages}
+source_asset: <your_response>
+source_location: <your_response>
+impact_origin: <your_response>
+impact_type: <your_response>
+amount: <your_response>
+unit: <your_response>
+
+"""
+    ),
+    (
+        "human",
+        """
+TEXT: {text}
+CI_DAMAGES: {ci_damages}
+"""
+    )
+])
+
+
+def extract_environmental_impacts(state: GraphState) -> GraphState:
+
+    class EnvironmentalImpacts(BaseModel):
+        impacts: List[EnvironmentalImpact]  # any number: empty if none is mentioned, several per asset possible (matched by source_asset)
+
+    llm_structured = structured_llm(EnvironmentalImpacts)
+
+    result = llm_structured.invoke([
+            HumanMessage(content=environmental_impact_prompt.format(
+                text=state["text"],
+                ci_damages=state["ci_damages"],
+        ))])
+
+    try:
+        print("environmental_impacts", result )
+        return {"environmental_impacts": result.impacts }
+    except:
+        return {"environmental_impacts": None}
+
+
+# %%
 from langgraph.types import Send
 
 def route_cascading_impacts(state: GraphState):
@@ -2675,6 +2843,13 @@ def route_cascading_impacts(state: GraphState):
                 "ci_damages": state["infrastructure_cases"].cases,
             }
         ),
+        Send(
+            "environmental_impacts",
+            {
+                "text": state["text"],
+                "ci_damages": state["infrastructure_cases"].cases,
+            }
+        ),
     ]
 
 # %% [markdown]
@@ -2695,6 +2870,7 @@ builder.add_node("detect_cascading_impacts", detect_cascade)
 builder.add_node("economic_impacts",    extract_economic_impacts)
 builder.add_node( "societal_impacts", extract_societal_impacts)
 builder.add_node( "secondary_infrastructure_impacts", extract_infrastructure_impacts)
+builder.add_node( "environmental_impacts", extract_environmental_impacts)
 
 # Set arcs
 builder.set_entry_point("is_infrastructure_case")
@@ -2843,6 +3019,7 @@ def impacts_to_dataframe(data):
     economic_impacts = data.get("economic_impacts", []) or []
     societal_impacts = data.get("societal_impacts", []) or []
     infrastructure_impacts = data.get("secondary_infrastructure_impacts", [])  or []
+    environmental_impacts = data.get("environmental_impacts", []) or []
 
     # Create base dataframe
     df = pd.DataFrame([case.model_dump() for case in infrastructure_cases.cases])
@@ -2866,6 +3043,11 @@ def impacts_to_dataframe(data):
     df["societal_impact_type"] = ""
     df["societal_impact_amount"] = ""
     df["societal_impact_unit"] = ""
+
+    df["environmental_impact_origin"] = ""
+    df["environmental_impact_type"] = ""
+    df["environmental_impact_amount"] = ""
+    df["environmental_impact_unit"] = ""
 
     df["secondary_infrastructure_asset"] = ""
     # df["secondary_infrastructure_impact_type"] = ""
@@ -2962,6 +3144,44 @@ def impacts_to_dataframe(data):
                 append_value(
                     df.at[idx, "societal_impact_unit"],
                     impact_unit
+            ))
+
+    # ENVIRONMENTAL IMPACTS
+    for impact in environmental_impacts:
+
+        source_asset = normalize_asset(
+            impact.source_asset
+        )
+
+        if not source_asset:
+            continue
+
+        matches = (
+            df["_asset_normalized"]
+            == source_asset
+        )
+
+        for idx in df.index[matches]:
+
+            df.at[idx, "environmental_impact_origin"] = (
+                append_value(
+                    df.at[idx, "environmental_impact_origin"],
+                    impact.impact_origin
+            ))
+            df.at[idx, "environmental_impact_type"] = (
+                append_value(
+                    df.at[idx, "environmental_impact_type"],
+                    impact.impact_type
+            ))
+            df.at[idx, "environmental_impact_amount"] = (
+                append_value(
+                    df.at[idx, "environmental_impact_amount"],
+                    impact.amount
+            ))
+            df.at[idx, "environmental_impact_unit"] = (
+                append_value(
+                    df.at[idx, "environmental_impact_unit"],
+                    impact.unit
             ))
 
     # SECONDARY INFRASTRUCTURE IMPACTS
@@ -3147,6 +3367,10 @@ judge_field_schema = {
     "societal_impact_type": (SocietalImpact, "impact_type"),
     "societal_impact_amount": (SocietalImpact, "amount"),
     "societal_impact_unit": (SocietalImpact, "unit"),
+    "environmental_impact_origin": (EnvironmentalImpact, "impact_origin"),
+    "environmental_impact_type": (EnvironmentalImpact, "impact_type"),
+    "environmental_impact_amount": (EnvironmentalImpact, "amount"),
+    "environmental_impact_unit": (EnvironmentalImpact, "unit"),
     "secondary_infrastructure_asset": (SecondaryInfrastructureImpact, "target_asset"),
 }
 # record fields the judge checks and may adapt (metadata like chunk_text, citation_id, coords are not judged)
@@ -3200,6 +3424,10 @@ judge_extra_rules = {
     ],
     "economic_impact_amount": ["Preserve the original wording of the TEXT. Do not calculate or infer values."],
     "societal_impact_amount": ["Preserve the original wording of the TEXT. Do not calculate or infer values."],
+    "environmental_impact_origin": [
+        "Only use the allowed keywords (several keywords comma-separated if the record lists several environmental impacts).",
+    ],
+    "environmental_impact_amount": ["Preserve the original wording of the TEXT. Do not calculate or infer values."],
     "secondary_infrastructure_asset": [
         "Must be a different infrastructure than infrastructure_type, affected as a consequence of the damage of infrastructure_type.",
         "Use the INFRASTRUCTURE ENTITIES DETECTED BY NER as guidance and keep their phrasing, as LLM 1 had to. Never invent infrastructure.",
@@ -4044,8 +4272,9 @@ for file_no, filename in enumerate(search_path):
 
 
         # LLM judge - step3
-        # sanity check: remove societal amounts whose numbers do not occur in the chunk text, before the judge sees them
+        # sanity check: remove societal/environmental amounts whose numbers do not occur in the chunk text, before the judge sees them
         df_resp_ci_loc_dam = pp.remove_amounts_not_in_text(df_resp_ci_loc_dam, "societal_impact_amount", "chunk_text")
+        # df_resp_ci_loc_dam = pp.remove_amounts_not_in_text(df_resp_ci_loc_dam, "environmental_impact_amount", "chunk_text")
 
         print("\nLLM-as-a-judge: checking plausibility of extracted records based on chunk text")
         time_judge = time.time()
