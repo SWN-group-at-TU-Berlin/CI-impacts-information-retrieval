@@ -4031,6 +4031,9 @@ for file_no, filename in enumerate(search_path):
 
 
         # LLM judge - step3
+        # sanity check: remove societal amounts whose numbers do not occur in the chunk text, before the judge sees them
+        df_resp_ci_loc_dam = pp.remove_amounts_not_in_text(df_resp_ci_loc_dam, "societal_impact_amount", "chunk_text")
+
         print("\nLLM-as-a-judge: checking plausibility of extracted records based on chunk text")
         time_judge = time.time()
         df_resp_ci_loc_dam = judge_records(df_resp_ci_loc_dam, chunk.text, llm_judge)

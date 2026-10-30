@@ -7,9 +7,11 @@ __email__ = "anna.buch@tu-berlin.de"
 
 import re
 from io import StringIO
+import numpy as np
 import pandas as pd
 
 import src.document_cleaning as dc
+import src.evaluation as ev
 from src.settings import init_logger
 
 
@@ -38,7 +40,7 @@ DAMAGE_CATEGORIES = {
     },
     "obstruction": {
         "definition": "the asset is obstructed by debris or trees",
-        "keywords": ["debris", "debris on", "fallen tree(s)", "broken tree(s)", "overturned tree(s)", "uprooted tree(s)", "felled tree(s)"],
+        "keywords": ["obstruction", "debris", "debris on", "fallen tree(s)", "broken tree(s)", "overturned tree(s)", "uprooted tree(s)", "felled tree(s)"],
     },
     "disruption": {
         "definition": "the operation of the asset (only transportation) is disrupted, restricted, or stopped, e.g. closures, blockages, delays, cancellations, traffic jams",
@@ -297,4 +299,24 @@ def split_ci_entities(df: pd.DataFrame, columns: list[str],) -> pd.DataFrame:
         df = df.explode(column, ignore_index=True)
 
     return df
-       
+
+
+def remove_amounts_not_in_text(df: pd.DataFrame, amount_column: str = "societal_impact_amount", text_column: str = "chunk_text") -> pd.DataFrame:
+    """Set amounts to NaN when one of their numbers does not occur in the text, i.e. likely hallucinated or calculated by the LLM.
+    Numbers are compared after ev.normalize_numbers, e.g. "20,000" (amount) <-> "20 000" (text).
+    Amounts without digits (e.g. "thousands") are kept, number words are not converted, e.g. "1,500,000" <-> "1.5 million" is removed.
+    """
+    df = df.copy()
+
+    def not_in_text(amount, text) -> bool:
+        if ev.is_missing_impact(amount):
+            return False
+        return not set(ev.extract_numbers(amount)) <= set(ev.extract_numbers(text))
+
+    # boolean mask instead of index labels, the index is not unique after splitting entries into multiple rows
+    mask = np.array([not_in_text(amount, text) for amount, text in zip(df[amount_column], df[text_column])], dtype=bool)
+    if mask.any():
+        logger.info(f"Removing {mask.sum()} {amount_column} entries, their numbers do not occur in {text_column}: {df.loc[mask, amount_column].tolist()}")
+    df.loc[mask, amount_column] = np.nan
+
+    return df
