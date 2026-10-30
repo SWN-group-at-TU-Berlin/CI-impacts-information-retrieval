@@ -382,6 +382,7 @@ For EACH infrastructure entity detected by the tool, identify:
 
 - the infrastructure asset or service ("ci_asset")
 - the number of affected infrastructure asset or service ("ci_asset_amount")
+- the name or designation of the infrastructure asset ("ci_asset_name")
 - its corresponding location ("location")
 - its corresponding damage category ("damage")
 
@@ -395,22 +396,24 @@ IMPORTANT:
 - Prioritize the most specific location of each infrastructure (e.g., street names, neighborhoods, towns over cities, cities over regions, regions over countries).
 - Return the location of each infrastructure as detailed as possible, eg. that it can be identified on a map
 - You should not consider adjectives (e.g. "German", "English", "Wallonian") as information about the location. Instead derive the correct location based on the TEXT or the adjectives (e.g., "Germany", "United Kingdom", "Wallonia").
-- **Only for transportation infrastructure:** When the specific name of an ASSET is mentioned (e.g. Juan Avenue, intersection to Maria Statue, highway A-1, B510, Milano Airport) and no location information can be found, then consider the specific name of this asset as the location. But do not use road types as location names, such as "German highway", "national road", etc.
+- **Only for transportation infrastructure:** When the specific name of an ASSET is mentioned (e.g. Juan Avenue, intersection to Maria Statue, highway A-1, B510, Berlusconi Airport) and no location information can be found, then consider the specific name of this asset as the location. But do not use road types as location names, such as "German highway", "national road", etc.
 - **Only for transportation infrastructure:** when an ASSET refers to two or more locations then extract the locations together. For instance: text:"There is much damage on the access roads from Juan Avenue to Plaza Manuel Azaña" --> location:["from Juan Avenue to Plaza Manuel Azaña"]
 - If no location is explicitly stated for an asset, return None for "location".
 - Assign ONE general damage category ("damage") to each infrastructure entity, based on the damage, failure, or disruption the TEXT reports for it. If several categories apply, use the most severe one (the first one in the following list). Damage categories:
 """ + pp.describe_damage_categories() + """
 - If no damage or disruption is explicitly stated for an asset, return None for "damage".
 - If no information about the number of infrastructure assets or services is explicitly stated for an infrastructure entity ("ci_asset"), return None for "ci_asset_amount".
+- When a proper name or designation of an infrastructure entity is explicitly mentioned in the TEXT (e.g. road names such as "A1", "B510", "Gates Avenue", or facility names such as "Braunschweig chemical plant", "Berlusconi Airport"), return it as "ci_asset_name" and preserve its original wording. Do not use generic infrastructure types (e.g. "highway", "national road", "chemical plant") as "ci_asset_name".
+- If no name or designation is explicitly stated for an infrastructure entity ("ci_asset"), return None for "ci_asset_name".
 - Do not infer information that is not explicitly mentioned in the TEXT.
 
 
 
 Example Input:
-text: Similar as in Germany, bridges were often flooded, said the General Officer of the EU. But also sever impacts occurred in other places, for example, road and railway infrastructure were damaged or destroyed in Western Germany. In total, around 50 bridges were destroyed in Germany.
+text: Similar as in Germany, bridges were often flooded, said the General Officer of the EU. But also sever impacts occurred in other places, for example, road and railway infrastructure were damaged or destroyed in Western Germany. In total, around 50 bridges were destroyed in Germany. The highway A1 near Cologne was covered by debris.
 
 Example Output:
-[InfrastructureCase(ci_asset="bridges", ci_asset_amount=None, location=None, damage="structural_damage"), InfrastructureCase(ci_asset="road and railway infrastructure", ci_asset_amount=None, location="Western Germany", damage="structural_damage"), InfrastructureCase(ci_asset="bridges", ci_asset_amount="around 50", location="Germany", damage="structural_damage"),]
+[InfrastructureCase(ci_asset="bridges", ci_asset_amount=None, ci_asset_name=None, location=None, damage="structural_damage"), InfrastructureCase(ci_asset="road and railway infrastructure", ci_asset_amount=None, ci_asset_name=None, location="Western Germany", damage="structural_damage"), InfrastructureCase(ci_asset="bridges", ci_asset_amount="around 50", ci_asset_name=None, location="Germany", damage="structural_damage"), InfrastructureCase(ci_asset="A1 highway", ci_asset_amount=None, ci_asset_name="A1", location="Cologne", damage="obstruction"),]
 
 """),
     ("human", """
@@ -463,7 +466,7 @@ ITEM TO EXTRACT:
 
 **Important:** 
 * Prioritize the most specific location of each infrastructure (e.g., street names, neighborhoods, towns over cities, cities over regions, regions over countries).
-* **Only for transportation infrastructure:** When the specific name of an ASSET is mentioned (e.g. Juan Avenue, intersection to Maria Statue, highway A-1, B510, Milano Airport) and no location information can be found, then consider the specific name of this asset as the location.
+* **Only for transportation infrastructure:** When the specific name of an ASSET is mentioned (e.g. Juan Avenue, intersection to Maria Statue, highway A-1, B510, Berlusconi Airport) and no location information can be found, then consider the specific name of this asset as the location.
 * **Only for transportation infrastructure:** when an ASSET refers to two or more locations then extract the locations together. For instance: text:"There is much damage on the access roads from Juan Avenue to Plaza Manuel Azaña" --> location:["from Juan Avenue to Plaza Manuel Azaña"]
 * If you cannot find information about the location of an infrastructure, then return a "NAN" value for this entry in the "location" list. 
 * The location of the affected infrastructure must be explicitly mentioned in the TEXT.
@@ -1242,6 +1245,12 @@ class InfrastructureCase(BaseModel):
     ci_asset_amount: str | None = Field(
         default=None,
         description=("Number of affected infrastructure assets or services (ci_asset) explicitly reported in the text, if any. Preserve the original wording. Example: In the villages around Berlin around 100 roads were damaged. ci_asset:'roads', ci_asset_amount:'around 100'"
+    ))
+    ci_asset_name: str | None = Field(
+        default=None,
+        description=("Proper name or designation of the affected infrastructure asset (ci_asset) explicitly mentioned in the text, if any. Preserve the original wording. "
+                     "Examples: 'A1', 'B510', 'Gates Avenue', 'Braunschweig chemical plant', 'Berlusconi Airport'. "
+                     "Example: The A1 highway was flooded near Cologne. ci_asset:'A1 highway', ci_asset_name:'A1'"
     ))
     location: str | None = Field(
         default=None,
@@ -3127,6 +3136,7 @@ importlib.reload(lj)  # pick up changes in src/llm_judge.py without restarting t
 judge_field_schema = {
     "infrastructure_type": (InfrastructureCase, "ci_asset"),
     "infrastructure_amount": (InfrastructureCase, "ci_asset_amount"),
+    "infrastructure_name": (InfrastructureCase, "ci_asset_name"),
     "location": (InfrastructureCase, "location"),
     "damage": (InfrastructureCase, "damage"),
     "economic_impact_origin": (EconomicImpact, "impact_origin"),
@@ -3170,6 +3180,9 @@ judge_extra_rules = {
     ],
     "infrastructure_amount": [
         "Number of affected assets of this infrastructure_type explicitly reported in the TEXT. Preserve the original wording (e.g. 'more than 68'). Do not calculate or infer values. Use null if no number is stated.",
+    ],
+    "infrastructure_name": [
+        "Proper name or designation of this infrastructure_type explicitly mentioned in the TEXT (e.g. 'A1', 'Gates Avenue', 'Braunschweig chemical plant'). Preserve the original wording. Do not use generic infrastructure types as names. Use null if no name is stated.",
     ],
     "location": [
         "Re-check the location and adapt it, if needed, to the most detailed location the TEXT states for this infrastructure, following these rules:",
@@ -3658,8 +3671,8 @@ for file_no, filename in enumerate(search_path):
             df_resp = impacts_to_dataframe(result).replace("; ", ", ", regex=True)
             df_resp["has_cascading_impacts"] = result.get("has_cascading_impacts", []).has_cascading_impacts
             df_resp["assets_org"] = result.get("assets_org", []).cases  # backup to see if assets/loc/dam where modified in CascaImpactExtraction
-            df_resp.rename(columns={"ci_asset": "infrastructure_type", "ci_asset_amount": "infrastructure_amount"},  inplace=True)
-                            
+            df_resp.rename(columns={"ci_asset": "infrastructure_type", "ci_asset_amount": "infrastructure_amount", "ci_asset_name": "infrastructure_name"},  inplace=True)
+
             # df_resp = pd.DataFrame({"infrastructure_type":k.ci_asset, "location":k.location, "damage":k.damage} for k in result["infrastructure_cases"].cases)
 
         # gpt-oss reasoned until max_tokens: retrying is deterministic (temperature=0, seed), so skip the chunk
@@ -3693,7 +3706,7 @@ for file_no, filename in enumerate(search_path):
                 df_resp = impacts_to_dataframe(result).replace("; ", ", ", regex=True)    
                 df_resp["has_cascading_impacts"] = result.get("has_cascading_impacts", []).has_cascading_impacts          
                 df_resp["assets_org"] = result.get("assets_org", []).cases  # backup to see if assets/loc/dam where modified in CascaImpactExtraction
-                df_resp.rename(columns={"ci_asset": "infrastructure_type", "ci_asset_amount": "infrastructure_amount"},  inplace=True)
+                df_resp.rename(columns={"ci_asset": "infrastructure_type", "ci_asset_amount": "infrastructure_amount", "ci_asset_name": "infrastructure_name"},  inplace=True)
             
             except Exception as e:
                 print(f"! Could not call model going to next chunk: {e}")
