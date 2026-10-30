@@ -12,7 +12,7 @@ sys.path.insert(0, str(PROJECT_ROOT))  # makes "import src..." work from anywher
 use_geollama = False
 RUN_EXAMPLE = False      # True: run the single text2 example graph before the document loop
 # RUN_EVALUATION = False   # True: run the evaluation cells after the extraction
-test_mode = True
+test_mode = False # True
 
 
 
@@ -101,8 +101,6 @@ else:
         
 
 
-# NOTE. disabled batch size as OOM for CUDA despite chunkwise memory cleaning, nvtop to find best batchsize
-BATCH_SIZE = s.BATCH_SIZE  # max for nvidia GPU
 
 # torch.manual_seed(42)
 
@@ -147,6 +145,7 @@ CI_GEO_FILEPATH = Path( s.PATH_DATA / s.CI_GEO_PAIRS_FILENAME)
 OUTPUT_LLM1_FILEPATH =  Path(s.PATH_LLM_DATA / s.LLM_DATA_FILENAME)
 OUTPUT_geollama_FILEPATH =  Path(s.PATH_LLM_DATA / "geollama_results.csv")
 
+os.makedirs("../interim_results_debug", exist_ok=True)
 
 
 
@@ -212,7 +211,7 @@ if test_mode:
     search_path = docs_list_sample
     print("Test mode is ON. Using only a small sample of documents for testing.")
 else:
-    search_path = glob(str(Path(PARSED_TEXT_DIR, "*cleaned.jsonl")))
+    search_path = glob(str(Path(PARSED_TEXT_DIR, "*cleaned.md")))
 
 print(f"Using {len(search_path)} documents for processing.")
 
@@ -3685,13 +3684,6 @@ df_ci_cases_not_grouped = pd.DataFrame()
 # df_geollama_response = pd.DataFrame()
 
 
-if test_mode:
-    search_path = docs_list_sample
-    print("Test mode is ON. Using only a small sample of documents for testing.")
-else:
-    search_path = glob(str(Path(PARSED_TEXT_DIR, "*cleaned.jsonl")))
-
-os.makedirs("../../interim_results_debug", exist_ok=True)
 
 
 ## Start CI impact extraction
@@ -3704,12 +3696,18 @@ for file_no, filename in enumerate(search_path):
     no_documents = len(search_path)
     
     # load input docs
-    # org_filepath = Path(filename)
-    org_filepath = Path(os.path.join(DOCS_DIR, Path(filename)))
-    filename_stem = org_filepath.stem
-    md_filename = filename_stem + ".md"
-    md_filepath = os.path.join("./", PARSED_TEXT_DIR, Path(md_filename))
-    cleaned_md_filepath = md_filepath.replace(".md", "_cleaned.md")
+    if test_mode:
+        org_filepath = Path(os.path.join(DOCS_DIR, Path(filename))) # if pdf TODO fix workaround for handling pdf differently than md
+        filename_stem = org_filepath.stem
+        md_filename = filename_stem + ".md"
+        md_filepath = os.path.join("./", PARSED_TEXT_DIR, Path(md_filename))
+        cleaned_md_filepath = md_filepath.replace(".md", "_cleaned.md")
+    else:
+        org_filepath = Path(filename)
+        filename_stem = org_filepath.stem
+        md_filepath = filename
+        cleaned_md_filepath = filename
+        print("md_filepath", md_filepath)
 
 
     print(f"\n\n ######## -------- Processing document [{file_no+1}/{no_documents}]: {org_filepath.name} -------- ######## \n")
@@ -4289,15 +4287,15 @@ for file_no, filename in enumerate(search_path):
 
     print(f"Safety: saving responses (Step 1 + 2) for doc: {citation} ")
     # chain of prompts
-    df_resp_step1_end.to_csv(f"../../interim_results_debug/llm_geollm_chain_step1_{citation}.csv", encoding='utf-8', index=False)
-    df_resp_step2.to_csv(f"../../interim_results_debug/llm_geollm_chain_step2_{citation}.csv", encoding='utf-8', index=False)
-    df_resp_judged.to_csv(f"../../interim_results_debug/llm_geollm_chain_judge_{citation}.csv", encoding='utf-8', index=False)
+    df_resp_step1_end.to_csv(f"../interim_results_debug/llm_geollm_chain_step1_{citation}.csv", encoding='utf-8', index=False)
+    df_resp_step2.to_csv(f"../interim_results_debug/llm_geollm_chain_step2_{citation}.csv", encoding='utf-8', index=False)
+    df_resp_judged.to_csv(f"../interim_results_debug/llm_geollm_chain_judge_{citation}.csv", encoding='utf-8', index=False)
     
     
     # errors of all documents so far (incl. chunks skipped due to LengthLimitError), overwritten after each document
     df_errors = pd.DataFrame(responses_error_list, columns=["citation_id", "chunk_id", "response", "error"])
     df_errors["response"] = df_errors["response"].astype(str)  # graph results / pydantic objects -> readable text
-    df_errors.to_csv(f"../../interim_results_debug/llm_responses_errors_{citation}.csv", encoding='utf-8', index=False)
+    df_errors.to_csv(f"../interim_results_debug/llm_responses_errors_{citation}.csv", encoding='utf-8', index=False)
     print(f"! WARN {len(df_errors)} faulty or skipped chunks so far, of these {df_errors['error'].str.startswith('LengthLimitError').sum()} due to the token limit")
 
     # # clean up after each document
@@ -4335,5 +4333,5 @@ print(f"\n\n ######## -------- CI impact extraction took {(time.time() - time0) 
 #     print("Extraction finished, evaluation skipped (RUN_EVALUATION = False)")
 #     sys.exit(0)
 # %%
-df_resp_step1_end.to_csv(f"../../interim_results_debug/llm_geollm_chain_step1incomplete_{citation}.csv", encoding='utf-8', index=False)
+df_resp_step1_end.to_csv(f"../interim_results_debug/llm_geollm_chain_step1incomplete_{citation}.csv", encoding='utf-8', index=False)
 
