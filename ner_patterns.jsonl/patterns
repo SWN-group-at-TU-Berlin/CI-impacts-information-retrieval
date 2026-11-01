@@ -137,7 +137,7 @@
 
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Dd]am|.* [Dd]am .*|^[Dd]am|^[Dd]am .*"}}], "subgroup_name":"energy_or_water_storage", "group_name":"energy_or_water", "sector":"Energy/water"}
 {"label":"CI_TYPE","pattern":[{"TEXT": {"REGEX": ".* [Dd]ams|.* [Dd]ams .*|^[Dd]ams|^[Dd]ams .*|.*[Dd]am(s)"}}], "subgroup_name":"energy_or_water_storage", "group_name":"energy_or_water", "sector":"Energy/water"}
-{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Rr]eservoir.*|^[Rr]eservoir.*"}}], "subgroup_name":"energy_or_water_storage",  "group_name":"energy_or_water", "sector":"Energy/water", "sector":"Water"}
+{"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Rr]eservoir.*|^[Rr]eservoir.*"}}], "subgroup_name":"energy_or_water_storage",  "group_name":"energy_or_water", "sector":"Energy/water"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ww]ater storage.*|^[Ww]ater storage.*"}}], "subgroup_name":"energy_or_water_storage",  "group_name":"energy_or_water", "sector":"Energy/water"}
 {"label":"CI_TYPE","pattern": [{"TEXT": {"REGEX": ".* [Ww]ater.*basin.*|^[Ww]ater.*basin.*"}}], "subgroup_name":"energy_or_water_storage",  "group_name":"energy_or_water", "sector":"Energy/water"}
 
