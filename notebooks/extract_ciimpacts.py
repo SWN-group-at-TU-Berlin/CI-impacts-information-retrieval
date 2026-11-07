@@ -1076,6 +1076,74 @@ SOCIETAL_TYPE_KEYWORDS = {
     "population": ["population", "inhabitant", "citizen"],
     "people": ["people", "person", "children", "elderl", "resident", "individual", "patient", "cases", "victim", "evacu", "fatalit", "injur"],
 }
+# only explicitly economic impact types, specific types first, generic 'costs'/'losses' last
+# NOTE no generic infrastructure words (e.g. 'supply', 'service'), so "drinking water supply" is no economic impact type
+ECONOMIC_TYPE_KEYWORDS = {
+    "repair_cost": ["repair", "restor", "reconstruct", "rebuild", "replac"],
+    "business_interruption": ["interrupt", "disrupt", "closure"],
+    "production_loss": ["production", "output loss"],
+    "supply_chain_disruption": ["supply chain", "supply-chain"],
+    "freight_logistics_trade": ["freight", "logistic", "trade"],
+    "revenue_loss": ["revenue", "turnover", "income", "sales"],
+    # "insurance_loss": ["insur"],
+    "affected_companies": ["compan", "business", "firm", "shop", "enterprise"],
+    "affected_employees": ["employe", "worker", "job"],
+    "affected_customers": ["customer"],
+    "agricultural_loss": ["agricultur", "crop", "harvest", "livestock", "farm"],
+    "costs": ["cost", "expens", "€", "eur", "£", "dollar", "$"],
+    "losses": ["losses", "financial loss", "economic loss", "insured loss"],
+}
+ENVIRONMENTAL_ORIGIN_KEYWORDS = {
+    "environmental_impact": ["environment", "pollut", "contamin", "soil", "groundwater", "river", "lake", "ecosystem", "debris", "oil spill"],
+}
+
+# CI sectors and their regexes from the NER patterns, same regexes as pp.group_ci_types (2-token patterns: REGEX + " " + LOWER)
+CI_SECTORS = sorted(ci_patterns["sector"].dropna().unique())
+CI_SECTOR_REGEXES = [
+    (p[0]["TEXT"]["REGEX"] + (" " + p[1]["LOWER"] if len(p) == 2 else ""), sector)
+    for p, sector in zip(ci_patterns["pattern"], ci_patterns["sector"])
+    if len(p) in (1, 2) and pd.notna(sector)
+]
+
+
+def ci_sector_of(text: str) -> str | None:
+    """CI sector of an infrastructure keyword based on the NER patterns, e.g. 'water pumping stations' -> 'Water';
+    the last matching pattern wins, as in pp.group_ci_types (aggregation of secondary_infrastructure_asset)."""
+    sectors = [sector for regex, sector in CI_SECTOR_REGEXES if re.match(regex, str(text))]
+    return sectors[-1] if sectors else None
+
+
+# tertiary impacts: economic/societal/environmental origins or the CI sector of an affected infrastructure
+TERTIARY_ORIGINS = (*ECONOMIC_ORIGIN_KEYWORDS, "other_costs_or_losses", *SOCIETAL_ORIGIN_KEYWORDS, "other_affected_population",
+                    *ENVIRONMENTAL_ORIGIN_KEYWORDS, *CI_SECTORS, "other_tertiary_impact")
+
+
+def coerce_tertiary_origin(value):
+    """Map a free-text tertiary impact origin to an allowed one: allowed values and None are kept,
+    else a societal origin by keyword, only if the text also names affected people (SOCIETAL_TYPE_KEYWORDS),
+    e.g. 'residents without electricity' -> 'loss_of_critical_service_or_inaccessibility', but 'cut off from the grid' -> no societal origin,
+    else an economic origin by keyword, only if the text also names an economic impact type (ECONOMIC_TYPE_KEYWORDS),
+    e.g. 'revenue loss of shops' -> 'downstream_economic_consequence', but 'drinking water supply' -> no economic origin,
+    else an environmental origin by keyword,
+    else a CI sector by name (e.g. 'transport' -> 'Transportation') or by the NER patterns (e.g. 'hospital' -> 'Health'), else 'other_tertiary_impact'.
+    NOTE impact keywords are checked before the CI sectors, so impacts on people, economy or environment win over the infrastructure they mention."""
+    if value is None or value in TERTIARY_ORIGINS:
+        return value
+    text = str(value).strip()
+    if coerce_category(text, SOCIETAL_TYPE_KEYWORDS, fallback=None):
+        societal = coerce_category(text, SOCIETAL_ORIGIN_KEYWORDS, fallback=None)
+        if societal:
+            return societal
+    if coerce_category(text, ECONOMIC_TYPE_KEYWORDS, fallback=None):
+        # economic impact type without origin keyword (e.g. 'insured losses') -> 'other_costs_or_losses'
+        return coerce_category(text, ECONOMIC_ORIGIN_KEYWORDS, fallback="other_costs_or_losses")
+    environmental = coerce_category(text, ENVIRONMENTAL_ORIGIN_KEYWORDS, fallback=None)
+    if environmental:
+        return environmental
+    by_name = sorted((s for s in CI_SECTORS if text.lower() in s.lower()), key=len)
+    if by_name:
+        return by_name[0]
+    return ci_sector_of(text) or "other_tertiary_impact"
 
 
 class EconomicImpact(BaseModel):
@@ -1242,6 +1310,44 @@ class SecondaryInfrastructureImpact(BaseModel):
     _map_target_damage = field_validator("target_damage", mode="before")(lambda v: pp.map_damage_to_category(v))
 
 
+class TertiaryImpact(BaseModel):
+    # chain: damaged CI (source_asset) -> secondary impact (e.g. pollution of the river) -> tertiary impact (e.g. affected residents)
+    source_asset: str = Field(
+        description=("Infrastructure asset that was originally damaged or disrupted (the start of the impact chain)."
+    ))
+    source_location: str | None = Field(
+        default=None,
+        description=("Location of the infrastructure asset associated with the impact chain."
+    ))
+    secondary_impact: str | None = Field(
+        default=None,
+        description=("Secondary impact caused by the damage of the source asset, which in turn caused the tertiary impact. "
+                     "Examples: 'pollution of the river', 'power outage', 'road closures'."
+    ))
+    tertiary_impact_origin: Literal[(None, *TERTIARY_ORIGINS)] = Field(
+        default=None,
+        description=("Category of the tertiary impact. For economic consequences: 'repair_recovery_cost', 'downstream_economic_consequence', 'other_costs_or_losses'. "
+            "For consequences for people, households or communities: 'evacuation_or_displacement', 'loss_of_critical_service_or_inaccessibility', 'disruption_of_mobility', 'other_affected_population'. "
+            "For consequences for the natural environment: 'environmental_impact'. "
+            "For other affected infrastructure assets or services: the infrastructure sector of the affected asset, one of: " + ", ".join(f"'{s}'" for s in CI_SECTORS) + ". "
+            "'other_tertiary_impact' for any other explicitly reported tertiary impact."
+    ))
+    # tool calling does not enforce the Literal: e.g. 'hospital' -> 'Health', 'evacuated residents' -> 'evacuation_or_displacement'
+    _map_tertiary_impact_origin = field_validator("tertiary_impact_origin", mode="before")(coerce_tertiary_origin)
+    # tertiary_impact_type: str | None = Field(
+    #     default=None,
+    #     description=("Specific type of the tertiary impact as stated in the text, e.g. 'residents', 'revenue loss', 'water pumping stations', 'drinking water'."
+    # ))
+    # amount: str | None = Field(
+    #     default=None,
+    #     description=("Quantitative magnitude of the tertiary impact explicitly stated in the text, if available. Preserve the original wording and do not calculate or infer values."
+    # ))
+    # unit: str | None = Field(
+    #     default=None,
+    #     description=("Unit associated with the quantitative amount, if explicitly stated. Examples: 'people', 'households', '€', 'hectares'."
+    # ))
+
+
 # class SecondaryInfrastructureImpact(BaseModel):
 
 #     source_asset: str = Field(
@@ -1345,6 +1451,7 @@ class GraphState(MessagesState): # TypedDict
     secondary_infrastructure_impacts: List[SecondaryInfrastructureImpact]
     societal_impacts: List[SocietalImpact]
     environmental_impacts: List[EnvironmentalImpact]
+    tertiary_impacts: List[TertiaryImpact]
 
 
 
@@ -2815,6 +2922,117 @@ def extract_environmental_impacts(state: GraphState) -> GraphState:
         return {"environmental_impacts": None}
 
 
+tertiary_impact_prompt = ChatPromptTemplate.from_messages([
+    (
+        "system", """
+You are a tertiary-impact extraction agent.
+
+Your task is to identify ALL tertiary impacts mentioned in the TEXT. A tertiary impact is caused by a SECONDARY impact, which itself is caused by the damage, destruction, failure, or disruption of the infrastructure described in CI_DAMAGES:
+
+damaged infrastructure (CI_DAMAGES) -> secondary impact -> tertiary impact
+e.g. flooded chemical plant -> pollution of the river -> residents affected
+
+Do NOT verify, modify, or reinterpret the infrastructure extraction in CI_DAMAGES.
+
+
+------------------------------------------------------------
+IMPORTANT RULES
+------------------------------------------------------------
+
+1. Only extract a tertiary impact when the TEXT explicitly states BOTH the secondary impact and the tertiary impact caused by it.
+
+2. Do NOT extract impacts caused directly by the infrastructure damage (these are secondary impacts). For example: "The flooded substation caused a power outage." is a secondary impact, NOT a tertiary impact.
+   However: "The flooded substation caused a power outage, which shut down the water pumping stations." contains the tertiary impact "water pumping stations".
+
+3. secondary_impact: short description of the secondary impact in the wording of the TEXT, e.g. "pollution of the river", "power outage", "road closures".
+
+4. tertiary_impact_origin: use ONLY one of these categories:
+   - economic consequences: repair_recovery_cost, downstream_economic_consequence, other_costs_or_losses
+   - consequences for people, households or communities: evacuation_or_displacement, loss_of_critical_service_or_inaccessibility, disruption_of_mobility, other_affected_population
+   - consequences for the natural environment: environmental_impact
+   - other affected infrastructure assets or services: the infrastructure sector of the affected asset, one of: """ + ", ".join(CI_SECTORS) + """
+   - other_tertiary_impact: any other explicitly reported tertiary impact
+
+5. Extract multiple tertiary impacts separately when multiple impacts are mentioned.
+
+6. Only extract impacts explicitly stated or clearly described in the TEXT. Do NOT invent impact chains or consequences.
+
+7. The source_asset MUST correspond to an infrastructure asset in CI_DAMAGES. The source_location MUST correspond to the location associated with that infrastructure in CI_DAMAGES.
+
+8. Return an empty list when no tertiary impact is explicitly mentioned.
+
+
+The objective is HIGH PRECISION while remaining fully grounded in the TEXT.
+
+
+------------------------------------------------------------
+EXAMPLES
+------------------------------------------------------------
+
+TEXT: The flooded chemical plant in Leverkusen released chemicals into the Rhine, and around 5,000 residents along the river were advised to stay indoors.
+CI_DAMAGES: ci_asset="chemical plant", location="Leverkusen", damage="inundation"
+source_asset: chemical plant
+source_location: Leverkusen
+secondary_impact: chemicals released into the Rhine
+tertiary_impact_origin: other_affected_population
+
+
+TEXT: The failure of the substation in Erftstadt caused a power outage, which shut down the water pumping stations.
+CI_DAMAGES: ci_asset="substation", location="Erftstadt", damage="service_loss"
+source_asset: substation
+source_location: Erftstadt
+secondary_impact: power outage
+tertiary_impact_origin: Water
+
+
+TEXT: After the main bridge collapsed, the access roads to the town centre were closed and local shops lost about €2 million in revenue.
+CI_DAMAGES: ci_asset="main bridge", location=None, damage="structural_damage"
+source_asset: main bridge
+source_location: None
+secondary_impact: closure of the access roads
+tertiary_impact_origin: downstream_economic_consequence
+
+
+Now extract all tertiary impacts for each infrastructure case.
+TEXT: {text}
+CI_DAMAGES: {ci_damages}
+source_asset: <your_response>
+source_location: <your_response>
+secondary_impact: <your_response>
+tertiary_impact_origin: <your_response>
+
+"""
+    ),
+    (
+        "human",
+        """
+TEXT: {text}
+CI_DAMAGES: {ci_damages}
+"""
+    )
+])
+
+
+def extract_tertiary_impacts(state: GraphState) -> GraphState:
+
+    class TertiaryImpacts(BaseModel):
+        impacts: List[TertiaryImpact]  # any number: empty if none is mentioned, several per asset possible (matched by source_asset)
+
+    llm_structured = structured_llm(TertiaryImpacts)
+
+    result = llm_structured.invoke([
+            HumanMessage(content=tertiary_impact_prompt.format(
+                text=state["text"],
+                ci_damages=state["ci_damages"],
+        ))])
+
+    try:
+        print("tertiary_impacts", result )
+        return {"tertiary_impacts": result.impacts }
+    except:
+        return {"tertiary_impacts": None}
+
+
 # %%
 from langgraph.types import Send
 
@@ -2849,6 +3067,13 @@ def route_cascading_impacts(state: GraphState):
                 "ci_damages": state["infrastructure_cases"].cases,
             }
         ),
+        Send(
+            "tertiary_impacts",
+            {
+                "text": state["text"],
+                "ci_damages": state["infrastructure_cases"].cases,
+            }
+        ),
     ]
 
 # %% [markdown]
@@ -2870,6 +3095,7 @@ builder.add_node("economic_impacts",    extract_economic_impacts)
 builder.add_node( "societal_impacts", extract_societal_impacts)
 builder.add_node( "secondary_infrastructure_impacts", extract_infrastructure_impacts)
 builder.add_node( "environmental_impacts", extract_environmental_impacts)
+builder.add_node( "tertiary_impacts", extract_tertiary_impacts)
 
 # Set arcs
 builder.set_entry_point("is_infrastructure_case")
@@ -3019,6 +3245,7 @@ def impacts_to_dataframe(data):
     societal_impacts = data.get("societal_impacts", []) or []
     infrastructure_impacts = data.get("secondary_infrastructure_impacts", [])  or []
     environmental_impacts = data.get("environmental_impacts", []) or []
+    tertiary_impacts = data.get("tertiary_impacts", []) or []
 
     # Create base dataframe
     df = pd.DataFrame([case.model_dump() for case in infrastructure_cases.cases])
@@ -3050,6 +3277,9 @@ def impacts_to_dataframe(data):
 
     df["secondary_infrastructure_asset"] = ""
     # df["secondary_infrastructure_impact_type"] = ""
+
+    df["tertiary_impact_cause"] = ""   # secondary impact causing the tertiary impact
+    df["tertiary_impact_origin"] = ""
 
     # ECONOMIC IMPACTS
     for impact in economic_impacts:
@@ -3218,6 +3448,35 @@ def impacts_to_dataframe(data):
                     df.at[idx, "secondary_infrastructure_asset"],
                     impact_target_asset
             ))
+
+    # TERTIARY IMPACTS
+    for impact in tertiary_impacts:
+
+        source_asset = normalize_asset(
+            impact.source_asset
+        )
+
+        if not source_asset:
+            continue
+
+        matches = (
+            df["_asset_normalized"]
+            == source_asset
+        )
+
+        for idx in df.index[matches]:
+
+            df.at[idx, "tertiary_impact_cause"] = (
+                append_value(
+                    df.at[idx, "tertiary_impact_cause"],
+                    impact.secondary_impact
+            ))
+            df.at[idx, "tertiary_impact_origin"] = (
+                append_value(
+                    df.at[idx, "tertiary_impact_origin"],
+                    impact.tertiary_impact_origin
+            ))
+
     # Remove helper column
     df = df.drop(
         columns="_asset_normalized"
@@ -3371,6 +3630,8 @@ judge_field_schema = {
     "environmental_impact_amount": (EnvironmentalImpact, "amount"),
     "environmental_impact_unit": (EnvironmentalImpact, "unit"),
     "secondary_infrastructure_asset": (SecondaryInfrastructureImpact, "target_asset"),
+    "tertiary_impact_cause": (TertiaryImpact, "secondary_impact"),
+    "tertiary_impact_origin": (TertiaryImpact, "tertiary_impact_origin"),
 }
 # record fields the judge checks and may adapt (metadata like chunk_text, citation_id, coords are not judged)
 judge_fields = list(judge_field_schema)
@@ -3430,6 +3691,13 @@ judge_extra_rules = {
     "secondary_infrastructure_asset": [
         "Must be a different infrastructure than infrastructure_type, affected as a consequence of the damage of infrastructure_type.",
         "Use the INFRASTRUCTURE ENTITIES DETECTED BY NER as guidance and keep their phrasing, as LLM 1 had to. Never invent infrastructure.",
+    ],
+    "tertiary_impact_cause": [
+        "Must be a consequence of the damage of infrastructure_type AND the cause of the tertiary impact, never the damage of infrastructure_type itself. Use null if the TEXT states no such chain.",
+    ],
+    "tertiary_impact_origin": [
+        "Only use the allowed keywords (several keywords comma-separated if the record lists several tertiary impacts).",
+        "For an affected infrastructure asset or service use its infrastructure sector.",
     ],
 }
 
