@@ -379,17 +379,26 @@ and produce a structured list of infrastructure cases.
 
 For EACH infrastructure entity detected by the tool, identify:
 
-- the infrastructure asset or service ("ci_asset")
+- tier 1: the physically damaged or affected infrastructure asset ("ci_asset") and its physical damage categories ("damage")
+- tier 2: the infrastructure service whose operability is impacted ("ci_asset_2") and its service effect categories ("damage_2")
 - the number of affected infrastructure asset or service ("ci_asset_amount")
 - the name or designation of the infrastructure asset ("ci_asset_name")
 - its corresponding location ("location")
-- its corresponding damage category ("damage")
+
+Tier 1 and tier 2:
+- Tier 1 ("ci_asset", "damage") is ONLY for infrastructure ASSETS and their PHYSICAL damage or physical condition, e.g. destroyed bridges, flooded substation, contaminated drinking water, debris on roads, rebuilt railway tracks.
+- Tier 2 ("ci_asset_2", "damage_2") is ONLY for infrastructure SERVICES and the effect on their operability WITHOUT a physical damage, e.g. disrupted water supply, power outage, closed roads, cancelled flights, delayed trains.
+- Never put a service effect into tier 1 or a physical damage into tier 2.
+- When the TEXT reports both for the same case, return both tiers in ONE case. For instance: "water supply was disrupted due to contamination of drinking water" --> ci_asset="drinking water", damage="contamination", ci_asset_2="water supply", damage_2="disruption".
+- When the service effect concerns the asset itself, use the same infrastructure for both tiers. For instance: "The A1 was covered by debris and closed" --> ci_asset="A1", damage="obstruction", ci_asset_2="A1", damage_2="disruption".
+- When the TEXT reports only a physical damage, return None for "ci_asset_2" and "damage_2". When it reports only a service effect, return None for "ci_asset" and "damage".
+- When several damage categories of the same tier apply, return ALL of them comma-separated in the order they are mentioned (e.g. "bridges were flooded and destroyed" --> damage="inundation, structural_damage"). Do not rank them by severity.
 
 
 IMPORTANT:
 - Use the infrastructure entities returned by the NER tool as the candidate infrastructure entities.
 - Do not invent additional infrastructure entities.
-- Use the original TEXT to determine the location and damage associated with each infrastructure entity ("ci_asset"). Also, for each entity determine if a number is mentioned, i.e., determine how many infrastructure assets or services are affect for each infrastructure entity. 
+- Use the original TEXT to determine the location and damage associated with each infrastructure entity ("ci_asset", "ci_asset_2"). Also, for each entity determine if a number is mentioned, i.e., determine how many infrastructure assets or services are affect for each infrastructure entity. 
 - Assign the correct location and damage to the corresponding asset.
 - Assign the correct number of assets or to the corresponding asset (e.g. "more than 68" when the text mentions that more than 68 hospitals were damaged).
 - Prioritize the most specific location of each infrastructure (e.g., street names, neighborhoods, towns over cities, cities over regions, regions over countries).
@@ -398,21 +407,24 @@ IMPORTANT:
 - **Only for transportation infrastructure:** When the specific name of an ASSET is mentioned (e.g. Juan Avenue, intersection to Maria Statue, highway A-1, B510, Berlusconi Airport) and no location information can be found, then consider the specific name of this asset as the location. But do not use road types as location names, such as "German highway", "national road", etc.
 - **Only for transportation infrastructure:** when an ASSET refers to two or more locations then extract the locations together. For instance: text:"There is much damage on the access roads from Juan Avenue to Plaza Manuel Azaña" --> location:["from Juan Avenue to Plaza Manuel Azaña"]
 - If no location is explicitly stated for an asset, return None for "location".
-- Assign ONE general damage category ("damage") to each infrastructure entity, based on the damage, failure, or disruption the TEXT reports for it. If several categories apply, use the most severe one (the first one in the following list). Damage categories:
-""" + pp.describe_damage_categories() + """
-- If no damage or disruption is explicitly stated for an asset, return None for "damage".
-- If no information about the number of infrastructure assets or services is explicitly stated for an infrastructure entity ("ci_asset"), return None for "ci_asset_amount".
+- Assign the damage categories based on the damage, failure, or disruption the TEXT reports for the infrastructure.
+- Physical damage categories (tier 1, only for "damage"):
+""" + pp.describe_damage_categories(pp.DAMAGE_CATEGORIES_TIER1) + """
+- Service effect categories (tier 2, only for "damage_2"):
+""" + pp.describe_damage_categories(pp.DAMAGE_CATEGORIES_TIER2) + """
+- If no physical damage is explicitly stated, return None for "damage". If no service effect is explicitly stated, return None for "damage_2".
+- If no information about the number of infrastructure assets or services is explicitly stated for an infrastructure entity, return None for "ci_asset_amount".
 - When a proper name or designation of an infrastructure entity is explicitly mentioned in the TEXT (e.g. road names such as "A1", "B510", "Gates Avenue", or facility names such as "Braunschweig chemical plant", "Berlusconi Airport"), return it as "ci_asset_name" and preserve its original wording. Do not use generic infrastructure types (e.g. "highway", "national road", "chemical plant") as "ci_asset_name".
-- If no name or designation is explicitly stated for an infrastructure entity ("ci_asset"), return None for "ci_asset_name".
+- If no name or designation is explicitly stated for an infrastructure entity, return None for "ci_asset_name".
 - Do not infer information that is not explicitly mentioned in the TEXT.
 
 
 
 Example Input:
-text: Similar as in Germany, bridges were often flooded, said the General Officer of the EU. But also sever impacts occurred in other places, for example, road and railway infrastructure were damaged or destroyed in Western Germany. In total, around 50 bridges were destroyed in Germany. The highway A1 near Cologne was covered by debris.
+text: Similar as in Germany, bridges were often flooded and damaged, said the General Officer of the EU. But also sever impacts occurred in other places, for example, road and railway infrastructure were damaged or destroyed in Western Germany. In total, around 50 bridges were destroyed in Germany. The highway A1 near Cologne was covered by debris and closed for two days. In Liège, the drinking water was contaminated, leaving about 2,000 households without water supply. Flights at Cologne Bonn Airport were delayed.
 
 Example Output:
-[InfrastructureCase(ci_asset="bridges", ci_asset_amount=None, ci_asset_name=None, location=None, damage="structural_damage"), InfrastructureCase(ci_asset="road and railway infrastructure", ci_asset_amount=None, ci_asset_name=None, location="Western Germany", damage="structural_damage"), InfrastructureCase(ci_asset="bridges", ci_asset_amount="around 50", ci_asset_name=None, location="Germany", damage="structural_damage"), InfrastructureCase(ci_asset="A1 highway", ci_asset_amount=None, ci_asset_name="A1", location="Cologne", damage="obstruction"),]
+[InfrastructureCase(ci_asset="bridges", damage="inundation, structural_damage", ci_asset_2=None, damage_2=None, ci_asset_amount=None, ci_asset_name=None, location=None), InfrastructureCase(ci_asset="road and railway infrastructure", damage="structural_damage", ci_asset_2=None, damage_2=None, ci_asset_amount=None, ci_asset_name=None, location="Western Germany"), InfrastructureCase(ci_asset="bridges", damage="structural_damage", ci_asset_2=None, damage_2=None, ci_asset_amount="around 50", ci_asset_name=None, location="Germany"), InfrastructureCase(ci_asset="A1 highway", damage="obstruction", ci_asset_2="A1 highway", damage_2="disruption", ci_asset_amount=None, ci_asset_name="A1", location="Cologne"), InfrastructureCase(ci_asset="drinking water", damage="contamination", ci_asset_2="water supply", damage_2="service_loss", ci_asset_amount=None, ci_asset_name=None, location="Liège"), InfrastructureCase(ci_asset=None, damage=None, ci_asset_2="flights", damage_2="disruption", ci_asset_amount=None, ci_asset_name=None, location="Cologne Bonn Airport"),]
 
 """),
     ("human", """
@@ -1043,7 +1055,7 @@ def get_infrastructure_location_pairs(text:str) -> List[str] | None:
 # %%
 from shapely.geometry import Point, Polygon, MultiPolygon, MultiLineString, LineString
 from pydantic_shapely import GeometryField
-from pydantic import Field, PrivateAttr, field_validator
+from pydantic import Field, PrivateAttr, field_validator, model_validator
 import typing
 
 
@@ -1113,37 +1125,38 @@ def ci_sector_of(text: str) -> str | None:
     return sectors[-1] if sectors else None
 
 
-# tertiary impacts: economic/societal/environmental origins or the CI sector of an affected infrastructure
-TERTIARY_ORIGINS = (*ECONOMIC_ORIGIN_KEYWORDS, "other_costs_or_losses", *SOCIETAL_ORIGIN_KEYWORDS, "other_affected_population",
-                    *ENVIRONMENTAL_ORIGIN_KEYWORDS, *CI_SECTORS, "other_tertiary_impact")
+# NOTE tertiary impacts are not extracted at the moment (TERTIARY_ORIGINS, coerce_tertiary_origin), uncomment to re-activate
+# # tertiary impacts: economic/societal/environmental origins or the CI sector of an affected infrastructure
+# TERTIARY_ORIGINS = (*ECONOMIC_ORIGIN_KEYWORDS, "other_costs_or_losses", *SOCIETAL_ORIGIN_KEYWORDS, "other_affected_population",
+#                     *ENVIRONMENTAL_ORIGIN_KEYWORDS, *CI_SECTORS, "other_tertiary_impact")
 
 
-def coerce_tertiary_origin(value):
-    """Map a free-text tertiary impact origin to an allowed one: allowed values and None are kept,
-    else a societal origin by keyword, only if the text also names affected people (SOCIETAL_TYPE_KEYWORDS),
-    e.g. 'residents without electricity' -> 'loss_of_critical_service_or_inaccessibility', but 'cut off from the grid' -> no societal origin,
-    else an economic origin by keyword, only if the text also names an economic impact type (ECONOMIC_TYPE_KEYWORDS),
-    e.g. 'revenue loss of shops' -> 'downstream_economic_consequence', but 'drinking water supply' -> no economic origin,
-    else an environmental origin by keyword,
-    else a CI sector by name (e.g. 'transport' -> 'Transportation') or by the NER patterns (e.g. 'hospital' -> 'Health'), else 'other_tertiary_impact'.
-    NOTE impact keywords are checked before the CI sectors, so impacts on people, economy or environment win over the infrastructure they mention."""
-    if value is None or value in TERTIARY_ORIGINS:
-        return value
-    text = str(value).strip()
-    if coerce_category(text, SOCIETAL_TYPE_KEYWORDS, fallback=None):
-        societal = coerce_category(text, SOCIETAL_ORIGIN_KEYWORDS, fallback=None)
-        if societal:
-            return societal
-    if coerce_category(text, ECONOMIC_TYPE_KEYWORDS, fallback=None):
-        # economic impact type without origin keyword (e.g. 'insured losses') -> 'other_costs_or_losses'
-        return coerce_category(text, ECONOMIC_ORIGIN_KEYWORDS, fallback="other_costs_or_losses")
-    environmental = coerce_category(text, ENVIRONMENTAL_ORIGIN_KEYWORDS, fallback=None)
-    if environmental:
-        return environmental
-    by_name = sorted((s for s in CI_SECTORS if text.lower() in s.lower()), key=len)
-    if by_name:
-        return by_name[0]
-    return ci_sector_of(text) or "other_tertiary_impact"
+# def coerce_tertiary_origin(value):
+#     """Map a free-text tertiary impact origin to an allowed one: allowed values and None are kept,
+#     else a societal origin by keyword, only if the text also names affected people (SOCIETAL_TYPE_KEYWORDS),
+#     e.g. 'residents without electricity' -> 'loss_of_critical_service_or_inaccessibility', but 'cut off from the grid' -> no societal origin,
+#     else an economic origin by keyword, only if the text also names an economic impact type (ECONOMIC_TYPE_KEYWORDS),
+#     e.g. 'revenue loss of shops' -> 'downstream_economic_consequence', but 'drinking water supply' -> no economic origin,
+#     else an environmental origin by keyword,
+#     else a CI sector by name (e.g. 'transport' -> 'Transportation') or by the NER patterns (e.g. 'hospital' -> 'Health'), else 'other_tertiary_impact'.
+#     NOTE impact keywords are checked before the CI sectors, so impacts on people, economy or environment win over the infrastructure they mention."""
+#     if value is None or value in TERTIARY_ORIGINS:
+#         return value
+#     text = str(value).strip()
+#     if coerce_category(text, SOCIETAL_TYPE_KEYWORDS, fallback=None):
+#         societal = coerce_category(text, SOCIETAL_ORIGIN_KEYWORDS, fallback=None)
+#         if societal:
+#             return societal
+#     if coerce_category(text, ECONOMIC_TYPE_KEYWORDS, fallback=None):
+#         # economic impact type without origin keyword (e.g. 'insured losses') -> 'other_costs_or_losses'
+#         return coerce_category(text, ECONOMIC_ORIGIN_KEYWORDS, fallback="other_costs_or_losses")
+#     environmental = coerce_category(text, ENVIRONMENTAL_ORIGIN_KEYWORDS, fallback=None)
+#     if environmental:
+#         return environmental
+#     by_name = sorted((s for s in CI_SECTORS if text.lower() in s.lower()), key=len)
+#     if by_name:
+#         return by_name[0]
+#     return ci_sector_of(text) or "other_tertiary_impact"
 
 
 class EconomicImpact(BaseModel):
@@ -1310,42 +1323,43 @@ class SecondaryInfrastructureImpact(BaseModel):
     _map_target_damage = field_validator("target_damage", mode="before")(lambda v: pp.map_damage_to_category(v))
 
 
-class TertiaryImpact(BaseModel):
-    # chain: damaged CI (source_asset) -> secondary impact (e.g. pollution of the river) -> tertiary impact (e.g. affected residents)
-    source_asset: str = Field(
-        description=("Infrastructure asset that was originally damaged or disrupted (the start of the impact chain)."
-    ))
-    source_location: str | None = Field(
-        default=None,
-        description=("Location of the infrastructure asset associated with the impact chain."
-    ))
-    secondary_impact: str | None = Field(
-        default=None,
-        description=("Secondary impact caused by the damage of the source asset, which in turn caused the tertiary impact. "
-                     "Examples: 'pollution of the river', 'power outage', 'road closures'."
-    ))
-    tertiary_impact_origin: Literal[(None, *TERTIARY_ORIGINS)] = Field(
-        default=None,
-        description=("Category of the tertiary impact. For economic consequences: 'repair_recovery_cost', 'downstream_economic_consequence', 'other_costs_or_losses'. "
-            "For consequences for people, households or communities: 'evacuation_or_displacement', 'loss_of_critical_service_or_inaccessibility', 'disruption_of_mobility', 'other_affected_population'. "
-            "For consequences for the natural environment: 'environmental_impact'. "
-            "For other affected infrastructure assets or services: the infrastructure sector of the affected asset, one of: " + ", ".join(f"'{s}'" for s in CI_SECTORS) + ". "
-            "'other_tertiary_impact' for any other explicitly reported tertiary impact."
-    ))
-    # tool calling does not enforce the Literal: e.g. 'hospital' -> 'Health', 'evacuated residents' -> 'evacuation_or_displacement'
-    _map_tertiary_impact_origin = field_validator("tertiary_impact_origin", mode="before")(coerce_tertiary_origin)
-    # tertiary_impact_type: str | None = Field(
-    #     default=None,
-    #     description=("Specific type of the tertiary impact as stated in the text, e.g. 'residents', 'revenue loss', 'water pumping stations', 'drinking water'."
-    # ))
-    # amount: str | None = Field(
-    #     default=None,
-    #     description=("Quantitative magnitude of the tertiary impact explicitly stated in the text, if available. Preserve the original wording and do not calculate or infer values."
-    # ))
-    # unit: str | None = Field(
-    #     default=None,
-    #     description=("Unit associated with the quantitative amount, if explicitly stated. Examples: 'people', 'households', '€', 'hectares'."
-    # ))
+# NOTE tertiary impacts are not extracted at the moment (TertiaryImpact), uncomment to re-activate
+# class TertiaryImpact(BaseModel):
+#     # chain: damaged CI (source_asset) -> secondary impact (e.g. pollution of the river) -> tertiary impact (e.g. affected residents)
+#     source_asset: str = Field(
+#         description=("Infrastructure asset that was originally damaged or disrupted (the start of the impact chain)."
+#     ))
+#     source_location: str | None = Field(
+#         default=None,
+#         description=("Location of the infrastructure asset associated with the impact chain."
+#     ))
+#     secondary_impact: str | None = Field(
+#         default=None,
+#         description=("Secondary impact caused by the damage of the source asset, which in turn caused the tertiary impact. "
+#                      "Examples: 'pollution of the river', 'power outage', 'road closures'."
+#     ))
+#     tertiary_impact_origin: Literal[(None, *TERTIARY_ORIGINS)] = Field(
+#         default=None,
+#         description=("Category of the tertiary impact. For economic consequences: 'repair_recovery_cost', 'downstream_economic_consequence', 'other_costs_or_losses'. "
+#             "For consequences for people, households or communities: 'evacuation_or_displacement', 'loss_of_critical_service_or_inaccessibility', 'disruption_of_mobility', 'other_affected_population'. "
+#             "For consequences for the natural environment: 'environmental_impact'. "
+#             "For other affected infrastructure assets or services: the infrastructure sector of the affected asset, one of: " + ", ".join(f"'{s}'" for s in CI_SECTORS) + ". "
+#             "'other_tertiary_impact' for any other explicitly reported tertiary impact."
+#     ))
+#     # tool calling does not enforce the Literal: e.g. 'hospital' -> 'Health', 'evacuated residents' -> 'evacuation_or_displacement'
+#     _map_tertiary_impact_origin = field_validator("tertiary_impact_origin", mode="before")(coerce_tertiary_origin)
+#     # tertiary_impact_type: str | None = Field(
+#     #     default=None,
+#     #     description=("Specific type of the tertiary impact as stated in the text, e.g. 'residents', 'revenue loss', 'water pumping stations', 'drinking water'."
+#     # ))
+#     # amount: str | None = Field(
+#     #     default=None,
+#     #     description=("Quantitative magnitude of the tertiary impact explicitly stated in the text, if available. Preserve the original wording and do not calculate or infer values."
+#     # ))
+#     # unit: str | None = Field(
+#     #     default=None,
+#     #     description=("Unit associated with the quantitative amount, if explicitly stated. Examples: 'people', 'households', '€', 'hectares'."
+#     # ))
 
 
 # class SecondaryInfrastructureImpact(BaseModel):
@@ -1374,12 +1388,73 @@ class TertiaryImpact(BaseModel):
 #     ))
 
 
+def assign_damage_tiers(data):
+    """Keep tier 1 (ci_asset, damage) for physical damages of infrastructure assets and tier 2 (ci_asset_2, damage_2) for
+    service effects only. Tool calling does not enforce this: free-text damages are mapped to their categories (several
+    categories comma-separated, in order of mention, no ranking by severity) and a category of the wrong tier is moved to
+    the other pair, together with the infrastructure type if that pair has none, e.g.
+    ci_asset="electricity supply", damage="outage" -> ci_asset=None, damage=None, ci_asset_2="electricity supply", damage_2="service_loss";
+    ci_asset="A1", damage="debris on, closed" -> ci_asset="A1", damage="obstruction", ci_asset_2="A1", damage_2="disruption"."""
+    if not isinstance(data, dict):
+        return data
+    data = dict(data)
+    damage_1, damage_2 = data.get("damage"), data.get("damage_2")
+    type_1, type_2 = data.get("ci_asset"), data.get("ci_asset_2")
+    tier1, tier2 = pp.split_damages_by_tier(damage_1, damage_2)
+
+    if tier2 and not type_2:
+        type_2 = type_1   # service effect of the same infrastructure
+    if tier1 and not type_1:
+        type_1 = type_2
+    # only a service effect was reported for this infrastructure -> no tier 1 asset, and vice versa
+    if tier2 and not tier1 and type_1 == type_2 and (damage_1 or damage_2):
+        type_1 = None
+    if tier1 and not tier2 and type_1 == type_2:
+        type_2 = None
+
+    data.update(ci_asset=type_1, damage=tier1, ci_asset_2=type_2, damage_2=tier2)
+    return data
+
+
 class InfrastructureCase(BaseModel):
 
     is_infrastructure_case: bool
-    ci_asset: str =  Field(
+    # tier 1: infrastructure asset and its physical damage
+    ci_asset: str | None = Field(
         default=None,
-        description="Infrastructure assets or services damaged by a natural hazard.")
+        description=("Infrastructure asset that is physically damaged or physically affected by a natural hazard (tier 1), "
+                     "e.g. 'bridges', 'railway tracks', 'roads', 'substation', 'drinking water', 'sewage treatment plants'. "
+                     "None if the text reports only a service effect (see ci_asset_2)."
+    ))
+    damage: str | None = Field(
+        default=None,
+        description=(
+            "Category of the PHYSICAL damage or physical condition of the infrastructure asset (ci_asset). "
+            "Only these categories; if several apply, give all of them comma-separated in order of mention (e.g. 'inundation, structural_damage'):\n"
+            + pp.describe_damage_categories(pp.DAMAGE_CATEGORIES_TIER1)
+            + "\nNone if no physical damage is reported. Service effects (e.g. closures, delays, outages) belong to damage_2."
+        ),
+    )
+    # tier 2: infrastructure service and the effect on its operability, e.g.
+    # "water supply was disrupted due to contamination of drinking water" -> ci_asset="drinking water", damage="contamination",
+    # ci_asset_2="water supply", damage_2="disruption"
+    ci_asset_2: str | None = Field(
+        default=None,
+        description=("Infrastructure service whose operability is impacted without a (reported) physical damage (tier 2), "
+                     "e.g. 'water supply', 'electricity supply', 'train services', 'flights', 'road traffic', or the asset itself when it is closed or out of service (e.g. 'A1'). "
+                     "Example: water supply was disrupted due to contamination of drinking water. ci_asset:'drinking water', damage:'contamination', ci_asset_2:'water supply', damage_2:'disruption'. "
+                     "None if the text reports no service effect.")
+    )
+    damage_2: str | None = Field(
+        default=None,
+        description=(
+            "Category of the SERVICE effect on the operability of the infrastructure service (ci_asset_2), without physical damage. "
+            "Only these categories; if several apply, give all of them comma-separated in order of mention:\n"
+            + pp.describe_damage_categories(pp.DAMAGE_CATEGORIES_TIER2)
+            + "\nNone if no service effect is reported. Physical damages belong to damage."
+        ),
+    )
+    _assign_damage_tiers = model_validator(mode="before")(assign_damage_tiers)
     ci_asset_amount: str | None = Field(
         default=None,
         description=("Number of affected infrastructure assets or services (ci_asset) explicitly reported in the text, if any. Preserve the original wording. Example: In the villages around Berlin around 100 roads were damaged. ci_asset:'roads', ci_asset_amount:'around 100'"
@@ -1406,22 +1481,11 @@ class InfrastructureCase(BaseModel):
     #     default=None,
     #     description="Damage, failure, disruption, or operational status explicitly associated with this infrastructure asset."
     # )
-    damage: Literal[
-        None, "structural_damage", "inundation", "contamination", "service_loss", "obstruction", "disruption", "affected", "restored_recovered"
-    ] | None = Field(
-        default=None,
-        description=(
-            "General category of the damage, failure, disruption, or operational status explicitly associated with this infrastructure asset. "
-            "If several categories apply, use the most severe one (the first one in this list):\n" + pp.describe_damage_categories()
-        ),
-    )
 
-    # tool calling does not enforce the Literal: map free-text damage (e.g. "severely damaged") to its category, unknown -> None
-    _map_damage = field_validator("damage", mode="before")(lambda v: pp.map_damage_to_category(v))
 
    
 # damage categories of the schema must be the same as in src/postprocess.py (DAMAGE_CATEGORIES)
-assert [c for c in typing.get_args(typing.get_args(InfrastructureCase.model_fields["damage"].annotation)[0]) if c] == list(pp.DAMAGE_CATEGORIES)
+# NOTE InfrastructureCase.damage/damage_2 are free text (several categories), restricted by assign_damage_tiers to DAMAGE_CATEGORIES_TIER1/2
 assert [c for c in typing.get_args(typing.get_args(SecondaryInfrastructureImpact.model_fields["target_damage"].annotation)[0]) if c] == list(pp.DAMAGE_CATEGORIES)
 
 
@@ -1451,7 +1515,7 @@ class GraphState(MessagesState): # TypedDict
     secondary_infrastructure_impacts: List[SecondaryInfrastructureImpact]
     societal_impacts: List[SocietalImpact]
     environmental_impacts: List[EnvironmentalImpact]
-    tertiary_impacts: List[TertiaryImpact]
+    # tertiary_impacts: List[TertiaryImpact]  # NOTE tertiary impacts are not extracted at the moment
 
 
 
@@ -2187,7 +2251,7 @@ The objective is HIGH PRECISION while remaining fully grounded in the TEXT.
 EXAMPLES:
 
 TEXT: The repair costs of the flooded roads in Brandenburg lead to 1,000 million EUR. However, the entire costs of the flood event in the region of Brandenburg caused costs of 5,0000 million Euros.
-CI_DAMAGES: ci_asset="roads", location="Brandenburg", damage="flooded"
+CI_DAMAGES: ci_asset="roads", damage="inundation", ci_asset_2=None, damage_2=None, location="Brandenburg"
 source_asset: roads
 source_location: Brandenburg
 impact_origin: repair_recovery_cost
@@ -2196,7 +2260,7 @@ amount: 1,000 million EUR
 unit: EUR
 
 TEXT: Similar to Germany, severe damage had been observed to the gas network. In the villages around Liége, such as Chaudfontaine and Pepinster (Belgium), gas supply was fully recovered within 5 months (Grosjean, 2021; De Wolf, 2021) with cost reaching more than 5 million Euros. In the Netherlands, 1000-2000 households experienced a loss of electricity supply at the peak of the event. Between 100 to 200 households had no gas supply. Within several days, electricity supply was restored (Task Force Fact Finding Hoogwater, 2021).
-CI_DAMAGES: ci_asset="gas supply", location="Liége, Chaudfontaine and Pepinster (Belgium)", damage="recovered"
+CI_DAMAGES: ci_asset="gas supply", damage="restored_recovered", ci_asset_2=None, damage_2=None, location="Liége, Chaudfontaine and Pepinster (Belgium)"
 source_asset: gas supply
 source_location: Liége, Chaudfontaine and Pepinster (Belgium)
 impact_origin: repair_recovery_cost
@@ -2205,8 +2269,8 @@ amount: more than 5 million Euros
 unit: EUR
 
 TEXT: The flight delays and further transportation disruption leads to estimated costs of above 5.000 £ in UK.
-CI_DAMAGES: ci_asset="flights", location="UK", damage="delays"
-source_asset: roads
+CI_DAMAGES: ci_asset=None, damage=None, ci_asset_2="flights", damage_2="disruption", location="UK"
+source_asset: flights
 source_location: UK
 impact_origin: downstream_economic_consequence
 impact_type: economic loss
@@ -2214,7 +2278,7 @@ amount: above 5.000 £
 unit: GBP
 
 TEXT: The VW factory was closed for 3 days due to flooded roads leading to costs of 1,000 EUR. However, the entire costs of the flood event in the region of Brandenburg caused costs of 5,0000 million Euros.
-CI_DAMAGES: ci_asset="roads", location=None, damage="flooded"
+CI_DAMAGES: ci_asset="roads", damage="inundation", ci_asset_2=None, damage_2=None, location=None
 source_asset: roads
 source_location: None
 impact_origin: downstream_economic_consequence
@@ -2223,7 +2287,7 @@ amount: 1,000 EUR
 unit: EUR
 
 TEXT: Damaged transport network lead to production impacts for companies in Germany.
-CI_DAMAGES: ci_asset="transport network", location="Germany", damage="damaged"
+CI_DAMAGES: ci_asset="transport network", damage="structural_damage", ci_asset_2=None, damage_2=None, location="Germany"
 source_asset: transport network
 source_location: Germany
 impact_origin: downstream_economic_consequence
@@ -2233,7 +2297,7 @@ unit: None
 
 
 TEXT: Because the engine plant in Chemnitz could not bring its delivery over the streets because they were blocked or blocked by flood rescue forces. Also rear axle modules, which are pre-assembled by the VW-Hoflogistiker Schnellecke in neighbouring Glauchau, could not be loaded in the direction of Zwickau for this reason.
-CI_DAMAGES: ci_asset="streets", location="Chemnitz", damage="blocked"
+CI_DAMAGES: ci_asset=None, damage=None, ci_asset_2="streets", damage_2="disruption", location="Chemnitz"
 source_asset: streets
 source_location: Chemnitz
 impact_origin: downstream_economic_consequence
@@ -2242,7 +2306,7 @@ amount: None
 unit: None
 
 TEXT: Asset damages for the German railway provider are estimated to be around 20 000 EUR.
-CI_DAMAGES: ci_asset="railway assets", location=None, damage="delays"
+CI_DAMAGES: ci_asset="railway assets", damage="structural_damage", ci_asset_2=None, damage_2=None, location=None
 source_asset: railway assets
 source_location: None
 impact_origin: repair_recovery_cost
@@ -2251,11 +2315,11 @@ amount: around 20 000 EUR
 unit: EUR
 
 TEXT: Flood loss estimates for transportation damages and all other damages to the public sector will be in total below 500 000 EUR ”
-CI_DAMAGES: ci_asset="transportation", location=None, damage="damaged"
-source_asset: railway assets
+CI_DAMAGES: ci_asset="transportation", damage="structural_damage", ci_asset_2=None, damage_2=None, location=None
+source_asset: transportation
 source_location: None
-impact_origin: total/general losses
-impact_type: other_costs_or_losses
+impact_origin: other_costs_or_losses
+impact_type: total/general losses
 amount: below 500 000 EUR
 unit: EUR
 
@@ -2479,7 +2543,7 @@ EXAMPLES
 ------------------------------------------------------------
 
 TEXT: The flooding of railways caused train delays.
-CI_DAMAGES: ci_asset="railways", location=None, damage="inundation"
+CI_DAMAGES: ci_asset="railways", damage="inundation", ci_asset_2=None, damage_2=None, location=None
 source_asset: railways
 source_damage: flooded
 source_location: None
@@ -2487,7 +2551,7 @@ target_asset: train service
 target_damage: disruption
 
 TEXT: The bridges were severely damaged, resulting in road closures in the Ahr valley.
-CI_DAMAGES: ci_asset="bridges", location="Ahr valley", damage="structural_damage"
+CI_DAMAGES: ci_asset="bridges", damage="structural_damage", ci_asset_2=None, damage_2=None, location="Ahr valley"
 source_asset: bridges
 source_damage: damaged
 source_location: Ahr valley
@@ -2495,7 +2559,7 @@ target_asset: roads
 target_damage: disruption
 
 TEXT: Public transport was disrupted because roads were blocked.
-CI_DAMAGES: ci_asset="roads", location=None, damage="disruption"
+CI_DAMAGES: ci_asset=None, damage=None, ci_asset_2="roads", damage_2="disruption", location=None
 source_asset: roads
 source_damage: blocked
 source_location: None
@@ -2503,7 +2567,7 @@ target_asset: public transport
 target_damage: disruption
 
 TEXT: Because the power line was destroyed, the water supply in Bad Neuenahr failed.
-CI_DAMAGES: ci_asset="power line", location="Bad Neuenahr", damage="structural_damage"
+CI_DAMAGES: ci_asset="power line", damage="structural_damage", ci_asset_2=None, damage_2=None, location="Bad Neuenahr"
 source_asset: power line
 source_damage: destroyed
 source_location: Bad Neuenahr
@@ -2668,7 +2732,7 @@ EXAMPLES
 ------------------------------------------------------------
 
 TEXT: Thousands of people were left without water and electricity in Mayschloss.
-CI_DAMAGES: ci_asset="water", location="Mayschloss", damage="left without"
+CI_DAMAGES: ci_asset=None, damage=None, ci_asset_2="water", damage_2="service_loss", location="Mayschloss"
 source_asset: water
 source_location: Mayschloss
 impact_origin: loss_of_critical_service_or_inaccessibility
@@ -2678,7 +2742,7 @@ unit: people
 
 
 TEXT: Similar to Germany, severe damage had been observed to the gas network. In the villages around Liége, such as Chaudfontaine and Pepinster (Belgium), gas supply was fully recovered within 5 months (Grosjean, 2021; De Wolf, 2021) with cost reaching more than 5 million Euros. In the Netherlands, 1000-2000 households experienced a loss of electricity supply at the peak of the event. Between 100 to 200 households had no gas supply. Within several days, electricity supply was restored (Task Force Fact Finding Hoogwater, 2021).
-CI_DAMAGES: ci_asset="electricity supply", location="Netherlands", damage="loss of"
+CI_DAMAGES: ci_asset=None, damage=None, ci_asset_2="electricity supply", damage_2="service_loss", location="Netherlands"
 source_asset: electricity supply
 source_location: Netherlands
 impact_origin: loss_of_critical_service_or_inaccessibility
@@ -2688,7 +2752,7 @@ unit: households
 
 
 TEXT: After the dike break, around 2,000 residents of Grimma had to be evacuated.
-CI_DAMAGES: ci_asset="dike", location="Grimma", damage="dike break(s)"
+CI_DAMAGES: ci_asset="dike", damage="structural_damage", ci_asset_2=None, damage_2=None, location="Grimma"
 source_asset: dike
 source_location: Grimma
 impact_origin: evacuation_or_displacement
@@ -2851,7 +2915,7 @@ EXAMPLES
 ------------------------------------------------------------
 
 TEXT: The flooding of the industrial plant led to pollutions of the downstream river.
-CI_DAMAGES: ci_asset="industrial plant", location=None, damage="inundation"
+CI_DAMAGES: ci_asset="industrial plant", damage="inundation", ci_asset_2=None, damage_2=None, location=None
 source_asset: industrial plant
 source_location: None
 impact_origin: environmental_impact
@@ -2861,7 +2925,7 @@ unit: None
 
 
 TEXT: After the dike break near Fischbeck, around 150 square kilometres of land were inundated.
-CI_DAMAGES: ci_asset="dike", location="Fischbeck", damage="structural_damage"
+CI_DAMAGES: ci_asset="dike", damage="structural_damage", ci_asset_2=None, damage_2=None, location="Fischbeck"
 source_asset: dike
 source_location: Fischbeck
 impact_origin: environmental_impact
@@ -2871,7 +2935,7 @@ unit: square kilometres
 
 
 TEXT: Debris of the destroyed bridges in the Ahr valley was washed into the river.
-CI_DAMAGES: ci_asset="bridges", location="Ahr valley", damage="structural_damage"
+CI_DAMAGES: ci_asset="bridges", damage="structural_damage", ci_asset_2=None, damage_2=None, location="Ahr valley"
 source_asset: bridges
 source_location: Ahr valley
 impact_origin: environmental_impact
@@ -2922,115 +2986,116 @@ def extract_environmental_impacts(state: GraphState) -> GraphState:
         return {"environmental_impacts": None}
 
 
-tertiary_impact_prompt = ChatPromptTemplate.from_messages([
-    (
-        "system", """
-You are a tertiary-impact extraction agent.
+# NOTE tertiary impacts are not extracted at the moment, uncomment to re-activate
+# tertiary_impact_prompt = ChatPromptTemplate.from_messages([
+#     (
+#         "system", """
+# You are a tertiary-impact extraction agent.
 
-Your task is to identify ALL tertiary impacts mentioned in the TEXT. A tertiary impact is caused by a SECONDARY impact, which itself is caused by the damage, destruction, failure, or disruption of the infrastructure described in CI_DAMAGES:
+# Your task is to identify ALL tertiary impacts mentioned in the TEXT. A tertiary impact is caused by a SECONDARY impact, which itself is caused by the damage, destruction, failure, or disruption of the infrastructure described in CI_DAMAGES:
 
-damaged infrastructure (CI_DAMAGES) -> secondary impact -> tertiary impact
-e.g. flooded chemical plant -> pollution of the river -> residents affected
+# damaged infrastructure (CI_DAMAGES) -> secondary impact -> tertiary impact
+# e.g. flooded chemical plant -> pollution of the river -> residents affected
 
-Do NOT verify, modify, or reinterpret the infrastructure extraction in CI_DAMAGES.
-
-
-------------------------------------------------------------
-IMPORTANT RULES
-------------------------------------------------------------
-
-1. Only extract a tertiary impact when the TEXT explicitly states BOTH the secondary impact and the tertiary impact caused by it.
-
-2. Do NOT extract impacts caused directly by the infrastructure damage (these are secondary impacts). For example: "The flooded substation caused a power outage." is a secondary impact, NOT a tertiary impact.
-   However: "The flooded substation caused a power outage, which shut down the water pumping stations." contains the tertiary impact "water pumping stations".
-
-3. secondary_impact: short description of the secondary impact in the wording of the TEXT, e.g. "pollution of the river", "power outage", "road closures".
-
-4. tertiary_impact_origin: use ONLY one of these categories:
-   - economic consequences: repair_recovery_cost, downstream_economic_consequence, other_costs_or_losses
-   - consequences for people, households or communities: evacuation_or_displacement, loss_of_critical_service_or_inaccessibility, disruption_of_mobility, other_affected_population
-   - consequences for the natural environment: environmental_impact
-   - other affected infrastructure assets or services: the infrastructure sector of the affected asset, one of: """ + ", ".join(CI_SECTORS) + """
-   - other_tertiary_impact: any other explicitly reported tertiary impact
-
-5. Extract multiple tertiary impacts separately when multiple impacts are mentioned.
-
-6. Only extract impacts explicitly stated or clearly described in the TEXT. Do NOT invent impact chains or consequences.
-
-7. The source_asset MUST correspond to an infrastructure asset in CI_DAMAGES. The source_location MUST correspond to the location associated with that infrastructure in CI_DAMAGES.
-
-8. Return an empty list when no tertiary impact is explicitly mentioned.
+# Do NOT verify, modify, or reinterpret the infrastructure extraction in CI_DAMAGES.
 
 
-The objective is HIGH PRECISION while remaining fully grounded in the TEXT.
+# ------------------------------------------------------------
+# IMPORTANT RULES
+# ------------------------------------------------------------
+
+# 1. Only extract a tertiary impact when the TEXT explicitly states BOTH the secondary impact and the tertiary impact caused by it.
+
+# 2. Do NOT extract impacts caused directly by the infrastructure damage (these are secondary impacts). For example: "The flooded substation caused a power outage." is a secondary impact, NOT a tertiary impact.
+#    However: "The flooded substation caused a power outage, which shut down the water pumping stations." contains the tertiary impact "water pumping stations".
+
+# 3. secondary_impact: short description of the secondary impact in the wording of the TEXT, e.g. "pollution of the river", "power outage", "road closures".
+
+# 4. tertiary_impact_origin: use ONLY one of these categories:
+#    - economic consequences: repair_recovery_cost, downstream_economic_consequence, other_costs_or_losses
+#    - consequences for people, households or communities: evacuation_or_displacement, loss_of_critical_service_or_inaccessibility, disruption_of_mobility, other_affected_population
+#    - consequences for the natural environment: environmental_impact
+#    - other affected infrastructure assets or services: the infrastructure sector of the affected asset, one of: """ + ", ".join(CI_SECTORS) + """
+#    - other_tertiary_impact: any other explicitly reported tertiary impact
+
+# 5. Extract multiple tertiary impacts separately when multiple impacts are mentioned.
+
+# 6. Only extract impacts explicitly stated or clearly described in the TEXT. Do NOT invent impact chains or consequences.
+
+# 7. The source_asset MUST correspond to an infrastructure asset in CI_DAMAGES. The source_location MUST correspond to the location associated with that infrastructure in CI_DAMAGES.
+
+# 8. Return an empty list when no tertiary impact is explicitly mentioned.
 
 
-------------------------------------------------------------
-EXAMPLES
-------------------------------------------------------------
-
-TEXT: The flooded chemical plant in Leverkusen released chemicals into the Rhine, and around 5,000 residents along the river were advised to stay indoors.
-CI_DAMAGES: ci_asset="chemical plant", location="Leverkusen", damage="inundation"
-source_asset: chemical plant
-source_location: Leverkusen
-secondary_impact: chemicals released into the Rhine
-tertiary_impact_origin: other_affected_population
+# The objective is HIGH PRECISION while remaining fully grounded in the TEXT.
 
 
-TEXT: The failure of the substation in Erftstadt caused a power outage, which shut down the water pumping stations.
-CI_DAMAGES: ci_asset="substation", location="Erftstadt", damage="service_loss"
-source_asset: substation
-source_location: Erftstadt
-secondary_impact: power outage
-tertiary_impact_origin: Water
+# ------------------------------------------------------------
+# EXAMPLES
+# ------------------------------------------------------------
+
+# TEXT: The flooded chemical plant in Leverkusen released chemicals into the Rhine, and around 5,000 residents along the river were advised to stay indoors.
+# CI_DAMAGES: ci_asset="chemical plant", location="Leverkusen", damage="inundation"
+# source_asset: chemical plant
+# source_location: Leverkusen
+# secondary_impact: chemicals released into the Rhine
+# tertiary_impact_origin: other_affected_population
 
 
-TEXT: After the main bridge collapsed, the access roads to the town centre were closed and local shops lost about €2 million in revenue.
-CI_DAMAGES: ci_asset="main bridge", location=None, damage="structural_damage"
-source_asset: main bridge
-source_location: None
-secondary_impact: closure of the access roads
-tertiary_impact_origin: downstream_economic_consequence
+# TEXT: The failure of the substation in Erftstadt caused a power outage, which shut down the water pumping stations.
+# CI_DAMAGES: ci_asset="substation", location="Erftstadt", damage="service_loss"
+# source_asset: substation
+# source_location: Erftstadt
+# secondary_impact: power outage
+# tertiary_impact_origin: Water
 
 
-Now extract all tertiary impacts for each infrastructure case.
-TEXT: {text}
-CI_DAMAGES: {ci_damages}
-source_asset: <your_response>
-source_location: <your_response>
-secondary_impact: <your_response>
-tertiary_impact_origin: <your_response>
-
-"""
-    ),
-    (
-        "human",
-        """
-TEXT: {text}
-CI_DAMAGES: {ci_damages}
-"""
-    )
-])
+# TEXT: After the main bridge collapsed, the access roads to the town centre were closed and local shops lost about €2 million in revenue.
+# CI_DAMAGES: ci_asset="main bridge", location=None, damage="structural_damage"
+# source_asset: main bridge
+# source_location: None
+# secondary_impact: closure of the access roads
+# tertiary_impact_origin: downstream_economic_consequence
 
 
-def extract_tertiary_impacts(state: GraphState) -> GraphState:
+# Now extract all tertiary impacts for each infrastructure case.
+# TEXT: {text}
+# CI_DAMAGES: {ci_damages}
+# source_asset: <your_response>
+# source_location: <your_response>
+# secondary_impact: <your_response>
+# tertiary_impact_origin: <your_response>
 
-    class TertiaryImpacts(BaseModel):
-        impacts: List[TertiaryImpact]  # any number: empty if none is mentioned, several per asset possible (matched by source_asset)
+# """
+#     ),
+#     (
+#         "human",
+#         """
+# TEXT: {text}
+# CI_DAMAGES: {ci_damages}
+# """
+#     )
+# ])
 
-    llm_structured = structured_llm(TertiaryImpacts)
 
-    result = llm_structured.invoke([
-            HumanMessage(content=tertiary_impact_prompt.format(
-                text=state["text"],
-                ci_damages=state["ci_damages"],
-        ))])
+# def extract_tertiary_impacts(state: GraphState) -> GraphState:
 
-    try:
-        print("tertiary_impacts", result )
-        return {"tertiary_impacts": result.impacts }
-    except:
-        return {"tertiary_impacts": None}
+#     class TertiaryImpacts(BaseModel):
+#         impacts: List[TertiaryImpact]  # any number: empty if none is mentioned, several per asset possible (matched by source_asset)
+
+#     llm_structured = structured_llm(TertiaryImpacts)
+
+#     result = llm_structured.invoke([
+#             HumanMessage(content=tertiary_impact_prompt.format(
+#                 text=state["text"],
+#                 ci_damages=state["ci_damages"],
+#         ))])
+
+#     try:
+#         print("tertiary_impacts", result )
+#         return {"tertiary_impacts": result.impacts }
+#     except:
+#         return {"tertiary_impacts": None}
 
 
 # %%
@@ -3067,13 +3132,14 @@ def route_cascading_impacts(state: GraphState):
                 "ci_damages": state["infrastructure_cases"].cases,
             }
         ),
-        Send(
-            "tertiary_impacts",
-            {
-                "text": state["text"],
-                "ci_damages": state["infrastructure_cases"].cases,
-            }
-        ),
+        # NOTE tertiary impacts are not extracted at the moment
+        # Send(
+        #     "tertiary_impacts",
+        #     {
+        #         "text": state["text"],
+        #         "ci_damages": state["infrastructure_cases"].cases,
+        #     }
+        # ),
     ]
 
 # %% [markdown]
@@ -3095,7 +3161,7 @@ builder.add_node("economic_impacts",    extract_economic_impacts)
 builder.add_node( "societal_impacts", extract_societal_impacts)
 builder.add_node( "secondary_infrastructure_impacts", extract_infrastructure_impacts)
 builder.add_node( "environmental_impacts", extract_environmental_impacts)
-builder.add_node( "tertiary_impacts", extract_tertiary_impacts)
+# builder.add_node( "tertiary_impacts", extract_tertiary_impacts)  # NOTE tertiary impacts are not extracted at the moment
 
 # Set arcs
 builder.set_entry_point("is_infrastructure_case")
@@ -3245,7 +3311,7 @@ def impacts_to_dataframe(data):
     societal_impacts = data.get("societal_impacts", []) or []
     infrastructure_impacts = data.get("secondary_infrastructure_impacts", [])  or []
     environmental_impacts = data.get("environmental_impacts", []) or []
-    tertiary_impacts = data.get("tertiary_impacts", []) or []
+    # tertiary_impacts = data.get("tertiary_impacts", []) or []  # NOTE tertiary impacts are not extracted at the moment
 
     # Create base dataframe
     df = pd.DataFrame([case.model_dump() for case in infrastructure_cases.cases])
@@ -3258,6 +3324,7 @@ def impacts_to_dataframe(data):
         df["ci_asset"]
         .apply(normalize_asset)
     )
+    df["_asset_2_normalized"] = df["ci_asset_2"].apply(normalize_asset)
 
     # Initialize output columns
     df["economic_impact_type"] = ""
@@ -3278,8 +3345,9 @@ def impacts_to_dataframe(data):
     df["secondary_infrastructure_asset"] = ""
     # df["secondary_infrastructure_impact_type"] = ""
 
-    df["tertiary_impact_cause"] = ""   # secondary impact causing the tertiary impact
-    df["tertiary_impact_origin"] = ""
+    # NOTE tertiary impacts are not extracted at the moment
+    # df["tertiary_impact_cause"] = ""   # secondary impact causing the tertiary impact
+    # df["tertiary_impact_origin"] = ""
 
     # ECONOMIC IMPACTS
     for impact in economic_impacts:
@@ -3291,9 +3359,10 @@ def impacts_to_dataframe(data):
         if not source_asset:
             continue
 
+        # match by the first or the second infrastructure type of the case (ci_asset, ci_asset_2)
         matches = (
-            df["_asset_normalized"]
-            == source_asset
+            (df["_asset_normalized"] == source_asset)
+            | (df["_asset_2_normalized"] == source_asset)
         )
 
         if not matches.any():
@@ -3346,9 +3415,10 @@ def impacts_to_dataframe(data):
         impact_amount = impact.amount
         impact_unit = impact.unit
 
+        # match by the first or the second infrastructure type of the case (ci_asset, ci_asset_2)
         matches = (
-            df["_asset_normalized"]
-            == source_asset
+            (df["_asset_normalized"] == source_asset)
+            | (df["_asset_2_normalized"] == source_asset)
         )
 
         for idx in df.index[matches]:
@@ -3385,9 +3455,10 @@ def impacts_to_dataframe(data):
         if not source_asset:
             continue
 
+        # match by the first or the second infrastructure type of the case (ci_asset, ci_asset_2)
         matches = (
-            df["_asset_normalized"]
-            == source_asset
+            (df["_asset_normalized"] == source_asset)
+            | (df["_asset_2_normalized"] == source_asset)
         )
 
         for idx in df.index[matches]:
@@ -3426,9 +3497,10 @@ def impacts_to_dataframe(data):
         impact_target_asset = impact.target_asset
         
     
+        # match by the first or the second infrastructure type of the case (ci_asset, ci_asset_2)
         matches = (
-            df["_asset_normalized"]
-            == source_asset
+            (df["_asset_normalized"] == source_asset)
+            | (df["_asset_2_normalized"] == source_asset)
         )
 
         for idx in df.index[matches]:
@@ -3449,37 +3521,38 @@ def impacts_to_dataframe(data):
                     impact_target_asset
             ))
 
-    # TERTIARY IMPACTS
-    for impact in tertiary_impacts:
+    # NOTE tertiary impacts are not extracted at the moment
+#     # TERTIARY IMPACTS
+#     for impact in tertiary_impacts:
 
-        source_asset = normalize_asset(
-            impact.source_asset
-        )
+#         source_asset = normalize_asset(
+#             impact.source_asset
+#         )
 
-        if not source_asset:
-            continue
+#         if not source_asset:
+#             continue
 
-        matches = (
-            df["_asset_normalized"]
-            == source_asset
-        )
+#         matches = (
+#             df["_asset_normalized"]
+#             == source_asset
+#         )
 
-        for idx in df.index[matches]:
+#         for idx in df.index[matches]:
 
-            df.at[idx, "tertiary_impact_cause"] = (
-                append_value(
-                    df.at[idx, "tertiary_impact_cause"],
-                    impact.secondary_impact
-            ))
-            df.at[idx, "tertiary_impact_origin"] = (
-                append_value(
-                    df.at[idx, "tertiary_impact_origin"],
-                    impact.tertiary_impact_origin
-            ))
+#             df.at[idx, "tertiary_impact_cause"] = (
+#                 append_value(
+#                     df.at[idx, "tertiary_impact_cause"],
+#                     impact.secondary_impact
+#             ))
+#             df.at[idx, "tertiary_impact_origin"] = (
+#                 append_value(
+#                     df.at[idx, "tertiary_impact_origin"],
+#                     impact.tertiary_impact_origin
+#             ))
 
     # Remove helper column
     df = df.drop(
-        columns="_asset_normalized"
+        columns=["_asset_normalized", "_asset_2_normalized"]
     )
 
     return df
@@ -3617,6 +3690,8 @@ judge_field_schema = {
     "infrastructure_name": (InfrastructureCase, "ci_asset_name"),
     "location": (InfrastructureCase, "location"),
     "damage": (InfrastructureCase, "damage"),
+    "infrastructure_type_2": (InfrastructureCase, "ci_asset_2"),
+    "damage_2": (InfrastructureCase, "damage_2"),
     "economic_impact_origin": (EconomicImpact, "impact_origin"),
     "economic_impact_type": (EconomicImpact, "impact_type"),
     "economic_impact_amount": (EconomicImpact, "amount"),
@@ -3630,8 +3705,8 @@ judge_field_schema = {
     "environmental_impact_amount": (EnvironmentalImpact, "amount"),
     "environmental_impact_unit": (EnvironmentalImpact, "unit"),
     "secondary_infrastructure_asset": (SecondaryInfrastructureImpact, "target_asset"),
-    "tertiary_impact_cause": (TertiaryImpact, "secondary_impact"),
-    "tertiary_impact_origin": (TertiaryImpact, "tertiary_impact_origin"),
+    # "tertiary_impact_cause": (TertiaryImpact, "secondary_impact"),  # NOTE tertiary impacts are not extracted at the moment
+    # "tertiary_impact_origin": (TertiaryImpact, "tertiary_impact_origin"),
 }
 # record fields the judge checks and may adapt (metadata like chunk_text, citation_id, coords are not judged)
 judge_fields = list(judge_field_schema)
@@ -3646,6 +3721,9 @@ judge_allowed_values = {
     for column, (model, name) in judge_field_schema.items()
     if lj.literal_values(model.model_fields[name].annotation)
 }
+# damage/damage_2 are free text in the schema (several categories): tier 1 only physical damages, tier 2 only service effects
+judge_allowed_values["damage"] = pp.DAMAGE_CATEGORIES_TIER1
+judge_allowed_values["damage_2"] = pp.DAMAGE_CATEGORIES_TIER2
 
 # location rules: the same "IMPORTANT" points about locations as in the prompt of LLM 1 (asset_information_prompt)
 location_rules = [
@@ -3673,8 +3751,20 @@ judge_extra_rules = {
         *location_rules,
     ],
     "damage": [
-        "Use the damage category whose definition matches the damage the TEXT reports for this infrastructure. If several categories apply, use the most severe one (the first one in the definition).",
-        "Use null if no damage or disruption is explicitly stated for this infrastructure.",
+        "Tier 1: only PHYSICAL damage categories of the infrastructure asset (infrastructure_type), never service effects (these belong to damage_2).",
+        "Use the damage categories whose definitions match the physical damage the TEXT reports for this infrastructure. If several apply, give all of them comma-separated in order of mention (e.g. 'inundation, structural_damage'), do not rank them.",
+        "Use null if no physical damage is explicitly stated for this infrastructure.",
+    ],
+    "infrastructure_type_2": [
+        "Tier 2: only the infrastructure SERVICE whose operability is impacted without a physical damage (damage_2), e.g. the service impaired by the damage of infrastructure_type "
+        "(TEXT: 'water supply was disrupted due to contamination of drinking water' -> infrastructure_type: 'drinking water', infrastructure_type_2: 'water supply'), "
+        "or the asset itself when it is closed or out of service (TEXT: 'The A1 was covered by debris and closed' -> infrastructure_type: 'A1', infrastructure_type_2: 'A1').",
+        "Use null if the TEXT states no service effect.",
+        "Use the INFRASTRUCTURE ENTITIES DETECTED BY NER as guidance and keep their phrasing, as LLM 1 had to. Never invent infrastructure.",
+    ],
+    "damage_2": [
+        "Tier 2: only SERVICE effect categories of infrastructure_type_2, never physical damages (these belong to damage).",
+        "If several apply, give all of them comma-separated in order of mention, do not rank them. Use null if the TEXT states no service effect.",
     ],
     "economic_impact_origin": [
         "Only use the allowed keywords (several keywords comma-separated if the record lists several economic impacts).",
@@ -3692,13 +3782,14 @@ judge_extra_rules = {
         "Must be a different infrastructure than infrastructure_type, affected as a consequence of the damage of infrastructure_type.",
         "Use the INFRASTRUCTURE ENTITIES DETECTED BY NER as guidance and keep their phrasing, as LLM 1 had to. Never invent infrastructure.",
     ],
-    "tertiary_impact_cause": [
-        "Must be a consequence of the damage of infrastructure_type AND the cause of the tertiary impact, never the damage of infrastructure_type itself. Use null if the TEXT states no such chain.",
-    ],
-    "tertiary_impact_origin": [
-        "Only use the allowed keywords (several keywords comma-separated if the record lists several tertiary impacts).",
-        "For an affected infrastructure asset or service use its infrastructure sector.",
-    ],
+    # NOTE tertiary impacts are not extracted at the moment
+    # "tertiary_impact_cause": [
+    #     "Must be a consequence of the damage of infrastructure_type AND the cause of the tertiary impact, never the damage of infrastructure_type itself. Use null if the TEXT states no such chain.",
+    # ],
+    # "tertiary_impact_origin": [
+    #     "Only use the allowed keywords (several keywords comma-separated if the record lists several tertiary impacts).",
+    #     "For an affected infrastructure asset or service use its infrastructure sector.",
+    # ],
 }
 
 
@@ -3731,7 +3822,7 @@ Rules:
 - Judge EVERY record. Never remove, merge, split or add records. Return exactly one judgement per record_id.
 - Choose one verdict per record:
   - "correct": all fields of the record are supported by the TEXT and follow the FIELD RULES. A field that is null is fine when the TEXT does not state this information.
-  - "adapted": the TEXT states that the infrastructure (infrastructure_type) of the record is affected, but one or more fields are wrong, incomplete, missing,
+  - "adapted": the TEXT states that the infrastructure (infrastructure_type and/or infrastructure_type_2) of the record is affected, but one or more fields are wrong, incomplete, missing,
     or do not follow the FIELD RULES (e.g. a location that is less detailed than stated in the TEXT, a damage that is not one of the allowed keywords).
     Correct ONLY these fields and give them in "adapted_fields". Use the wording of the TEXT (same spelling). Set a field to null if its value is not stated in the TEXT.
     A wrong location, damage or amount is a reason to adapt the record, NOT to mark it as false.
@@ -4165,7 +4256,7 @@ for file_no, filename in enumerate(search_path):
             df_resp = impacts_to_dataframe(result).replace("; ", ", ", regex=True)
             df_resp["has_cascading_impacts"] = result.get("has_cascading_impacts", []).has_cascading_impacts
             df_resp["assets_org"] = result.get("assets_org", []).cases  # backup to see if assets/loc/dam where modified in CascaImpactExtraction
-            df_resp.rename(columns={"ci_asset": "infrastructure_type", "ci_asset_amount": "infrastructure_amount", "ci_asset_name": "infrastructure_name"},  inplace=True)
+            df_resp.rename(columns={"ci_asset": "infrastructure_type", "ci_asset_2": "infrastructure_type_2", "ci_asset_amount": "infrastructure_amount", "ci_asset_name": "infrastructure_name"},  inplace=True)
 
             # df_resp = pd.DataFrame({"infrastructure_type":k.ci_asset, "location":k.location, "damage":k.damage} for k in result["infrastructure_cases"].cases)
 
@@ -4200,7 +4291,7 @@ for file_no, filename in enumerate(search_path):
                 df_resp = impacts_to_dataframe(result).replace("; ", ", ", regex=True)    
                 df_resp["has_cascading_impacts"] = result.get("has_cascading_impacts", []).has_cascading_impacts          
                 df_resp["assets_org"] = result.get("assets_org", []).cases  # backup to see if assets/loc/dam where modified in CascaImpactExtraction
-                df_resp.rename(columns={"ci_asset": "infrastructure_type", "ci_asset_amount": "infrastructure_amount", "ci_asset_name": "infrastructure_name"},  inplace=True)
+                df_resp.rename(columns={"ci_asset": "infrastructure_type", "ci_asset_2": "infrastructure_type_2", "ci_asset_amount": "infrastructure_amount", "ci_asset_name": "infrastructure_name"},  inplace=True)
             
             except Exception as e:
                 print(f"! Could not call model going to next chunk: {e}")
@@ -4290,22 +4381,27 @@ for file_no, filename in enumerate(search_path):
         
 
         ## group Ci types into subgroups, 
-        if df_resp_ci_loc_dam["infrastructure_type"].isna().all() or df_resp_ci_loc_dam["location"].isna().all():
+        # NOTE service-only cases (tier 2) have no infrastructure_type (tier 1), but an infrastructure_type_2
+        if (df_resp_ci_loc_dam["infrastructure_type"].isna().all() and df_resp_ci_loc_dam["infrastructure_type_2"].isna().all()) or df_resp_ci_loc_dam["location"].isna().all():
             print("No infrastructure types or locations extracted for this chunk, skip grouping into subgroups. Go to next chunk")
-            print(df_resp_ci_loc_dam[["infrastructure_type", "location", "chunk_text"]])
+            print(df_resp_ci_loc_dam[["infrastructure_type", "infrastructure_type_2", "location", "chunk_text"]])
             continue
         
         df_resp_ci_loc_dam["infrastructure_type"] = df_resp_ci_loc_dam["infrastructure_type"].replace(r"[\(\),]", "", regex=True)   # clean up CI from brackets and commas
+        df_resp_ci_loc_dam["infrastructure_type_2"] = df_resp_ci_loc_dam["infrastructure_type_2"].replace(r"[\(\),]", "", regex=True)
         
         # split multiple CI entries  ("road and rail network" -> road network, rail network)
         # df_resp_ci_loc_dam = pp.split_ci_entities(df_resp_ci_loc_dam, columns=["infrastructure_type"])
         
         # CI GROUPS
-        if "infrastructure_group" in df_resp.columns:
-            df_resp_ci_loc_dam = pp.group_ci_types(df_resp, "infrastructure_type", "infrastructure_group", ci_patterns)
+        # grouped by the tier 1 asset, or by the tier 2 service for service-only cases (e.g. "electricity supply" without physical damage)
+        df_resp_ci_loc_dam["_ci_type_grouping"] = df_resp_ci_loc_dam["infrastructure_type"].fillna(df_resp_ci_loc_dam["infrastructure_type_2"])
+        if "infrastructure_group" in df_resp_ci_loc_dam.columns:
+            df_resp_ci_loc_dam = pp.group_ci_types(df_resp_ci_loc_dam, "_ci_type_grouping", "infrastructure_group", ci_patterns)
         else:
             df_resp_ci_loc_dam["infrastructure_group"] = None            
-            df_resp_ci_loc_dam = pp.group_ci_types(df_resp_ci_loc_dam, "infrastructure_type", "infrastructure_group", ci_patterns)
+            df_resp_ci_loc_dam = pp.group_ci_types(df_resp_ci_loc_dam, "_ci_type_grouping", "infrastructure_group", ci_patterns)
+        df_resp_ci_loc_dam = df_resp_ci_loc_dam.drop(columns="_ci_type_grouping")
         
         ## store cases which could not be grouped
         df_ci_cases_not_grouped = pd.concat([df_ci_cases_not_grouped, df_resp_ci_loc_dam[df_resp_ci_loc_dam['infrastructure_group'].isna()]], ignore_index=True)

@@ -62,31 +62,54 @@ _DAMAGE_KEYWORD_TO_CATEGORY = {
     keyword: category for category, entry in DAMAGE_CATEGORIES.items() for keyword in entry["keywords"]
 }
 
+# tiers of an infrastructure case (InfrastructureCase in extract_ciimpacts.py):
+# tier 1 (ci_asset, damage): physical damage or condition of the infrastructure asset itself
+# tier 2 (ci_asset_2, damage_2): impact on the operability of the infrastructure service, without physical damage
+# NOTE for simplicity "affected" and "restored_recovered" are always tier 1
+DAMAGE_CATEGORIES_TIER1 = ["structural_damage", "inundation", "contamination", "obstruction", "affected", "restored_recovered"]
+DAMAGE_CATEGORIES_TIER2 = ["service_loss", "disruption"]
+assert sorted(DAMAGE_CATEGORIES_TIER1 + DAMAGE_CATEGORIES_TIER2) == sorted(DAMAGE_CATEGORIES)
 
-def describe_damage_categories() -> str:
-    """Damage categories with definition and examples, one per line (e.g. for prompts and schema descriptions)."""
+
+def describe_damage_categories(categories: list | None = None) -> str:
+    """Damage categories with definition and examples, one per line (e.g. for prompts and schema descriptions),
+    only the given categories (e.g. DAMAGE_CATEGORIES_TIER1), default all."""
     return "\n".join(
         f"- {category}: {entry['definition']} (e.g. {', '.join(entry['keywords'])})"
         for category, entry in DAMAGE_CATEGORIES.items()
+        if categories is None or category in categories
     )
+
+
+def damage_categories(damage) -> list:
+    """Damage categories of the keywords in damage (separated by ',', ';', ' or ', ' and '), in order of mention,
+    without duplicates and without ranking by severity, e.g. "flooded and destroyed" -> ["inundation", "structural_damage"].
+    Unknown keywords and NaN are ignored."""
+    if damage is None or (isinstance(damage, float) and pd.isna(damage)):
+        return []
+    parts = [p.strip() for p in re.split(r",|;|\bor\b|\band\b", str(damage).strip().lower()) if p.strip()]
+    categories = [_DAMAGE_KEYWORD_TO_CATEGORY.get(p, p if p in DAMAGE_CATEGORIES else None) for p in parts]
+    return list(dict.fromkeys(c for c in categories if c))
 
 
 def map_damage_to_category(damage):
     """Map a detailed damage keyword (or several, separated by ',', ';' or ' or ') to its general damage category,
     e.g. "severely damaged" -> "structural_damage". Several keywords give the most severe category.
     Values that are already a category are returned unchanged, unknown values and NaN give None."""
-    if damage is None or (isinstance(damage, float) and pd.isna(damage)):
-        return None
-    damage = str(damage).strip().lower()
-    if damage in DAMAGE_CATEGORIES:
-        return damage
-
     # TODO FIXME not most severe category should be returned but rather the one that occurs most often, adapt also asset_information_prompt
-    parts = [p.strip() for p in re.split(r",|;|\bor\b|\band\b", damage) if p.strip()]
-    categories = {_DAMAGE_KEYWORD_TO_CATEGORY.get(p, p if p in DAMAGE_CATEGORIES else None) for p in parts} - {None}
+    categories = damage_categories(damage)
     if not categories:
         return None
     return min(categories, key=list(DAMAGE_CATEGORIES).index)  # most severe
+
+
+def split_damages_by_tier(*damages) -> tuple:
+    """Damage categories of all given damages, split into tier 1 (physical) and tier 2 (service), each comma-separated
+    in order of mention (None if empty), e.g. ("flooded, closed", "polluted") -> ("inundation, contamination", "disruption")."""
+    categories = list(dict.fromkeys(c for damage in damages for c in damage_categories(damage)))
+    tier1 = ", ".join(c for c in categories if c in DAMAGE_CATEGORIES_TIER1) or None
+    tier2 = ", ".join(c for c in categories if c in DAMAGE_CATEGORIES_TIER2) or None
+    return tier1, tier2
 
 
 def keep_ci_types(ci_list: list, ci_patterns) -> list:
