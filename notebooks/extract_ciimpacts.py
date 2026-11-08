@@ -398,7 +398,7 @@ IMPORTANT:
 - **Only for transportation infrastructure:** When the specific name of an ASSET is mentioned (e.g. Juan Avenue, intersection to Maria Statue, highway A-1, B510, Berlusconi Airport) and no location information can be found, then consider the specific name of this asset as the location. But do not use road types as location names, such as "German highway", "national road", etc.
 - **Only for transportation infrastructure:** when an ASSET refers to two or more locations then extract the locations together. For instance: text:"There is much damage on the access roads from Juan Avenue to Plaza Manuel Azaña" --> location:["from Juan Avenue to Plaza Manuel Azaña"]
 - If no location is explicitly stated for an asset, return None for "location".
-- Assign ONE general damage category ("damage") to each infrastructure entity, based on the damage, failure, or disruption the TEXT reports for it. If several categories apply, use the most severe one (the first one in the following list). Damage categories:
+- Assign the general damage category ("damage") to each infrastructure entity, based on the damage, failure, or disruption the TEXT reports for it. If several categories apply, give all of them comma-separated in order of mention, without ranking them (e.g. "inundation, disruption"). Damage categories:
 """ + pp.describe_damage_categories() + """
 - If no damage or disruption is explicitly stated for an asset, return None for "damage".
 - If no information about the number of infrastructure assets or services is explicitly stated for an infrastructure entity ("ci_asset"), return None for "ci_asset_amount".
@@ -1044,7 +1044,6 @@ def get_infrastructure_location_pairs(text:str) -> List[str] | None:
 from shapely.geometry import Point, Polygon, MultiPolygon, MultiLineString, LineString
 from pydantic_shapely import GeometryField
 from pydantic import Field, PrivateAttr, field_validator
-import typing
 
 
 
@@ -1291,18 +1290,16 @@ class EnvironmentalImpact(BaseModel):
 
 
 class SecondaryInfrastructureImpact(BaseModel):
-    source_asset: str = Field(description="Infrastructure asset that was originally damaged or disrupted.")
+    source_asset: str | None = Field(default=None, description="Infrastructure asset that was originally damaged or disrupted. None if the text states the cause of the target impact but does not name the originally damaged infrastructure (e.g. 'water supply was disrupted due to pollution').")
     source_location: str | None = Field(default=None, description="Original location of the source asset.")
-    source_damage: str | None = Field(default=None, description="Original damage or disruption affecting the source asset.")
+    source_damage: str | None = Field(default=None, description="Original damage or disruption affecting the source asset, or the stated cause if the source asset is not named.")
     target_asset: str | None = Field(default=None, description="Other infrastructure asset or infrastructure-related service affected as a consequence of the source damage.")
     # e.g. closure of 3 school days
-    target_damage: Literal[
-        None, "structural_damage", "inundation", "contamination", "service_loss", "obstruction", "disruption", "affected", "restored_recovered"
-    ] | None = Field(
+    target_damage: str | None = Field(
         default=None,
         description=(
             "General category of the resulting damage, disruption or operational effect experienced by the target infrastructure asset or service. "
-            "If several categories apply, use the most severe one (the first one in this list):\n" + pp.describe_damage_categories()
+            "If several categories apply, give all of them comma-separated in order of mention, without ranking them:\n" + pp.describe_damage_categories()
         ),
     )
     # impact_description: str = Field(description="Explicitly stated downstream impact on the infrastructure asset or service.")
@@ -1408,13 +1405,11 @@ class InfrastructureCase(BaseModel):
     #     default=None,
     #     description="Damage, failure, disruption, or operational status explicitly associated with this infrastructure asset."
     # )
-    damage: Literal[
-        None, "structural_damage", "inundation", "contamination", "service_loss", "obstruction", "disruption", "affected", "restored_recovered"
-    ] | None = Field(
+    damage: str | None = Field(
         default=None,
         description=(
             "General category of the damage, failure, disruption, or operational status explicitly associated with this infrastructure asset. "
-            "If several categories apply, use the most severe one (the first one in this list):\n" + pp.describe_damage_categories()
+            "If several categories apply, give all of them comma-separated in order of mention, without ranking them:\n" + pp.describe_damage_categories()
         ),
     )
 
@@ -1422,9 +1417,7 @@ class InfrastructureCase(BaseModel):
     _map_damage = field_validator("damage", mode="before")(lambda v: pp.map_damage_to_category(v))
 
    
-# damage categories of the schema must be the same as in src/postprocess.py (DAMAGE_CATEGORIES)
-assert [c for c in typing.get_args(typing.get_args(InfrastructureCase.model_fields["damage"].annotation)[0]) if c] == list(pp.DAMAGE_CATEGORIES)
-assert [c for c in typing.get_args(typing.get_args(SecondaryInfrastructureImpact.model_fields["target_damage"].annotation)[0]) if c] == list(pp.DAMAGE_CATEGORIES)
+# NOTE damage and target_damage are free text (several categories), restricted to pp.DAMAGE_CATEGORIES by pp.map_damage_to_category
 
 
 class InfrastructureCases(BaseModel):
@@ -2396,7 +2389,7 @@ For every explicitly reported secondary infrastructure impact, extract:
    IMPORTANT: This must be different from source_asset.
 
 5. target_damage: The general damage category of the resulting condition or operational effect experienced by the affected asset or service (target_asset).
-   Use exactly one of the following categories. If several categories apply, use the most severe one (the first one in the list):
+   Use only the following categories. If several categories apply, give all of them comma-separated in order of mention, without ranking them (e.g. "disruption, service_loss"):
 """ + pp.describe_damage_categories() + """
 
 ----------------------------------------
@@ -2452,6 +2445,18 @@ NO CASCADING IMPACT
 If the text explicitly states that there is no cascading impact, do not create a secondary infrastructure impact.
 
 Return an empty list when no secondary infrastructure impact is explicitly reported.
+
+----------------------------------------
+SOURCE INFRASTRUCTURE NOT NAMED
+----------------------------------------
+
+Sometimes the TEXT reports an impact on an infrastructure asset or service and states a damage as its cause, but does not name the infrastructure that was originally damaged.
+In that case return source_asset = None, put the stated cause into source_damage and the affected infrastructure into target_asset. Never invent or guess a source_asset.
+
+Do NOT use source_asset = None when:
+- the TEXT names the source infrastructure
+- the only stated cause is the natural hazard itself (e.g. "roads were closed due to the flood")
+- the TEXT states no cause at all
 
 ----------------------------------------
 MULTIPLE IMPACTS
@@ -2511,6 +2516,14 @@ source_damage: destroyed
 source_location: Bad Neuenahr
 target_asset: water supply
 target_damage: service_loss
+
+TEXT: In UK water supply was disrupted (mainly due to contamination).
+CI_DAMAGES: ci_asset="water supply", location="Belgium", damage="disruption"
+source_asset: None
+source_damage: contaminated
+source_location: UK
+target_asset: water supply
+target_damage: disruption
 
 
 Now extract ALL secondary infrastructure impacts for the infrastructure cases mentioned in the text.
@@ -3280,6 +3293,7 @@ def impacts_to_dataframe(data):
     df["environmental_impact_unit"] = ""
 
     df["secondary_infrastructure_asset"] = ""
+    df["secondary_infrastructure_damage"] = ""
     # df["secondary_infrastructure_impact_type"] = ""
 
     # NOTE tertiary impacts are not extracted at the moment
@@ -3453,6 +3467,52 @@ def impacts_to_dataframe(data):
                     df.at[idx, "secondary_infrastructure_asset"],
                     impact_target_asset
             ))
+            df.at[idx, "secondary_infrastructure_damage"] = (
+                append_value(
+                    df.at[idx, "secondary_infrastructure_damage"],
+                    impact.target_damage
+            ))
+
+    # SECONDARY INFRASTRUCTURE IMPACTS WITH AN UNNAMED SOURCE
+    # e.g. "water supply was disrupted (mainly due to pollution)": only the consequence is named,
+    # so the record has no ci_asset (source), the stated cause as damage and the affected infrastructure as target
+    new_rows = []
+    seen_targets = set()
+    for impact in infrastructure_impacts:
+
+        target_asset = normalize_asset(impact.target_asset)
+        target_key = (target_asset, impact.source_location)
+
+        if normalize_asset(impact.source_asset) or not target_asset or target_key in seen_targets:
+            continue
+        seen_targets.add(target_key)
+
+        source_damage = pp.map_damage_to_category(impact.source_damage)
+
+        # the direct case of the target becomes this record, otherwise the same impact would be counted twice
+        # (not when that case is itself the named source of another cascade)
+        matches = (df["_asset_normalized"] == target_asset) & (df["secondary_infrastructure_asset"] == "")
+        same_location = matches & (df["location"] == impact.source_location)
+        if same_location.any():
+            matches = same_location
+
+        if matches.any():
+            df.loc[matches, "ci_asset"] = None
+            df.loc[matches, "damage"] = source_damage
+            df.loc[matches, "_asset_normalized"] = ""
+            df.loc[matches, "secondary_infrastructure_asset"] = impact.target_asset
+            df.loc[matches, "secondary_infrastructure_damage"] = impact.target_damage
+        else:
+            new_rows.append({
+                "ci_asset": None,
+                "damage": source_damage,
+                "location": impact.source_location,
+                "secondary_infrastructure_asset": impact.target_asset,
+                "secondary_infrastructure_damage": impact.target_damage,
+            })
+
+    if new_rows:
+        df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
 
     # NOTE tertiary impacts are not extracted at the moment
 #     # TERTIARY IMPACTS
@@ -3636,6 +3696,7 @@ judge_field_schema = {
     "environmental_impact_amount": (EnvironmentalImpact, "amount"),
     "environmental_impact_unit": (EnvironmentalImpact, "unit"),
     "secondary_infrastructure_asset": (SecondaryInfrastructureImpact, "target_asset"),
+    "secondary_infrastructure_damage": (SecondaryInfrastructureImpact, "target_damage"),
     # "tertiary_impact_cause": (TertiaryImpact, "secondary_impact"),  # NOTE tertiary impacts are not extracted at the moment
     # "tertiary_impact_origin": (TertiaryImpact, "tertiary_impact_origin"),
 }
@@ -3652,6 +3713,9 @@ judge_allowed_values = {
     for column, (model, name) in judge_field_schema.items()
     if lj.literal_values(model.model_fields[name].annotation)
 }
+# free text in the schema (several categories), the judge may only use the damage categories
+judge_allowed_values["damage"] = list(pp.DAMAGE_CATEGORIES)
+judge_allowed_values["secondary_infrastructure_damage"] = list(pp.DAMAGE_CATEGORIES)
 
 # location rules: the same "IMPORTANT" points about locations as in the prompt of LLM 1 (asset_information_prompt)
 location_rules = [
@@ -3667,6 +3731,7 @@ judge_extra_rules = {
         "Use the INFRASTRUCTURE ENTITIES DETECTED BY NER as guidance and keep their phrasing, as LLM 1 had to.",
         "Adapt it only if the TEXT does not support it; then use the phrasing of the matching NER entity or of the TEXT. Never invent infrastructure.",
         "Do not add articles, quantifiers or numbers (e.g. 'the', 'several', 'two') from the NER entities; numbers belong to infrastructure_amount.",
+        "null is correct if secondary_infrastructure_asset is set and the TEXT does not name the originally damaged infrastructure (e.g. 'water supply was disrupted due to pollution'). Do not fill it with secondary_infrastructure_asset or a guessed infrastructure.",
     ],
     "infrastructure_amount": [
         "Number of affected assets of this infrastructure_type explicitly reported in the TEXT. Preserve the original wording (e.g. 'more than 68'). Do not calculate or infer values. Use null if no number is stated.",
@@ -3679,7 +3744,7 @@ judge_extra_rules = {
         *location_rules,
     ],
     "damage": [
-        "Use the damage category whose definition matches the damage the TEXT reports for this infrastructure. If several categories apply, use the most severe one (the first one in the definition).",
+        "Use the damage category whose definition matches the damage the TEXT reports for this infrastructure. If several categories apply, give all of them comma-separated in order of mention, without ranking them.",
         "Use null if no damage or disruption is explicitly stated for this infrastructure.",
     ],
     "economic_impact_origin": [
@@ -3695,8 +3760,12 @@ judge_extra_rules = {
     ],
     "environmental_impact_amount": ["Preserve the original wording of the TEXT. Do not calculate or infer values."],
     "secondary_infrastructure_asset": [
-        "Must be a different infrastructure than infrastructure_type, affected as a consequence of the damage of infrastructure_type.",
+        "Must be a different infrastructure than infrastructure_type, affected as a consequence of the damage of infrastructure_type. If infrastructure_type is null, it is the infrastructure affected as a consequence of the stated cause (field damage).",
         "Use the INFRASTRUCTURE ENTITIES DETECTED BY NER as guidance and keep their phrasing, as LLM 1 had to. Never invent infrastructure.",
+    ],
+    "secondary_infrastructure_damage": [
+        "Use the damage category whose definition matches the effect the TEXT reports for secondary_infrastructure_asset. If several categories apply, give all of them comma-separated in order of mention, without ranking them.",
+        "Use null if the TEXT states no effect for secondary_infrastructure_asset.",
     ],
     # NOTE tertiary impacts are not extracted at the moment
     # "tertiary_impact_cause": [
@@ -4171,7 +4240,7 @@ for file_no, filename in enumerate(search_path):
             # process to DF only when damage Ci was found
             df_resp = impacts_to_dataframe(result).replace("; ", ", ", regex=True)
             df_resp["has_cascading_impacts"] = result.get("has_cascading_impacts", []).has_cascading_impacts
-            df_resp["assets_org"] = result.get("assets_org", []).cases  # backup to see if assets/loc/dam where modified in CascaImpactExtraction
+            df_resp["assets_org"] = pd.Series(result.get("assets_org", []).cases, dtype=object)  # backup to see if assets/loc/dam where modified in CascaImpactExtraction
             df_resp.rename(columns={"ci_asset": "infrastructure_type", "ci_asset_amount": "infrastructure_amount", "ci_asset_name": "infrastructure_name"},  inplace=True)
 
             # df_resp = pd.DataFrame({"infrastructure_type":k.ci_asset, "location":k.location, "damage":k.damage} for k in result["infrastructure_cases"].cases)
@@ -4206,7 +4275,7 @@ for file_no, filename in enumerate(search_path):
                 # process to DF only when damage Ci was found
                 df_resp = impacts_to_dataframe(result).replace("; ", ", ", regex=True)    
                 df_resp["has_cascading_impacts"] = result.get("has_cascading_impacts", []).has_cascading_impacts          
-                df_resp["assets_org"] = result.get("assets_org", []).cases  # backup to see if assets/loc/dam where modified in CascaImpactExtraction
+                df_resp["assets_org"] = pd.Series(result.get("assets_org", []).cases, dtype=object)  # backup to see if assets/loc/dam where modified in CascaImpactExtraction
                 df_resp.rename(columns={"ci_asset": "infrastructure_type", "ci_asset_amount": "infrastructure_amount", "ci_asset_name": "infrastructure_name"},  inplace=True)
             
             except Exception as e:
@@ -4297,7 +4366,9 @@ for file_no, filename in enumerate(search_path):
         
 
         ## group Ci types into subgroups, 
-        if df_resp_ci_loc_dam["infrastructure_type"].isna().all() or df_resp_ci_loc_dam["location"].isna().all():
+        # NOTE cascades with an unnamed source have no infrastructure_type, but a secondary_infrastructure_asset
+        no_ci_type = df_resp_ci_loc_dam["infrastructure_type"].isna() & (df_resp_ci_loc_dam["secondary_infrastructure_asset"].fillna("") == "")
+        if no_ci_type.all() or df_resp_ci_loc_dam["location"].isna().all():
             print("No infrastructure types or locations extracted for this chunk, skip grouping into subgroups. Go to next chunk")
             print(df_resp_ci_loc_dam[["infrastructure_type", "location", "chunk_text"]])
             continue
@@ -4314,10 +4385,18 @@ for file_no, filename in enumerate(search_path):
             df_resp_ci_loc_dam["infrastructure_group"] = None            
             df_resp_ci_loc_dam = pp.group_ci_types(df_resp_ci_loc_dam, "infrastructure_type", "infrastructure_group", ci_patterns)
         
+        ## cascades with an unnamed source have no infrastructure_type (and thus no group): they count as CI when their target is a CI type
+        df_resp_ci_loc_dam["_target_group"] = None
+        df_resp_ci_loc_dam = pp.group_ci_types(df_resp_ci_loc_dam, "secondary_infrastructure_asset", "_target_group", ci_patterns)
+        df_resp_ci_loc_dam["_ci_filter_group"] = df_resp_ci_loc_dam["infrastructure_group"].fillna(
+            df_resp_ci_loc_dam["_target_group"].where(df_resp_ci_loc_dam["infrastructure_type"].isna())
+        )
+
         ## store cases which could not be grouped
-        df_ci_cases_not_grouped = pd.concat([df_ci_cases_not_grouped, df_resp_ci_loc_dam[df_resp_ci_loc_dam['infrastructure_group'].isna()]], ignore_index=True)
+        df_ci_cases_not_grouped = pd.concat([df_ci_cases_not_grouped, df_resp_ci_loc_dam[df_resp_ci_loc_dam["_ci_filter_group"].isna()].drop(columns=["_target_group", "_ci_filter_group"])], ignore_index=True)
         ## keep only records which are actually about CI (e.g., not theatre, stadion ..)
-        df_resp_ci_loc_dam.dropna(subset=["infrastructure_group"], inplace=True)
+        df_resp_ci_loc_dam.dropna(subset=["_ci_filter_group"], inplace=True)
+        df_resp_ci_loc_dam.drop(columns=["_target_group", "_ci_filter_group"], inplace=True)
 
 
         # clean up after each chunk
