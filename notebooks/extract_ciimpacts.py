@@ -387,7 +387,7 @@ For EACH infrastructure entity detected by the tool, identify:
 
 Tier 1 and tier 2:
 - Tier 1 ("ci_asset", "damage") is ONLY for infrastructure ASSETS and their PHYSICAL damage or physical condition, e.g. destroyed bridges, flooded substation, contaminated drinking water, debris on roads, rebuilt railway tracks.
-- Tier 2 ("ci_asset_2", "damage_2") is ONLY for infrastructure SERVICES and the effect on their operability WITHOUT a physical damage, e.g. disrupted water supply, power outage, closed roads, cancelled flights, delayed trains.
+- Tier 2 ("ci_asset_2", "damage_2") is ONLY for infrastructure SERVICES and the effect on their operability, e.g. disrupted water supply, power outage, closed roads, cancelled flights, delayed trains. Only the effect on the operation belongs to tier 2; any physical damage (of the same or another asset) belongs to tier 1.
 - Never put a service effect into tier 1 or a physical damage into tier 2.
 - When the TEXT reports both for the same case, return both tiers in ONE case. For instance: "water supply was disrupted due to contamination of drinking water" --> ci_asset="drinking water", damage="contamination", ci_asset_2="water supply", damage_2="disruption".
 - When the service effect concerns the asset itself, use the same infrastructure for both tiers. For instance: "The A1 was covered by debris and closed" --> ci_asset="A1", damage="obstruction", ci_asset_2="A1", damage_2="disruption".
@@ -1440,15 +1440,16 @@ class InfrastructureCase(BaseModel):
     # ci_asset_2="water supply", damage_2="disruption"
     ci_asset_2: str | None = Field(
         default=None,
-        description=("Infrastructure service whose operability is impacted without a (reported) physical damage (tier 2), "
+        description=("Infrastructure service whose operability is impacted, e.g. disrupted, closed, delayed, cancelled or unavailable (tier 2), "
                      "e.g. 'water supply', 'electricity supply', 'train services', 'flights', 'road traffic', or the asset itself when it is closed or out of service (e.g. 'A1'). "
+                     "Only the effect on the operation belongs here; a physical damage (of this or another asset) belongs to ci_asset/damage (tier 1). "
                      "Example: water supply was disrupted due to contamination of drinking water. ci_asset:'drinking water', damage:'contamination', ci_asset_2:'water supply', damage_2:'disruption'. "
                      "None if the text reports no service effect.")
     )
     damage_2: str | None = Field(
         default=None,
         description=(
-            "Category of the SERVICE effect on the operability of the infrastructure service (ci_asset_2), without physical damage. "
+            "Category of the SERVICE effect on the operability of the infrastructure service (ci_asset_2), not of a physical damage. "
             "Only these categories; if several apply, give all of them comma-separated in order of mention:\n"
             + pp.describe_damage_categories(pp.DAMAGE_CATEGORIES_TIER2)
             + "\nNone if no service effect is reported. Physical damages belong to damage."
@@ -3756,7 +3757,8 @@ judge_extra_rules = {
         "Use null if no physical damage is explicitly stated for this infrastructure.",
     ],
     "infrastructure_type_2": [
-        "Tier 2: only the infrastructure SERVICE whose operability is impacted without a physical damage (damage_2), e.g. the service impaired by the damage of infrastructure_type "
+        "Tier 2: only the infrastructure SERVICE whose operability is impacted (damage_2); only the effect on the operation belongs here, a physical damage (of this or another asset) belongs to infrastructure_type/damage (tier 1). "
+        "E.g. the service impaired by the damage of infrastructure_type "
         "(TEXT: 'water supply was disrupted due to contamination of drinking water' -> infrastructure_type: 'drinking water', infrastructure_type_2: 'water supply'), "
         "or the asset itself when it is closed or out of service (TEXT: 'The A1 was covered by debris and closed' -> infrastructure_type: 'A1', infrastructure_type_2: 'A1').",
         "Use null if the TEXT states no service effect.",

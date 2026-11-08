@@ -227,27 +227,27 @@ def postprocess_locations(df:pd.Series, location_col:str) -> pd.Series:
     """remove surrounding text for locations"""
     # TODO condense function
 
-    cleanup_patterns = [r"\(", ", "]
-    for i in cleanup_patterns:
-        # "( "  eg "Sinzig (in North Rhine-Westphalia)""
-        # rm text after comma, e.g. "Ahr valley, Germany" --> "Ahr valley"
-        df[location_col] = df[location_col].str.split(i, regex=True).str[0].str.strip()
+    # cleanup_patterns = [r"\(", ", "]
+    # for i in cleanup_patterns:
+    #     # "( "  eg "Sinzig (in North Rhine-Westphalia)""
+    #     # rm text after comma, e.g. "Ahr valley, Germany" --> "Ahr valley"
+    #     df[location_col] = df[location_col].str.split(i, regex=True).str[0].str.strip()
 
-    cleanup_patterns = [r"[\(\),]", "\bthe ",  "\bin ", "\bpassing ", "city of"]
-    for i in cleanup_patterns:
-        # remove all remaining brackets and commas
-        # remove "the" when it is not contained in other word
-        # remove "in"  when it is not contained in other word
-            # set this after cleaning up "( " and ", " as it otherwise would take the later location
-        df[location_col] = df[location_col].replace(rf"{i}", " ", regex=True).str.strip()   
+    # cleanup_patterns = [r"[\(\),]", "\bthe ",  "\bin ", "\bpassing ", "city of"]
+    # for i in cleanup_patterns:
+    #     # remove all remaining brackets and commas
+    #     # remove "the" when it is not contained in other word
+    #     # remove "in"  when it is not contained in other word
+    #         # set this after cleaning up "( " and ", " as it otherwise would take the later location
+    #     df[location_col] = df[location_col].replace(rf"{i}", " ", regex=True).str.strip()   
 
-    cleanup_patterns = ["between",]
-    for i in cleanup_patterns:
-        # handling loc with "railway tracks between "
-        df[location_col] = df[location_col].str.split(i).str[-1].str.strip()
+    # cleanup_patterns = ["between",]
+    # for i in cleanup_patterns:
+    #     # handling loc with "railway tracks between "
+    #     df[location_col] = df[location_col].str.split(i).str[-1].str.strip()
 
-    ## remove "near ", "close to", "passing " from location names, and final double whitespace
-    df[location_col] =  df[location_col].str.replace(r"^(\bnear |close to |parts of |direction of |passing |along )", " ", regex=True).str.strip()
+    # ## remove "near ", "close to", "passing " from location names, and final double whitespace
+    # df[location_col] =  df[location_col].str.replace(r"^(\bnear |close to |parts of |direction of |passing |along )", " ", regex=True).str.strip()
     df[location_col] =  df[location_col].str.replace("  ", " ").str.strip()
 
     return df[location_col]
