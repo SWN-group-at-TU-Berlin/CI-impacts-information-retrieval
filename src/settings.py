@@ -28,9 +28,12 @@ class Settings(BaseSettings):
     if hostname == "abuch-ThinkPad-X1-Extreme-Gen-4i":
         print("Running on local machine")
         PATH_DATA: Path = Path("../data/")
+        PATH_FEW_SHOT: Path = Path(PATH_DATA / "few_shot")
     else:
         print("Running on TUB cluster")
         PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
+        PATH_FEW_SHOT: Path = Path("/beegfs/home/users/a/a-buch/_PROJECTS/data/few_shot")
+        
     
     PATH_SRC: Path = Path("./src")
     PATH_LOGS: Path = Path("../logs/")
@@ -51,7 +54,7 @@ class Settings(BaseSettings):
 
 
     PATH_VALID_DATA: Path = Path(PATH_DATA / 'evaluation/manual_extracted')
-    VALID_DATA_FILENAME: str = 'table_ci_impacts_sm.csv'
+    VALID_DATA_FILENAME: str = 'table_ci_impacts_sm_cac_hpc.csv'
     PATH_EVAL_RESULT: Path = Path(PATH_DATA / 'evaluation_results')
 
     # NOTE SIMILARITY_[LX]_FILENAME is set based on LLM_DATA_FILENAME or LX_DATA_FILENAME 
@@ -79,7 +82,6 @@ class Settings(BaseSettings):
     FEW_SHOT_MODE: str = "dynamic"  # off: only the static examples of the prompts, dynamic: add retrieved examples
     FEW_SHOT_HOLDOUT_ONLY: bool = True  # True: process only hold-out publications (for the evaluation of off vs. dynamic)
     FEW_SHOT_TABLE_FILENAME: str = "table_ci_impacts_sm_casc_hpc.csv"
-    PATH_FEW_SHOT: Path = Path(PATH_DATA / "few_shot")
     FEW_SHOT_EMBEDDING_MODEL: str = "sentence-transformers/all-mpnet-base-v2"
     FEW_SHOT_MIN_SIM: float = 0.40  # minimum cosine similarity between example and text chunk, set by inspecting the scores within the pool
     # task: (number of positive examples, number of negative examples)
@@ -140,9 +142,7 @@ class Settings(BaseSettings):
         HF_HOME_DIR: str = "/beegfs/home/users/a/a-buch/_PROJECTS/ci-impacts-vllm/notebooks/huggingface_mirror"
         HF_TOKEN_PATH: str = "/beegfs/home/users/a/a-buch/_PROJECTS/ci-impacts-vllm/notebooks/huggingface_mirror/token"
         # model_config = SettingsConfigDict(env_file=".env")  # load HUGGINGFACE_TOKEN
-
-        # DATA DIR
-        PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
+        
 
 settings = Settings()
 
