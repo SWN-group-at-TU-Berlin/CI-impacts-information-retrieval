@@ -18,7 +18,7 @@ from src.settings import init_logger
 logger = init_logger(__name__)
 
 
-# General damage categories of an infrastructure asset (InfrastructureCase.damage), ordered from most to least severe,
+# General damage categories of an infrastructure asset (InfrastructureCase.damage), without any ranking between them,
 # each with a short definition and the detailed damage keywords it replaces
 DAMAGE_CATEGORIES = {
     "structural_damage": {
@@ -72,14 +72,14 @@ def describe_damage_categories() -> str:
 
 
 def map_damage_to_category(damage):
-    """Map detailed damage keywords (separated by ',', ';', ' or ' or ' and ') to their general damage categories, comma-separated
-    in order of mention and without duplicates or ranking, e.g. "flooded and closed" -> "inundation, disruption".
+    """Map detailed damage keywords (separated by ',', ';', ' or ' or ' and ') to their general damage categories, semicolon-separated
+    in order of mention and without duplicates or ranking, e.g. "flooded and closed" -> "inundation; disruption".
     Values that are already a category are kept, unknown values and NaN are ignored (None if nothing is left)."""
     if damage is None or (isinstance(damage, float) and pd.isna(damage)):
         return None
     parts = [p.strip() for p in re.split(r",|;|\bor\b|\band\b", str(damage).strip().lower()) if p.strip()]
     categories = [_DAMAGE_KEYWORD_TO_CATEGORY.get(p, p if p in DAMAGE_CATEGORIES else None) for p in parts]
-    return ", ".join(dict.fromkeys(c for c in categories if c)) or None
+    return "; ".join(dict.fromkeys(c for c in categories if c)) or None
 
 
 def keep_ci_types(ci_list: list, ci_patterns) -> list:

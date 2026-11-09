@@ -12,7 +12,7 @@ sys.path.insert(0, str(PROJECT_ROOT))  # makes "import src..." work from anywher
 use_geollama = False
 RUN_EXAMPLE = False      # True: run the single text2 example graph before the document loop
 # RUN_EVALUATION = False   # True: run the evaluation cells after the extraction
-test_mode = False # True
+test_mode = True
 
 
 
@@ -67,6 +67,7 @@ from src.document_cleaning import extract_citation_info
 import src.translation_model as tm
 # import src.extraction_model as em
 import src.postprocess as pp
+import src.few_shot as fs
 import src.utils as u
 
 
@@ -145,7 +146,7 @@ CI_GEO_FILEPATH = Path( s.PATH_DATA / s.CI_GEO_PAIRS_FILENAME)
 OUTPUT_LLM1_FILEPATH =  Path(s.PATH_LLM_DATA / s.LLM_DATA_FILENAME)
 OUTPUT_geollama_FILEPATH =  Path(s.PATH_LLM_DATA / "geollama_results.csv")
 
-os.makedirs("../interim_results_debug", exist_ok=True)
+os.makedirs(s.INTERIM_RESULTS_DIR, exist_ok=True)
 
 
 
@@ -398,7 +399,7 @@ IMPORTANT:
 - **Only for transportation infrastructure:** When the specific name of an ASSET is mentioned (e.g. Juan Avenue, intersection to Maria Statue, highway A-1, B510, Berlusconi Airport) and no location information can be found, then consider the specific name of this asset as the location. But do not use road types as location names, such as "German highway", "national road", etc.
 - **Only for transportation infrastructure:** when an ASSET refers to two or more locations then extract the locations together. For instance: text:"There is much damage on the access roads from Juan Avenue to Plaza Manuel Azaña" --> location:["from Juan Avenue to Plaza Manuel Azaña"]
 - If no location is explicitly stated for an asset, return None for "location".
-- Assign the general damage category ("damage") to each infrastructure entity, based on the damage, failure, or disruption the TEXT reports for it. If several categories apply, give all of them comma-separated in order of mention, without ranking them (e.g. "inundation, disruption"). Damage categories:
+- Assign the general damage category ("damage") to each infrastructure entity, based on the damage, failure, or disruption the TEXT reports for it. If several categories apply, give all of them semicolon-separated in order of mention, without ranking them (e.g. "inundation; disruption"). Damage categories:
 """ + pp.describe_damage_categories() + """
 - If no damage or disruption is explicitly stated for an asset, return None for "damage".
 - If no information about the number of infrastructure assets or services is explicitly stated for an infrastructure entity ("ci_asset"), return None for "ci_asset_amount".
@@ -414,7 +415,7 @@ text: Similar as in Germany, bridges were often flooded, said the General Office
 Example Output:
 [InfrastructureCase(ci_asset="bridges", ci_asset_amount=None, ci_asset_name=None, location=None, damage="structural_damage"), InfrastructureCase(ci_asset="road and railway infrastructure", ci_asset_amount=None, ci_asset_name=None, location="Western Germany", damage="structural_damage"), InfrastructureCase(ci_asset="bridges", ci_asset_amount="around 50", ci_asset_name=None, location="Germany", damage="structural_damage"), InfrastructureCase(ci_asset="A1 highway", ci_asset_amount=None, ci_asset_name="A1", location="Cologne", damage="obstruction"),]
 
-"""),
+{examples}"""),
     ("human", """
 TEXT: {text}
 INFRASTRUCTURE ENTITIES DETECTED BY NER: {entities}
@@ -1044,7 +1045,7 @@ def get_infrastructure_location_pairs(text:str) -> List[str] | None:
 from shapely.geometry import Point, Polygon, MultiPolygon, MultiLineString, LineString
 from pydantic_shapely import GeometryField
 from pydantic import Field, PrivateAttr, field_validator
-
+import typing
 
 
 def coerce_category(value, keywords: dict, fallback: str):
@@ -1290,21 +1291,21 @@ class EnvironmentalImpact(BaseModel):
 
 
 class SecondaryInfrastructureImpact(BaseModel):
-    source_asset: str | None = Field(default=None, description="Infrastructure asset that was originally damaged or disrupted. None if the text states the cause of the target impact but does not name the originally damaged infrastructure (e.g. 'water supply was disrupted due to pollution').")
+    source_asset: str = Field(description="Infrastructure asset that was originally damaged or disrupted.")
     source_location: str | None = Field(default=None, description="Original location of the source asset.")
-    source_damage: str | None = Field(default=None, description="Original damage or disruption affecting the source asset, or the stated cause if the source asset is not named.")
+    source_damage: str | None = Field(default=None, description="Original damage or disruption affecting the source asset.")
     target_asset: str | None = Field(default=None, description="Other infrastructure asset or infrastructure-related service affected as a consequence of the source damage.")
     # e.g. closure of 3 school days
     target_damage: str | None = Field(
         default=None,
         description=(
             "General category of the resulting damage, disruption or operational effect experienced by the target infrastructure asset or service. "
-            "If several categories apply, give all of them comma-separated in order of mention, without ranking them:\n" + pp.describe_damage_categories()
+            "If several categories apply, give all of them semicolon-separated in order of mention, without ranking them:\n" + pp.describe_damage_categories()
         ),
     )
     # impact_description: str = Field(description="Explicitly stated downstream impact on the infrastructure asset or service.")
 
-    # tool calling does not enforce the Literal: map free-text damage (e.g. "severely damaged") to its category, unknown -> None
+    # map free-text damage (e.g. "severely damaged") to its categories (semicolon-separated if several), unknown -> None
     _map_target_damage = field_validator("target_damage", mode="before")(lambda v: pp.map_damage_to_category(v))
 
 
@@ -1409,14 +1410,14 @@ class InfrastructureCase(BaseModel):
         default=None,
         description=(
             "General category of the damage, failure, disruption, or operational status explicitly associated with this infrastructure asset. "
-            "If several categories apply, give all of them comma-separated in order of mention, without ranking them:\n" + pp.describe_damage_categories()
+            "If several categories apply, give all of them semicolon-separated in order of mention, without ranking them:\n" + pp.describe_damage_categories()
         ),
     )
 
-    # tool calling does not enforce the Literal: map free-text damage (e.g. "severely damaged") to its category, unknown -> None
+    # map free-text damage (e.g. "severely damaged") to its categories (semicolon-separated if several), unknown -> None
     _map_damage = field_validator("damage", mode="before")(lambda v: pp.map_damage_to_category(v))
 
-   
+
 # NOTE damage and target_damage are free text (several categories), restricted to pp.DAMAGE_CATEGORIES by pp.map_damage_to_category
 
 
@@ -1447,6 +1448,13 @@ class GraphState(MessagesState): # TypedDict
     societal_impacts: List[SocietalImpact]
     environmental_impacts: List[EnvironmentalImpact]
     # tertiary_impacts: List[TertiaryImpact]  # NOTE tertiary impacts are not extracted at the moment
+
+    # rendered dynamic few-shot examples per task (src/few_shot.py), empty without FEW_SHOT_MODE=dynamic
+    few_shots: dict
+
+
+def few_shot_examples(state, task: str) -> str:
+    return state.get("few_shots", {}).get(task, "")
 
 
 
@@ -1646,7 +1654,8 @@ def extract_asset_information(state: GraphState) -> GraphState:
     messages = [HumanMessage(
         content=asset_information_prompt.format(
             text=state["text"],
-            entities=assets_list
+            entities=assets_list,
+            examples=few_shot_examples(state, "direct"),
     ))]
     result = llm_structured.invoke(messages)
     print("cld:", result)
@@ -1669,7 +1678,8 @@ def extract_asset_information(state: GraphState) -> GraphState:
                     [HumanMessage(
                         content=asset_information_prompt.format(
                             text=state["text"],
-                            entities=asset
+                            entities=asset,
+                            examples=few_shot_examples(state, "direct"),
                     ))]
                 )
                 print(f"cld response for {asset}:", result)
@@ -2008,6 +2018,8 @@ Text: The flooding lead to bridges failures, isolating communities living in the
 - bridge failures → isolation of communities
 
 
+{examples}
+
 Do NOT classify the original infrastructure damage (CI_DAMAGES) itself as a cascading impact.
 
 
@@ -2074,6 +2086,7 @@ def detect_cascade(state) -> GraphState:
             HumanMessage(content=prompt_has_cascade.format(
                 text=state["text"],
                 ci_damages=state["infrastructure_cases"].cases,
+                examples=few_shot_examples(state, "detect"),
         ))])
     print("has_cascading_impacts", result)
 
@@ -2182,7 +2195,7 @@ The objective is HIGH PRECISION while remaining fully grounded in the TEXT.
 EXAMPLES:
 
 TEXT: The repair costs of the flooded roads in Brandenburg lead to 1,000 million EUR. However, the entire costs of the flood event in the region of Brandenburg caused costs of 5,0000 million Euros.
-CI_DAMAGES: ci_asset="roads", location="Brandenburg", damage="flooded"
+CI_DAMAGES: ci_asset="roads", location="Brandenburg", damage="inundation"
 source_asset: roads
 source_location: Brandenburg
 impact_origin: repair_recovery_cost
@@ -2190,17 +2203,8 @@ impact_type: repair cost
 amount: 1,000 million EUR
 unit: EUR
 
-TEXT: Similar to Germany, severe damage had been observed to the gas network. In the villages around Liége, such as Chaudfontaine and Pepinster (Belgium), gas supply was fully recovered within 5 months (Grosjean, 2021; De Wolf, 2021) with cost reaching more than 5 million Euros. In the Netherlands, 1000-2000 households experienced a loss of electricity supply at the peak of the event. Between 100 to 200 households had no gas supply. Within several days, electricity supply was restored (Task Force Fact Finding Hoogwater, 2021).
-CI_DAMAGES: ci_asset="gas supply", location="Liége, Chaudfontaine and Pepinster (Belgium)", damage="recovered"
-source_asset: gas supply
-source_location: Liége, Chaudfontaine and Pepinster (Belgium)
-impact_origin: repair_recovery_cost
-impact_type: recovery cost
-amount: more than 5 million Euros
-unit: EUR
-
 TEXT: The flight delays and further transportation disruption leads to estimated costs of above 5.000 £ in UK.
-CI_DAMAGES: ci_asset="flights and further transportation", location="UK", damage="delays"
+CI_DAMAGES: ci_asset="flights and further transportation", location="UK", damage="disruption"
 source_asset: flights and further transportation
 source_location: UK
 impact_origin: downstream_economic_consequence
@@ -2209,7 +2213,7 @@ amount: above 5.000 £
 unit: GBP
 
 TEXT: The VW factory was closed for 3 days due to flooded roads leading to costs of 1,000 EUR. However, the entire costs of the flood event in the region of Brandenburg caused costs of 5,0000 million Euros.
-CI_DAMAGES: ci_asset="roads", location=None, damage="flooded"
+CI_DAMAGES: ci_asset="roads", location=None, damage="inundation"
 source_asset: roads
 source_location: None
 impact_origin: downstream_economic_consequence
@@ -2218,7 +2222,7 @@ amount: 1,000 EUR
 unit: EUR
 
 TEXT: Damaged transport network lead to production impacts for companies in Germany.
-CI_DAMAGES: ci_asset="transport network", location="Germany", damage="damaged"
+CI_DAMAGES: ci_asset="transport network", location="Germany", damage="structural_damage"
 source_asset: transport network
 source_location: Germany
 impact_origin: downstream_economic_consequence
@@ -2226,18 +2230,8 @@ impact_type: production impacts
 amount: None
 unit: None
 
-
-TEXT: Because the engine plant in Chemnitz could not bring its delivery over the streets because they were blocked or blocked by flood rescue forces. Also rear axle modules, which are pre-assembled by the VW-Hoflogistiker Schnellecke in neighbouring Glauchau, could not be loaded in the direction of Zwickau for this reason.
-CI_DAMAGES: ci_asset="streets", location="Chemnitz", damage="blocked"
-source_asset: streets
-source_location: Chemnitz
-impact_origin: downstream_economic_consequence
-impact_type: transportation disruption
-amount: None
-unit: None
-
 TEXT: Asset damages for the German railway provider are estimated to be around 20 000 EUR.
-CI_DAMAGES: ci_asset="railway assets", location=None, damage="delays"
+CI_DAMAGES: ci_asset="railway assets", location=None, damage="disruption"
 source_asset: railway assets
 source_location: None
 impact_origin: repair_recovery_cost
@@ -2253,6 +2247,8 @@ impact_origin: other_costs_or_losses
 impact_type: total/general losses
 amount: below 500 000 EUR
 unit: EUR
+
+{examples}
 
 Now, its your task to extract potential economic impacts for each of the damaged infrastructure:
 TEXT: {text}
@@ -2272,6 +2268,25 @@ CI_DAMAGES: {ci_damages}
 """)
 ])
 
+## Examples from hold-out publication:
+
+# TEXT: Because the engine plant in Chemnitz could not bring its delivery over the streets because they were blocked or blocked by flood rescue forces. Also rear axle modules, which are pre-assembled by the VW-Hoflogistiker Schnellecke in neighbouring Glauchau, could not be loaded in the direction of Zwickau for this reason.
+# CI_DAMAGES: ci_asset="streets", location="Chemnitz", damage="disruption"
+# source_asset: streets
+# source_location: Chemnitz
+# impact_origin: downstream_economic_consequence
+# impact_type: transportation disruption
+# amount: None
+# unit: None
+
+# TEXT: Similar to Germany, severe damage had been observed to the gas network. In the villages around Liége, such as Chaudfontaine and Pepinster (Belgium), gas supply was fully recovered within 5 months (Grosjean, 2021; De Wolf, 2021) with cost reaching more than 5 million Euros. In the Netherlands, 1000-2000 households experienced a loss of electricity supply at the peak of the event. Between 100 to 200 households had no gas supply. Within several days, electricity supply was restored (Task Force Fact Finding Hoogwater, 2021).
+# CI_DAMAGES: ci_asset="gas supply", location="Liége, Chaudfontaine and Pepinster (Belgium)", damage="restored_recovered"
+# source_asset: gas supply
+# source_location: Liége, Chaudfontaine and Pepinster (Belgium)
+# impact_origin: repair_recovery_cost
+# impact_type: recovery cost
+# amount: more than 5 million Euros
+# unit: EUR
 
 
 def extract_economic_impacts(state: GraphState) -> GraphState:
@@ -2287,6 +2302,7 @@ def extract_economic_impacts(state: GraphState) -> GraphState:
         HumanMessage(content=economic_impact_prompt.format(
             text=state["text"],
             ci_damages=state["ci_damages"],
+            examples=few_shot_examples(state, "economic"),
        ))])
 
     try:
@@ -2389,7 +2405,7 @@ For every explicitly reported secondary infrastructure impact, extract:
    IMPORTANT: This must be different from source_asset.
 
 5. target_damage: The general damage category of the resulting condition or operational effect experienced by the affected asset or service (target_asset).
-   Use only the following categories. If several categories apply, give all of them comma-separated in order of mention, without ranking them (e.g. "disruption, service_loss"):
+   Use only the following categories. If several categories apply, give all of them semicolon-separated in order of mention, without ranking them (e.g. "disruption; service_loss"):
 """ + pp.describe_damage_categories() + """
 
 ----------------------------------------
@@ -2406,7 +2422,7 @@ Example:
 
 Correct extraction:
 source_asset = "railway"
-source_damage = "flooded"
+source_damage = "inundation"
 target_asset = "train services"
 target_damage = "disruption"
 
@@ -2447,18 +2463,6 @@ If the text explicitly states that there is no cascading impact, do not create a
 Return an empty list when no secondary infrastructure impact is explicitly reported.
 
 ----------------------------------------
-SOURCE INFRASTRUCTURE NOT NAMED
-----------------------------------------
-
-Sometimes the TEXT reports an impact on an infrastructure asset or service and states a damage as its cause, but does not name the infrastructure that was originally damaged.
-In that case return source_asset = None, put the stated cause into source_damage and the affected infrastructure into target_asset. Never invent or guess a source_asset.
-
-Do NOT use source_asset = None when:
-- the TEXT names the source infrastructure
-- the only stated cause is the natural hazard itself (e.g. "roads were closed due to the flood")
-- the TEXT states no cause at all
-
-----------------------------------------
 MULTIPLE IMPACTS
 ----------------------------------------
 
@@ -2488,7 +2492,7 @@ EXAMPLES
 TEXT: The flooding of railways caused train delays.
 CI_DAMAGES: ci_asset="railways", location=None, damage="inundation"
 source_asset: railways
-source_damage: flooded
+source_damage: inundation
 source_location: None
 target_asset: train service
 target_damage: disruption
@@ -2496,7 +2500,7 @@ target_damage: disruption
 TEXT: The bridges were severely damaged, resulting in road closures in the Ahr valley.
 CI_DAMAGES: ci_asset="bridges", location="Ahr valley", damage="structural_damage"
 source_asset: bridges
-source_damage: damaged
+source_damage: structural_damage
 source_location: Ahr valley
 target_asset: roads 
 target_damage: disruption
@@ -2504,7 +2508,7 @@ target_damage: disruption
 TEXT: Public transport was disrupted because roads were blocked.
 CI_DAMAGES: ci_asset="roads", location=None, damage="disruption"
 source_asset: roads
-source_damage: blocked
+source_damage: disruption
 source_location: None
 target_asset: public transport
 target_damage: disruption
@@ -2512,22 +2516,14 @@ target_damage: disruption
 TEXT: Because the power line was destroyed, the water supply in Bad Neuenahr failed.
 CI_DAMAGES: ci_asset="power line", location="Bad Neuenahr", damage="structural_damage"
 source_asset: power line
-source_damage: destroyed
+source_damage: structural_damage
 source_location: Bad Neuenahr
 target_asset: water supply
 target_damage: service_loss
 
-TEXT: In UK water supply was disrupted (mainly due to contamination).
-CI_DAMAGES: ci_asset="water supply", location="Belgium", damage="disruption"
-source_asset: None
-source_damage: contaminated
-source_location: UK
-target_asset: water supply
-target_damage: disruption
-
+{examples}
 
 Now extract ALL secondary infrastructure impacts for the infrastructure cases mentioned in the text.
-
 TEXT: {text}
 CI_DAMAGES: {ci_damages}
 source_asset: <your_response>
@@ -2582,6 +2578,7 @@ def extract_infrastructure_impacts(state: GraphState) -> GraphState:
             HumanMessage(content=infrastructure_impact_prompt.format(
                 text=state["text"],
                 ci_damages=state["ci_damages"],
+                examples=few_shot_examples(state, "secondary"),
         ))])
 
     try:
@@ -2683,7 +2680,7 @@ EXAMPLES
 ------------------------------------------------------------
 
 TEXT: Thousands of people were left without water and electricity in Mayschloss.
-CI_DAMAGES: ci_asset="water", location="Mayschloss", damage="left without"
+CI_DAMAGES: ci_asset="water", location="Mayschloss", damage="service_loss"
 source_asset: water
 source_location: Mayschloss
 impact_origin: loss_of_critical_service_or_inaccessibility
@@ -2692,8 +2689,8 @@ amount: thousands
 unit: people
 
 
-TEXT: Similar to Germany, severe damage had been observed to the gas network. In the villages around Liége, such as Chaudfontaine and Pepinster (Belgium), gas supply was fully recovered within 5 months (Grosjean, 2021; De Wolf, 2021) with cost reaching more than 5 million Euros. In the Netherlands, 1000-2000 households experienced a loss of electricity supply at the peak of the event. Between 100 to 200 households had no gas supply. Within several days, electricity supply was restored (Task Force Fact Finding Hoogwater, 2021).
-CI_DAMAGES: ci_asset="electricity supply", location="Netherlands", damage="loss of"
+TEXT: In the Netherlands, 1000-2000 households experienced a loss of electricity supply at the peak of the event. Between 100 to 200 households had no gas supply. Within several days, electricity supply was restored (Task Force Fact Finding Hoogwater, 2021).
+CI_DAMAGES: ci_asset="electricity supply", location="Netherlands", damage="service_loss"
 source_asset: electricity supply
 source_location: Netherlands
 impact_origin: loss_of_critical_service_or_inaccessibility
@@ -2703,7 +2700,7 @@ unit: households
 
 
 TEXT: After the dike break, around 2,000 residents of Grimma had to be evacuated.
-CI_DAMAGES: ci_asset="dike", location="Grimma", damage="dike break(s)"
+CI_DAMAGES: ci_asset="dike", location="Grimma", damage="structural_damage"
 source_asset: dike
 source_location: Grimma
 impact_origin: evacuation_or_displacement
@@ -2711,6 +2708,7 @@ impact_type: evacuated residents
 amount: around 2,000
 unit: residents
 
+{examples}
 
 Now extract all societal impacts for each infrastructure case.
 TEXT: {text}
@@ -2771,6 +2769,7 @@ def extract_societal_impacts(state: GraphState) -> GraphState:
             HumanMessage(content=societal_impact_prompt.format(
                 text=state["text"],
                 ci_damages=state["ci_damages"],
+                examples=few_shot_examples(state, "societal"),
         ))])
     
     try:
@@ -2865,9 +2864,9 @@ The objective is HIGH PRECISION while remaining fully grounded in the TEXT.
 EXAMPLES
 ------------------------------------------------------------
 
-TEXT: The flooding of the industrial plant led to pollutions of the downstream river.
-CI_DAMAGES: ci_asset="industrial plant", location=None, damage="inundation"
-source_asset: industrial plant
+TEXT: The flooding of the chemical plant led to pollutions of the downstream river.
+CI_DAMAGES: ci_asset="chemical plant", location=None, damage="inundation"
+source_asset: chemical plant
 source_location: None
 impact_origin: environmental_impact
 impact_type: pollution of environment
@@ -2894,6 +2893,7 @@ impact_type: waste fills and debris
 amount: None
 unit: None
 
+{examples}
 
 Now extract all environmental impacts for each infrastructure case.
 TEXT: {text}
@@ -2928,6 +2928,7 @@ def extract_environmental_impacts(state: GraphState) -> GraphState:
             HumanMessage(content=environmental_impact_prompt.format(
                 text=state["text"],
                 ci_damages=state["ci_damages"],
+                examples=few_shot_examples(state, "environmental"),
         ))])
 
     try:
@@ -2985,7 +2986,7 @@ def extract_environmental_impacts(state: GraphState) -> GraphState:
 # EXAMPLES
 # ------------------------------------------------------------
 
-# TEXT: The flooded chemical plant in Leverkusen released chemicals into the Rhine, and around 5,000 residents along the river were advised to stay indoors.
+# TEXT: The flooded chemical plant in Leverkusen released chemicals into the Rhine, therefore around 5,000 residents along the river were advised to stay indoors.
 # CI_DAMAGES: ci_asset="chemical plant", location="Leverkusen", damage="inundation"
 # source_asset: chemical plant
 # source_location: Leverkusen
@@ -3062,18 +3063,21 @@ def route_cascading_impacts(state: GraphState):
         Send("economic_impacts", {
             "text": state["text"],
             "ci_damages": state["infrastructure_cases"].cases,
+            "few_shots": state.get("few_shots", {}),
         }),
         Send(
             "societal_impacts",
             {
                 "text": state["text"],
                 "ci_damages": state["infrastructure_cases"].cases,
+                "few_shots": state.get("few_shots", {}),
         }),
         Send(
             "secondary_infrastructure_impacts",
             {
                 "text": state["text"],
                 "ci_damages": state["infrastructure_cases"].cases,
+                "few_shots": state.get("few_shots", {}),
             }
         ),
         Send(
@@ -3081,6 +3085,7 @@ def route_cascading_impacts(state: GraphState):
             {
                 "text": state["text"],
                 "ci_damages": state["infrastructure_cases"].cases,
+                "few_shots": state.get("few_shots", {}),
             }
         ),
         # NOTE tertiary impacts are not extracted at the moment
@@ -3473,47 +3478,6 @@ def impacts_to_dataframe(data):
                     impact.target_damage
             ))
 
-    # SECONDARY INFRASTRUCTURE IMPACTS WITH AN UNNAMED SOURCE
-    # e.g. "water supply was disrupted (mainly due to pollution)": only the consequence is named,
-    # so the record has no ci_asset (source), the stated cause as damage and the affected infrastructure as target
-    new_rows = []
-    seen_targets = set()
-    for impact in infrastructure_impacts:
-
-        target_asset = normalize_asset(impact.target_asset)
-        target_key = (target_asset, impact.source_location)
-
-        if normalize_asset(impact.source_asset) or not target_asset or target_key in seen_targets:
-            continue
-        seen_targets.add(target_key)
-
-        source_damage = pp.map_damage_to_category(impact.source_damage)
-
-        # the direct case of the target becomes this record, otherwise the same impact would be counted twice
-        # (not when that case is itself the named source of another cascade)
-        matches = (df["_asset_normalized"] == target_asset) & (df["secondary_infrastructure_asset"] == "")
-        same_location = matches & (df["location"] == impact.source_location)
-        if same_location.any():
-            matches = same_location
-
-        if matches.any():
-            df.loc[matches, "ci_asset"] = None
-            df.loc[matches, "damage"] = source_damage
-            df.loc[matches, "_asset_normalized"] = ""
-            df.loc[matches, "secondary_infrastructure_asset"] = impact.target_asset
-            df.loc[matches, "secondary_infrastructure_damage"] = impact.target_damage
-        else:
-            new_rows.append({
-                "ci_asset": None,
-                "damage": source_damage,
-                "location": impact.source_location,
-                "secondary_infrastructure_asset": impact.target_asset,
-                "secondary_infrastructure_damage": impact.target_damage,
-            })
-
-    if new_rows:
-        df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
-
     # NOTE tertiary impacts are not extracted at the moment
 #     # TERTIARY IMPACTS
 #     for impact in tertiary_impacts:
@@ -3530,7 +3494,7 @@ def impacts_to_dataframe(data):
 #             == source_asset
 #         )
 
-#         for idx in df.index[matches]:
+#        for idx in df.index[matches]:
 
 #             df.at[idx, "tertiary_impact_cause"] = (
 #                 append_value(
@@ -3731,7 +3695,6 @@ judge_extra_rules = {
         "Use the INFRASTRUCTURE ENTITIES DETECTED BY NER as guidance and keep their phrasing, as LLM 1 had to.",
         "Adapt it only if the TEXT does not support it; then use the phrasing of the matching NER entity or of the TEXT. Never invent infrastructure.",
         "Do not add articles, quantifiers or numbers (e.g. 'the', 'several', 'two') from the NER entities; numbers belong to infrastructure_amount.",
-        "null is correct if secondary_infrastructure_asset is set and the TEXT does not name the originally damaged infrastructure (e.g. 'water supply was disrupted due to pollution'). Do not fill it with secondary_infrastructure_asset or a guessed infrastructure.",
     ],
     "infrastructure_amount": [
         "Number of affected assets of this infrastructure_type explicitly reported in the TEXT. Preserve the original wording (e.g. 'more than 68'). Do not calculate or infer values. Use null if no number is stated.",
@@ -3744,7 +3707,7 @@ judge_extra_rules = {
         *location_rules,
     ],
     "damage": [
-        "Use the damage category whose definition matches the damage the TEXT reports for this infrastructure. If several categories apply, give all of them comma-separated in order of mention, without ranking them.",
+        "Use the damage category whose definition matches the damage the TEXT reports for this infrastructure. If several categories apply, give all of them semicolon-separated in order of mention, without ranking them.",
         "Use null if no damage or disruption is explicitly stated for this infrastructure.",
     ],
     "economic_impact_origin": [
@@ -3760,11 +3723,11 @@ judge_extra_rules = {
     ],
     "environmental_impact_amount": ["Preserve the original wording of the TEXT. Do not calculate or infer values."],
     "secondary_infrastructure_asset": [
-        "Must be a different infrastructure than infrastructure_type, affected as a consequence of the damage of infrastructure_type. If infrastructure_type is null, it is the infrastructure affected as a consequence of the stated cause (field damage).",
+        "Must be a different infrastructure than infrastructure_type, affected as a consequence of the damage of infrastructure_type.",
         "Use the INFRASTRUCTURE ENTITIES DETECTED BY NER as guidance and keep their phrasing, as LLM 1 had to. Never invent infrastructure.",
     ],
     "secondary_infrastructure_damage": [
-        "Use the damage category whose definition matches the effect the TEXT reports for secondary_infrastructure_asset. If several categories apply, give all of them comma-separated in order of mention, without ranking them.",
+        "Use the damage category whose definition matches the effect the TEXT reports for secondary_infrastructure_asset. If several categories apply, give all of them semicolon-separated in order of mention, without ranking them.",
         "Use null if the TEXT states no effect for secondary_infrastructure_asset.",
     ],
     # NOTE tertiary impacts are not extracted at the moment
@@ -3903,6 +3866,11 @@ def judge_records(df_records: pd.DataFrame, chunk_text: str, llm, max_retries: i
 
     df_judged = pd.concat(df_batches_judged)
 
+    # the judge may separate several damage categories by comma: always store them semicolon-separated
+    for column in ["damage", "secondary_infrastructure_damage"]:
+        if column in df_judged.columns:
+            df_judged[column] = df_judged[column].map(pp.map_damage_to_category)
+
     return df_judged
 
 
@@ -4030,6 +3998,13 @@ df_ci_cases_not_grouped = pd.DataFrame()
 
 
 
+## dynamic few-shot examples
+few_shot_store = None
+if s.FEW_SHOT_MODE == "dynamic":
+    few_shot_store = fs.FewShotStore.load(s.PATH_FEW_SHOT, s.FEW_SHOT_EMBEDDING_MODEL, s.FEW_SHOT_COUNTS, s.FEW_SHOT_MIN_SIM)
+holdout_publications = fs.holdout_publications(s.PATH_FEW_SHOT) if s.FEW_SHOT_HOLDOUT_ONLY else []
+few_shot_log = []
+
 ## Start CI impact extraction
 for file_no, filename in enumerate(search_path):
 
@@ -4059,6 +4034,9 @@ for file_no, filename in enumerate(search_path):
     ## extract authors, publication year and title 
     author, year, title = extract_citation_info(filename_stem)
     citation = f"{author} {year}".replace("  ", " ").strip()
+    if s.FEW_SHOT_HOLDOUT_ONLY and citation not in holdout_publications:
+        print(f"Skipping {citation}: not part of the hold-out publications")
+        continue
     title = title.replace(" - ", "").replace("_cleaned", "").strip()
 
 
@@ -4225,9 +4203,15 @@ for file_no, filename in enumerate(search_path):
         ## apply LLM (is_case, ci)
         time_llm1 = time.time()
 
+        few_shots = {}
+        if few_shot_store is not None:
+            selected_examples = few_shot_store.select(chunk.text)
+            few_shots = fs.render(selected_examples)
+            few_shot_log.extend(fs.log_rows(selected_examples, citation, chunk_no))
+
         ########### chain without tool but CI NER in prompt ###############
         try:
-            result = graph.invoke({"text": chunk.text})# ["extracted_cases"]
+            result = graph.invoke({"text": chunk.text, "few_shots": few_shots})# ["extracted_cases"]
             print(result)
             
             # CI damage exists/not exists
@@ -4262,7 +4246,7 @@ for file_no, filename in enumerate(search_path):
 
             try: 
                 
-                result = graph.invoke({"text": chunk.text}) # ["extracted_cases"]
+                result = graph.invoke({"text": chunk.text, "few_shots": few_shots}) # ["extracted_cases"]
                 print(result)
                 
                 # CI damage exists/not exists
@@ -4366,9 +4350,7 @@ for file_no, filename in enumerate(search_path):
         
 
         ## group Ci types into subgroups, 
-        # NOTE cascades with an unnamed source have no infrastructure_type, but a secondary_infrastructure_asset
-        no_ci_type = df_resp_ci_loc_dam["infrastructure_type"].isna() & (df_resp_ci_loc_dam["secondary_infrastructure_asset"].fillna("") == "")
-        if no_ci_type.all() or df_resp_ci_loc_dam["location"].isna().all():
+        if df_resp_ci_loc_dam["infrastructure_type"].isna().all() or df_resp_ci_loc_dam["location"].isna().all():
             print("No infrastructure types or locations extracted for this chunk, skip grouping into subgroups. Go to next chunk")
             print(df_resp_ci_loc_dam[["infrastructure_type", "location", "chunk_text"]])
             continue
@@ -4385,18 +4367,10 @@ for file_no, filename in enumerate(search_path):
             df_resp_ci_loc_dam["infrastructure_group"] = None            
             df_resp_ci_loc_dam = pp.group_ci_types(df_resp_ci_loc_dam, "infrastructure_type", "infrastructure_group", ci_patterns)
         
-        ## cascades with an unnamed source have no infrastructure_type (and thus no group): they count as CI when their target is a CI type
-        df_resp_ci_loc_dam["_target_group"] = None
-        df_resp_ci_loc_dam = pp.group_ci_types(df_resp_ci_loc_dam, "secondary_infrastructure_asset", "_target_group", ci_patterns)
-        df_resp_ci_loc_dam["_ci_filter_group"] = df_resp_ci_loc_dam["infrastructure_group"].fillna(
-            df_resp_ci_loc_dam["_target_group"].where(df_resp_ci_loc_dam["infrastructure_type"].isna())
-        )
-
         ## store cases which could not be grouped
-        df_ci_cases_not_grouped = pd.concat([df_ci_cases_not_grouped, df_resp_ci_loc_dam[df_resp_ci_loc_dam["_ci_filter_group"].isna()].drop(columns=["_target_group", "_ci_filter_group"])], ignore_index=True)
+        df_ci_cases_not_grouped = pd.concat([df_ci_cases_not_grouped, df_resp_ci_loc_dam[df_resp_ci_loc_dam['infrastructure_group'].isna()]], ignore_index=True)
         ## keep only records which are actually about CI (e.g., not theatre, stadion ..)
-        df_resp_ci_loc_dam.dropna(subset=["_ci_filter_group"], inplace=True)
-        df_resp_ci_loc_dam.drop(columns=["_target_group", "_ci_filter_group"], inplace=True)
+        df_resp_ci_loc_dam.dropna(subset=["infrastructure_group"], inplace=True)
 
 
         # clean up after each chunk
@@ -4641,15 +4615,16 @@ for file_no, filename in enumerate(search_path):
 
     print(f"Safety: saving responses (Step 1 + 2) for doc: {citation} ")
     # chain of prompts
-    df_resp_step1_end.to_csv(f"../interim_results_debug/llm_geollm_chain_step1_{citation}.csv", encoding='utf-8', index=False)
-    df_resp_step2.to_csv(f"../interim_results_debug/llm_geollm_chain_step2_{citation}.csv", encoding='utf-8', index=False)
-    df_resp_judged.to_csv(f"../interim_results_debug/llm_geollm_chain_judge_{citation}.csv", encoding='utf-8', index=False)
+    df_resp_step1_end.to_csv(f"{s.INTERIM_RESULTS_DIR}/llm_geollm_chain_step1_{citation}.csv", encoding='utf-8', index=False)
+    df_resp_step2.to_csv(f"{s.INTERIM_RESULTS_DIR}/llm_geollm_chain_step2_{citation}.csv", encoding='utf-8', index=False)
+    df_resp_judged.to_csv(f"{s.INTERIM_RESULTS_DIR}/llm_geollm_chain_judge_{citation}.csv", encoding='utf-8', index=False)
     
     
     # errors of all documents so far (incl. chunks skipped due to LengthLimitError), overwritten after each document
     df_errors = pd.DataFrame(responses_error_list, columns=["citation_id", "chunk_id", "response", "error"])
     df_errors["response"] = df_errors["response"].astype(str)  # graph results / pydantic objects -> readable text
-    df_errors.to_csv(f"../interim_results_debug/llm_responses_errors_{citation}.csv", encoding='utf-8', index=False)
+    df_errors.to_csv(f"{s.INTERIM_RESULTS_DIR}/llm_responses_errors_{citation}.csv", encoding='utf-8', index=False)
+    pd.DataFrame(few_shot_log).to_csv(f"{s.INTERIM_RESULTS_DIR}/few_shot_selected_examples.csv", encoding='utf-8', index=False)
     print(f"! WARN {len(df_errors)} faulty or skipped chunks so far, of these {df_errors['error'].str.startswith('LengthLimitError').sum()} due to the token limit")
 
     # # clean up after each document
@@ -4687,5 +4662,5 @@ print(f"\n\n ######## -------- CI impact extraction took {(time.time() - time0) 
 #     print("Extraction finished, evaluation skipped (RUN_EVALUATION = False)")
 #     sys.exit(0)
 # %%
-df_resp_step1_end.to_csv(f"../interim_results_debug/llm_geollm_chain_step1incomplete_{citation}.csv", encoding='utf-8', index=False)
+df_resp_step1_end.to_csv(f"{s.INTERIM_RESULTS_DIR}/llm_geollm_chain_step1incomplete_{citation}.csv", encoding='utf-8', index=False)
 

@@ -73,6 +73,25 @@ class Settings(BaseSettings):
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 50
     BATCH_SIZE: int = 5  # max for my local GPU (as max. is 6GB)
+
+    # dynamic few-shot examples (src/few_shot.py), store is built by src/build_few_shot_store.py
+    # NOTE: fields can be overwritten by environment variables, e.g. FEW_SHOT_MODE=dynamic FEW_SHOT_HOLDOUT_ONLY=true
+    FEW_SHOT_MODE: str = "dynamic"  # off: only the static examples of the prompts, dynamic: add retrieved examples
+    FEW_SHOT_HOLDOUT_ONLY: bool = True  # True: process only hold-out publications (for the evaluation of off vs. dynamic)
+    FEW_SHOT_TABLE_FILENAME: str = "table_ci_impacts_sm_casc_hpc.csv"
+    PATH_FEW_SHOT: Path = Path(PATH_DATA / "few_shot")
+    FEW_SHOT_EMBEDDING_MODEL: str = "sentence-transformers/all-mpnet-base-v2"
+    FEW_SHOT_MIN_SIM: float = 0.40  # minimum cosine similarity between example and text chunk, set by inspecting the scores within the pool
+    # task: (number of positive examples, number of negative examples)
+    FEW_SHOT_COUNTS: dict[str, tuple[int, int]] = {
+        "direct": (3, 0),
+        "detect": (2, 2),
+        "economic": (3, 1),
+        "societal": (3, 1),
+        "secondary": (3, 1),
+        "environmental": (1, 1),
+    }
+    INTERIM_RESULTS_DIR: Path = Path(f"../interim_results_fs_{FEW_SHOT_MODE}")  # output folder of the workflow, use one folder per run
     
         
     # settings for CUDA and PYTORCH
