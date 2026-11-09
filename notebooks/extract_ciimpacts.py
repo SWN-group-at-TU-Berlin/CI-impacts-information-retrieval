@@ -399,7 +399,7 @@ IMPORTANT:
 - **Only for transportation infrastructure:** When the specific name of an ASSET is mentioned (e.g. Juan Avenue, intersection to Maria Statue, highway A-1, B510, Berlusconi Airport) and no location information can be found, then consider the specific name of this asset as the location. But do not use road types as location names, such as "German highway", "national road", etc.
 - **Only for transportation infrastructure:** when an ASSET refers to two or more locations then extract the locations together. For instance: text:"There is much damage on the access roads from Juan Avenue to Plaza Manuel Azaña" --> location:["from Juan Avenue to Plaza Manuel Azaña"]
 - If no location is explicitly stated for an asset, return None for "location".
-- Assign the general damage category ("damage") to each infrastructure entity, based on the damage, failure, or disruption the TEXT reports for it. If several categories apply, give all of them comma-separated in order of mention, without ranking them (e.g. "inundation, disruption"). Damage categories:
+- Assign the general damage category ("damage") to each infrastructure entity, based on the damage, failure, or disruption the TEXT reports for it. If several categories apply, give all of them semicolon-separated in order of mention, without ranking them (e.g. "inundation; disruption"). Damage categories:
 """ + pp.describe_damage_categories() + """
 - If no damage or disruption is explicitly stated for an asset, return None for "damage".
 - If no information about the number of infrastructure assets or services is explicitly stated for an infrastructure entity ("ci_asset"), return None for "ci_asset_amount".
@@ -1300,12 +1300,12 @@ class SecondaryInfrastructureImpact(BaseModel):
         default=None,
         description=(
             "General category of the resulting damage, disruption or operational effect experienced by the target infrastructure asset or service. "
-            "If several categories apply, give all of them comma-separated in order of mention, without ranking them:\n" + pp.describe_damage_categories()
+            "If several categories apply, give all of them semicolon-separated in order of mention, without ranking them:\n" + pp.describe_damage_categories()
         ),
     )
     # impact_description: str = Field(description="Explicitly stated downstream impact on the infrastructure asset or service.")
 
-    # map free-text damage (e.g. "severely damaged") to its categories (comma-separated if several), unknown -> None
+    # map free-text damage (e.g. "severely damaged") to its categories (semicolon-separated if several), unknown -> None
     _map_target_damage = field_validator("target_damage", mode="before")(lambda v: pp.map_damage_to_category(v))
 
 
@@ -1410,11 +1410,11 @@ class InfrastructureCase(BaseModel):
         default=None,
         description=(
             "General category of the damage, failure, disruption, or operational status explicitly associated with this infrastructure asset. "
-            "If several categories apply, give all of them comma-separated in order of mention, without ranking them:\n" + pp.describe_damage_categories()
+            "If several categories apply, give all of them semicolon-separated in order of mention, without ranking them:\n" + pp.describe_damage_categories()
         ),
     )
 
-    # map free-text damage (e.g. "severely damaged") to its categories (comma-separated if several), unknown -> None
+    # map free-text damage (e.g. "severely damaged") to its categories (semicolon-separated if several), unknown -> None
     _map_damage = field_validator("damage", mode="before")(lambda v: pp.map_damage_to_category(v))
 
 
@@ -2405,7 +2405,7 @@ For every explicitly reported secondary infrastructure impact, extract:
    IMPORTANT: This must be different from source_asset.
 
 5. target_damage: The general damage category of the resulting condition or operational effect experienced by the affected asset or service (target_asset).
-   Use only the following categories. If several categories apply, give all of them comma-separated in order of mention, without ranking them (e.g. "disruption, service_loss"):
+   Use only the following categories. If several categories apply, give all of them semicolon-separated in order of mention, without ranking them (e.g. "disruption; service_loss"):
 """ + pp.describe_damage_categories() + """
 
 ----------------------------------------
@@ -3707,7 +3707,7 @@ judge_extra_rules = {
         *location_rules,
     ],
     "damage": [
-        "Use the damage category whose definition matches the damage the TEXT reports for this infrastructure. If several categories apply, give all of them comma-separated in order of mention, without ranking them.",
+        "Use the damage category whose definition matches the damage the TEXT reports for this infrastructure. If several categories apply, give all of them semicolon-separated in order of mention, without ranking them.",
         "Use null if no damage or disruption is explicitly stated for this infrastructure.",
     ],
     "economic_impact_origin": [
@@ -3727,7 +3727,7 @@ judge_extra_rules = {
         "Use the INFRASTRUCTURE ENTITIES DETECTED BY NER as guidance and keep their phrasing, as LLM 1 had to. Never invent infrastructure.",
     ],
     "secondary_infrastructure_damage": [
-        "Use the damage category whose definition matches the effect the TEXT reports for secondary_infrastructure_asset. If several categories apply, give all of them comma-separated in order of mention, without ranking them.",
+        "Use the damage category whose definition matches the effect the TEXT reports for secondary_infrastructure_asset. If several categories apply, give all of them semicolon-separated in order of mention, without ranking them.",
         "Use null if the TEXT states no effect for secondary_infrastructure_asset.",
     ],
     # NOTE tertiary impacts are not extracted at the moment
@@ -3865,6 +3865,11 @@ def judge_records(df_records: pd.DataFrame, chunk_text: str, llm, max_retries: i
         ))
 
     df_judged = pd.concat(df_batches_judged)
+
+    # the judge may separate several damage categories by comma: always store them semicolon-separated
+    for column in ["damage", "secondary_infrastructure_damage"]:
+        if column in df_judged.columns:
+            df_judged[column] = df_judged[column].map(pp.map_damage_to_category)
 
     return df_judged
 
