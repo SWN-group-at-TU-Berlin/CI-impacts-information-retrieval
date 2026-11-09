@@ -1447,7 +1447,7 @@ class GraphState(MessagesState): # TypedDict
     secondary_infrastructure_impacts: List[SecondaryInfrastructureImpact]
     societal_impacts: List[SocietalImpact]
     environmental_impacts: List[EnvironmentalImpact]
-    # tertiary_impacts: List[TertiaryImpact]  # NOTE tertiary impacts are not extracted at the moment
+    # tertiary_impacts: List[TertiaryImpact]
 
     # rendered dynamic few-shot examples per task (src/few_shot.py), empty without FEW_SHOT_MODE=dynamic
     few_shots: dict
@@ -2240,11 +2240,11 @@ amount: around 20 000 EUR
 unit: EUR
 
 TEXT: Flood loss estimates for transportation damages and all other damages to the public sector will be in total below 500 000 EUR ”
-CI_DAMAGES: ci_asset="transportation", location=None, damage="damaged"
-source_asset: transportation
+CI_DAMAGES: ci_asset="transportation", location=None, damage="structural_damage"
+source_asset: railway assets
 source_location: None
-impact_origin: other_costs_or_losses
-impact_type: total/general losses
+impact_origin: total/general losses
+impact_type: other_costs_or_losses
 amount: below 500 000 EUR
 unit: EUR
 
@@ -2426,7 +2426,7 @@ source_damage = "inundation"
 target_asset = "train services"
 target_damage = "disruption"
 
-Do NOT put "delayed" into source_damage.
+Do NOT put "disruption" into source_damage.
 
 ----------------------------------------
 SECONDARY INFRASTRUCTURE ONLY
@@ -4224,7 +4224,7 @@ for file_no, filename in enumerate(search_path):
             # process to DF only when damage Ci was found
             df_resp = impacts_to_dataframe(result).replace("; ", ", ", regex=True)
             df_resp["has_cascading_impacts"] = result.get("has_cascading_impacts", []).has_cascading_impacts
-            df_resp["assets_org"] = pd.Series(result.get("assets_org", []).cases, dtype=object)  # backup to see if assets/loc/dam where modified in CascaImpactExtraction
+            df_resp["assets_org"] = result.get("assets_org", []).cases  # backup to see if assets/loc/dam where modified in CascaImpactExtraction
             df_resp.rename(columns={"ci_asset": "infrastructure_type", "ci_asset_amount": "infrastructure_amount", "ci_asset_name": "infrastructure_name"},  inplace=True)
 
             # df_resp = pd.DataFrame({"infrastructure_type":k.ci_asset, "location":k.location, "damage":k.damage} for k in result["infrastructure_cases"].cases)

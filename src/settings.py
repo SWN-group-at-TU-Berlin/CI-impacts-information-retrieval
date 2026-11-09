@@ -137,8 +137,8 @@ class Settings(BaseSettings):
     # elif re.findall("node*|gpu*", hostname) ==TRUE:  # TODO adapt pattern search
     else:
         print("Running on TUB Cluster")
-        HF_HOME_DIR: str = "/beegfs/home/users/a/a-buch/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror"
-        HF_TOKEN_PATH: str = "/beegfs/home/users/a/a-buch/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/token"
+        HF_HOME_DIR: str = "/beegfs/home/users/a/a-buch/_PROJECTS/ci-impacts-vllm/notebooks/huggingface_mirror"
+        HF_TOKEN_PATH: str = "/beegfs/home/users/a/a-buch/_PROJECTS/ci-impacts-vllm/notebooks/huggingface_mirror/token"
         # model_config = SettingsConfigDict(env_file=".env")  # load HUGGINGFACE_TOKEN
 
         # DATA DIR
