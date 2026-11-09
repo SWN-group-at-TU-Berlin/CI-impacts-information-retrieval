@@ -85,9 +85,14 @@ def test_map_damage_to_category():
     assert pp.map_damage_to_category("traffic jam(s)") == "disruption"
     assert pp.map_damage_to_category("repaired") == "restored_recovered"
     assert pp.map_damage_to_category("disruption") == "disruption"  # already a category
-    # several keywords -> most severe category
-    assert pp.map_damage_to_category("flooded or destroyed") == "structural_damage"
-    assert pp.map_damage_to_category("closed, restored") == "disruption"
+    # several keywords -> all categories comma-separated in order of mention, without ranking or duplicates
+    assert pp.map_damage_to_category("flooded or destroyed") == "inundation, structural_damage"
+    assert pp.map_damage_to_category("destroyed or flooded") == "structural_damage, inundation"
+    assert pp.map_damage_to_category("closed, restored") == "disruption, restored_recovered"
+    assert pp.map_damage_to_category("flooded and closed") == "inundation, disruption"
+    assert pp.map_damage_to_category("closed, blocked") == "disruption"  # same category only once
+    assert pp.map_damage_to_category("inundation, disruption") == "inundation, disruption"  # already categories
+    assert pp.map_damage_to_category("flooded, unknown damage") == "inundation"  # unknown values are ignored
     assert pp.map_damage_to_category("unknown damage") is None
     assert pp.map_damage_to_category(np.nan) is None
     assert pp.map_damage_to_category(None) is None

@@ -18,7 +18,7 @@ from src.settings import init_logger
 logger = init_logger(__name__)
 
 
-# General damage categories of an infrastructure asset (InfrastructureCase.damage), ordered from most to least severe,
+# General damage categories of an infrastructure asset (InfrastructureCase.damage), without any ranking between them,
 # each with a short definition and the detailed damage keywords it replaces
 DAMAGE_CATEGORIES = {
     "structural_damage": {
