@@ -72,14 +72,15 @@ def describe_damage_categories() -> str:
 
 
 def map_damage_to_category(damage):
-    """Map detailed damage keywords (separated by ',', ';', ' or ' or ' and ') to their general damage categories, semicolon-separated
-    in order of mention and without duplicates or ranking, e.g. "flooded and closed" -> "inundation; disruption".
-    Values that are already a category are kept, unknown values and NaN are ignored (None if nothing is left)."""
+    """Map a detailed damage keyword to its ONE general damage category, e.g. "severely damaged" -> "structural_damage".
+    The LLM has to choose the category that fits best to the damage case itself; if it still returns several keywords
+    (separated by ',', ';', ' or ' or ' and '), the first known one is used (no ranking by severity), e.g. "closed, polluted" -> "disruption".
+    Values that are already a category are kept, unknown values and NaN give None."""
     if damage is None or (isinstance(damage, float) and pd.isna(damage)):
         return None
     parts = [p.strip() for p in re.split(r",|;|\bor\b|\band\b", str(damage).strip().lower()) if p.strip()]
     categories = [_DAMAGE_KEYWORD_TO_CATEGORY.get(p, p if p in DAMAGE_CATEGORIES else None) for p in parts]
-    return "; ".join(dict.fromkeys(c for c in categories if c)) or None
+    return next((c for c in categories if c), None)
 
 
 def keep_ci_types(ci_list: list, ci_patterns) -> list:

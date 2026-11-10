@@ -399,7 +399,7 @@ IMPORTANT:
 - **Only for transportation infrastructure:** When the specific name of an ASSET is mentioned (e.g. Juan Avenue, intersection to Maria Statue, highway A-1, B510, Berlusconi Airport) and no location information can be found, then consider the specific name of this asset as the location. But do not use road types as location names, such as "German highway", "national road", etc.
 - **Only for transportation infrastructure:** when an ASSET refers to two or more locations then extract the locations together. For instance: text:"There is much damage on the access roads from Juan Avenue to Plaza Manuel Azaña" --> location:["from Juan Avenue to Plaza Manuel Azaña"]
 - If no location is explicitly stated for an asset, return None for "location".
-- Assign the general damage category ("damage") to each infrastructure entity, based on the damage, failure, or disruption the TEXT reports for it. If several categories apply, give all of them semicolon-separated in order of mention, without ranking them (e.g. "inundation; disruption"). Damage categories:
+- Assign ONE general damage category ("damage") to each infrastructure entity: the category that fits best to the damage, failure, or disruption the TEXT reports for this entity, not to its cause (e.g. "In Belgium the water supply was disrupted (partly because of pollution)" --> damage:"disruption", not "contamination"). Damage categories:
 """ + pp.describe_damage_categories() + """
 - If no damage or disruption is explicitly stated for an asset, return None for "damage".
 - If no information about the number of infrastructure assets or services is explicitly stated for an infrastructure entity ("ci_asset"), return None for "ci_asset_amount".
@@ -415,7 +415,7 @@ text: Similar as in Germany, bridges were often flooded, said the General Office
 Example Output:
 [InfrastructureCase(ci_asset="bridges", ci_asset_amount=None, ci_asset_name=None, location=None, damage="structural_damage"), InfrastructureCase(ci_asset="road and railway infrastructure", ci_asset_amount=None, ci_asset_name=None, location="Western Germany", damage="structural_damage"), InfrastructureCase(ci_asset="bridges", ci_asset_amount="around 50", ci_asset_name=None, location="Germany", damage="structural_damage"), InfrastructureCase(ci_asset="A1 highway", ci_asset_amount=None, ci_asset_name="A1", location="Cologne", damage="obstruction"),]
 
-{examples}"""),
+"""),
     ("human", """
 TEXT: {text}
 INFRASTRUCTURE ENTITIES DETECTED BY NER: {entities}
@@ -1296,16 +1296,19 @@ class SecondaryInfrastructureImpact(BaseModel):
     source_damage: str | None = Field(default=None, description="Original damage or disruption affecting the source asset.")
     target_asset: str | None = Field(default=None, description="Other infrastructure asset or infrastructure-related service affected as a consequence of the source damage.")
     # e.g. closure of 3 school days
-    target_damage: str | None = Field(
+    target_damage: Literal[
+        None, "structural_damage", "inundation", "contamination", "service_loss", "obstruction", "disruption", "affected", "restored_recovered"
+    ] | None = Field(
         default=None,
         description=(
             "General category of the resulting damage, disruption or operational effect experienced by the target infrastructure asset or service. "
-            "If several categories apply, give all of them semicolon-separated in order of mention, without ranking them:\n" + pp.describe_damage_categories()
+            "Use exactly ONE category: the one that fits best to the effect reported for the target asset, not to its cause "
+            "(e.g. 'water supply was disrupted (partly because of pollution)' -> 'disruption', not 'contamination'):\n" + pp.describe_damage_categories()
         ),
     )
     # impact_description: str = Field(description="Explicitly stated downstream impact on the infrastructure asset or service.")
 
-    # map free-text damage (e.g. "severely damaged") to its categories (semicolon-separated if several), unknown -> None
+    # tool calling does not enforce the Literal: map free-text damage (e.g. "severely damaged") to its category, unknown -> None
     _map_target_damage = field_validator("target_damage", mode="before")(lambda v: pp.map_damage_to_category(v))
 
 
@@ -1406,19 +1409,24 @@ class InfrastructureCase(BaseModel):
     #     default=None,
     #     description="Damage, failure, disruption, or operational status explicitly associated with this infrastructure asset."
     # )
-    damage: str | None = Field(
+    damage: Literal[
+        None, "structural_damage", "inundation", "contamination", "service_loss", "obstruction", "disruption", "affected", "restored_recovered"
+    ] | None = Field(
         default=None,
         description=(
             "General category of the damage, failure, disruption, or operational status explicitly associated with this infrastructure asset. "
-            "If several categories apply, give all of them semicolon-separated in order of mention, without ranking them:\n" + pp.describe_damage_categories()
+            "Use exactly ONE category: the one that fits best to the damage reported for this asset, not to its cause "
+            "(e.g. 'water supply was disrupted (partly because of pollution)' -> 'disruption', not 'contamination'):\n" + pp.describe_damage_categories()
         ),
     )
 
-    # map free-text damage (e.g. "severely damaged") to its categories (semicolon-separated if several), unknown -> None
+    # tool calling does not enforce the Literal: map free-text damage (e.g. "severely damaged") to its category, unknown -> None
     _map_damage = field_validator("damage", mode="before")(lambda v: pp.map_damage_to_category(v))
 
 
-# NOTE damage and target_damage are free text (several categories), restricted to pp.DAMAGE_CATEGORIES by pp.map_damage_to_category
+# damage categories of the schema must be the same as in src/postprocess.py (DAMAGE_CATEGORIES)
+assert [c for c in typing.get_args(typing.get_args(InfrastructureCase.model_fields["damage"].annotation)[0]) if c] == list(pp.DAMAGE_CATEGORIES)
+assert [c for c in typing.get_args(typing.get_args(SecondaryInfrastructureImpact.model_fields["target_damage"].annotation)[0]) if c] == list(pp.DAMAGE_CATEGORIES)
 
 
 class InfrastructureCases(BaseModel):
@@ -1449,7 +1457,8 @@ class GraphState(MessagesState): # TypedDict
     environmental_impacts: List[EnvironmentalImpact]
     # tertiary_impacts: List[TertiaryImpact]
 
-    # rendered dynamic few-shot examples per task (src/few_shot.py), empty without FEW_SHOT_MODE=dynamic
+    # rendered dynamic few-shot examples per task (src/few_shot.py), only used for the secondary infrastructure impacts,
+    # empty without FEW_SHOT_MODE=dynamic
     few_shots: dict
 
 
@@ -1655,7 +1664,6 @@ def extract_asset_information(state: GraphState) -> GraphState:
         content=asset_information_prompt.format(
             text=state["text"],
             entities=assets_list,
-            examples=few_shot_examples(state, "direct"),
     ))]
     result = llm_structured.invoke(messages)
     print("cld:", result)
@@ -1679,7 +1687,6 @@ def extract_asset_information(state: GraphState) -> GraphState:
                         content=asset_information_prompt.format(
                             text=state["text"],
                             entities=asset,
-                            examples=few_shot_examples(state, "direct"),
                     ))]
                 )
                 print(f"cld response for {asset}:", result)
@@ -2018,8 +2025,6 @@ Text: The flooding lead to bridges failures, isolating communities living in the
 - bridge failures → isolation of communities
 
 
-{examples}
-
 Do NOT classify the original infrastructure damage (CI_DAMAGES) itself as a cascading impact.
 
 
@@ -2086,7 +2091,6 @@ def detect_cascade(state) -> GraphState:
             HumanMessage(content=prompt_has_cascade.format(
                 text=state["text"],
                 ci_damages=state["infrastructure_cases"].cases,
-                examples=few_shot_examples(state, "detect"),
         ))])
     print("has_cascading_impacts", result)
 
@@ -2248,8 +2252,6 @@ impact_type: other_costs_or_losses
 amount: below 500 000 EUR
 unit: EUR
 
-{examples}
-
 Now, its your task to extract potential economic impacts for each of the damaged infrastructure:
 TEXT: {text}
 CI_DAMAGES: {ci_damages}
@@ -2302,7 +2304,6 @@ def extract_economic_impacts(state: GraphState) -> GraphState:
         HumanMessage(content=economic_impact_prompt.format(
             text=state["text"],
             ci_damages=state["ci_damages"],
-            examples=few_shot_examples(state, "economic"),
        ))])
 
     try:
@@ -2405,7 +2406,7 @@ For every explicitly reported secondary infrastructure impact, extract:
    IMPORTANT: This must be different from source_asset.
 
 5. target_damage: The general damage category of the resulting condition or operational effect experienced by the affected asset or service (target_asset).
-   Use only the following categories. If several categories apply, give all of them semicolon-separated in order of mention, without ranking them (e.g. "disruption; service_loss"):
+   Use exactly ONE of the following categories: the one that fits best to the effect reported for the target_asset, not to its cause (e.g. "water supply was disrupted (partly because of pollution)" --> "disruption"):
 """ + pp.describe_damage_categories() + """
 
 ----------------------------------------
@@ -2513,7 +2514,7 @@ source_location: None
 target_asset: public transport
 target_damage: disruption
 
-TEXT: Because the power line was destroyed, the water supply in Bad Neuenahr failed.
+TEXT: Because the power line in Bad Neuenahr was destroyed, the water supply failed.
 CI_DAMAGES: ci_asset="power line", location="Bad Neuenahr", damage="structural_damage"
 source_asset: power line
 source_damage: structural_damage
@@ -2708,8 +2709,6 @@ impact_type: evacuated residents
 amount: around 2,000
 unit: residents
 
-{examples}
-
 Now extract all societal impacts for each infrastructure case.
 TEXT: {text}
 CI_DAMAGES: {ci_damages}
@@ -2769,7 +2768,6 @@ def extract_societal_impacts(state: GraphState) -> GraphState:
             HumanMessage(content=societal_impact_prompt.format(
                 text=state["text"],
                 ci_damages=state["ci_damages"],
-                examples=few_shot_examples(state, "societal"),
         ))])
     
     try:
@@ -2893,8 +2891,6 @@ impact_type: waste fills and debris
 amount: None
 unit: None
 
-{examples}
-
 Now extract all environmental impacts for each infrastructure case.
 TEXT: {text}
 CI_DAMAGES: {ci_damages}
@@ -2928,7 +2924,6 @@ def extract_environmental_impacts(state: GraphState) -> GraphState:
             HumanMessage(content=environmental_impact_prompt.format(
                 text=state["text"],
                 ci_damages=state["ci_damages"],
-                examples=few_shot_examples(state, "environmental"),
         ))])
 
     try:
@@ -3063,30 +3058,27 @@ def route_cascading_impacts(state: GraphState):
         Send("economic_impacts", {
             "text": state["text"],
             "ci_damages": state["infrastructure_cases"].cases,
-            "few_shots": state.get("few_shots", {}),
         }),
         Send(
             "societal_impacts",
             {
                 "text": state["text"],
                 "ci_damages": state["infrastructure_cases"].cases,
-                "few_shots": state.get("few_shots", {}),
-        }),
+            }),
         Send(
             "secondary_infrastructure_impacts",
             {
                 "text": state["text"],
                 "ci_damages": state["infrastructure_cases"].cases,
                 "few_shots": state.get("few_shots", {}),
-            }
+                }
         ),
         Send(
             "environmental_impacts",
             {
                 "text": state["text"],
                 "ci_damages": state["infrastructure_cases"].cases,
-                "few_shots": state.get("few_shots", {}),
-            }
+                }
         ),
         # NOTE tertiary impacts are not extracted at the moment
         # Send(
@@ -3677,9 +3669,6 @@ judge_allowed_values = {
     for column, (model, name) in judge_field_schema.items()
     if lj.literal_values(model.model_fields[name].annotation)
 }
-# free text in the schema (several categories), the judge may only use the damage categories
-judge_allowed_values["damage"] = list(pp.DAMAGE_CATEGORIES)
-judge_allowed_values["secondary_infrastructure_damage"] = list(pp.DAMAGE_CATEGORIES)
 
 # location rules: the same "IMPORTANT" points about locations as in the prompt of LLM 1 (asset_information_prompt)
 location_rules = [
@@ -3707,7 +3696,7 @@ judge_extra_rules = {
         *location_rules,
     ],
     "damage": [
-        "Use the damage category whose definition matches the damage the TEXT reports for this infrastructure. If several categories apply, give all of them semicolon-separated in order of mention, without ranking them.",
+        "Use the damage category whose definition matches the damage the TEXT reports for this infrastructure. Use exactly one category: the one that fits best to the reported damage of this infrastructure, not to its cause (e.g. 'water supply was disrupted (partly because of pollution)' -> 'disruption').",
         "Use null if no damage or disruption is explicitly stated for this infrastructure.",
     ],
     "economic_impact_origin": [
@@ -3727,7 +3716,7 @@ judge_extra_rules = {
         "Use the INFRASTRUCTURE ENTITIES DETECTED BY NER as guidance and keep their phrasing, as LLM 1 had to. Never invent infrastructure.",
     ],
     "secondary_infrastructure_damage": [
-        "Use the damage category whose definition matches the effect the TEXT reports for secondary_infrastructure_asset. If several categories apply, give all of them semicolon-separated in order of mention, without ranking them.",
+        "Use the damage category whose definition matches the effect the TEXT reports for secondary_infrastructure_asset. Use exactly one category: the one that fits best to the reported effect, not to its cause.",
         "Use null if the TEXT states no effect for secondary_infrastructure_asset.",
     ],
     # NOTE tertiary impacts are not extracted at the moment
@@ -3866,11 +3855,6 @@ def judge_records(df_records: pd.DataFrame, chunk_text: str, llm, max_retries: i
 
     df_judged = pd.concat(df_batches_judged)
 
-    # the judge may separate several damage categories by comma: always store them semicolon-separated
-    for column in ["damage", "secondary_infrastructure_damage"]:
-        if column in df_judged.columns:
-            df_judged[column] = df_judged[column].map(pp.map_damage_to_category)
-
     return df_judged
 
 
@@ -3998,10 +3982,10 @@ df_ci_cases_not_grouped = pd.DataFrame()
 
 
 
-## dynamic few-shot examples
+## dynamic few-shot examples, only for the secondary infrastructure impacts (field secondary_infrastructure_asset)
 few_shot_store = None
 if s.FEW_SHOT_MODE == "dynamic":
-    few_shot_store = fs.FewShotStore.load(s.PATH_FEW_SHOT, s.FEW_SHOT_EMBEDDING_MODEL, s.FEW_SHOT_COUNTS, s.FEW_SHOT_MIN_SIM)
+    few_shot_store = fs.FewShotStore.load(s.PATH_FEW_SHOT, s.FEW_SHOT_EMBEDDING_MODEL, {"secondary": s.FEW_SHOT_COUNTS["secondary"]}, s.FEW_SHOT_MIN_SIM)
 holdout_publications = fs.holdout_publications(s.PATH_FEW_SHOT) if s.FEW_SHOT_HOLDOUT_ONLY else []
 few_shot_log = []
 

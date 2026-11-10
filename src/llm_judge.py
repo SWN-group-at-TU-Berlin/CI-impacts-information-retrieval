@@ -109,11 +109,11 @@ def strip_determiners(value) -> str:
 
 
 def _is_allowed(value, allowed: list) -> bool:
-    """True if value is an allowed value, or a combination of allowed values separated by "," or ";"
-    (e.g. "repair_recovery_cost, downstream_economic_consequence" or damage categories "inundation; disruption")."""
+    """True if value is an allowed value, or a comma-separated combination of allowed values
+    (cascading impact columns can hold several values, e.g. "repair_recovery_cost, downstream_economic_consequence")."""
     if value in allowed:
         return True
-    return all(part.strip() in allowed for part in re.split(r"[,;]", str(value)))
+    return all(part.strip() in allowed for part in str(value).split(","))
 
 
 def apply_judgements(
