@@ -155,12 +155,12 @@ def count_paragraph_scores(
     return df_scores[["impact"] + PARAGRAPH_KEY + ["tps", "fps", "fns", "n_pred", "n_valid", "precision", "recall", "f1"]]
 
 
-def fuzzy_match_counts(pred: list, valid: list, scorer, threshold: float) -> tuple[int, int, int, list]:
-    """Count TPs, FPs, FNs between a list of predicted and validated entities using fuzzy 1:1 matching.
+def fuzzy_match_indices(pred: list, valid: list, scorer, threshold: float) -> list[tuple[int, int, float]]:
+    """Fuzzy 1:1 matching between a list of predicted and validated entities.
 
     All pred-valid pairs are scored with scorer (e.g. fuzz.partial_ratio, 0-100) and matched greedily,
-    highest score first; a pair is a TP when its score >= threshold and neither entity is matched yet.
-    Returns (tps, fps, fns, matched pairs as (pred, valid, score)).
+    highest score first; a pair is a match when its score >= threshold and neither entity is matched yet.
+    Returns the matched pairs as (pred index, valid index, score), e.g. to look up the text of each entity.
     """
     scored = sorted(
         ((scorer(str(p), str(v)), i, j) for i, p in enumerate(pred) for j, v in enumerate(valid)),
@@ -174,8 +174,16 @@ def fuzzy_match_counts(pred: list, valid: list, scorer, threshold: float) -> tup
             continue
         used_pred.add(i)
         used_valid.add(j)
-        matches.append((pred[i], valid[j], score))
+        matches.append((i, j, score))
+    return matches
 
+
+def fuzzy_match_counts(pred: list, valid: list, scorer, threshold: float) -> tuple[int, int, int, list]:
+    """Count TPs, FPs, FNs between a list of predicted and validated entities using fuzzy 1:1 matching
+    (see fuzzy_match_indices).
+    Returns (tps, fps, fns, matched pairs as (pred, valid, score)).
+    """
+    matches = [(pred[i], valid[j], score) for i, j, score in fuzzy_match_indices(pred, valid, scorer, threshold)]
     tps = len(matches)
     return tps, len(pred) - tps, len(valid) - tps, matches
 

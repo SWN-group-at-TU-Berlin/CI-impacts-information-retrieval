@@ -599,6 +599,12 @@ def combine_hyphenated_words(p_str):
         word1, word2 = match.group(1), match.group(2)
         combined = word1.strip() + word2.strip()
 
+        # Keep parts with digits unchanged, e.g. number ranges "100-200", "2010- 2015" or road names "A-1"
+        if any(c.isdigit() for c in combined):
+            return match.group(0)
+        # Keep parts with an uppercase second word unchanged, e.g. proper nouns "Sachsen-Anhalt", "Elbe- Havel" or "pre-War"
+        if word2.strip()[0].isupper():
+            return match.group(0)
         # If there is a space after the hyphen and the combined word is valid,
         # assume the hyphen was splitting a single word.
         # if word2.startswith(" ") and is_valid_word(combined):  # org

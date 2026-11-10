@@ -7,9 +7,11 @@ __email__ = "anna.buch@tu-berlin.de"
 
 import re
 from io import StringIO
+import numpy as np
 import pandas as pd
 
 import src.document_cleaning as dc
+import src.evaluation as ev
 from src.settings import init_logger
 
 
@@ -33,22 +35,22 @@ DAMAGE_CATEGORIES = {
         "keywords": ["contaminated", "polluted"],
     },
     "service_loss": {
-        "definition": "the service provided by the asset is lost, e.g. outage, blackout, no supply of water, electricity or gas",
-        "keywords": ["outage(s)", "blackout", "loss of water/electricity", "no supply", "left without water/electricity", "failure(s)"],
+        "definition": "the service (only water/wastewater/telecommunication/IT/energy/gas) provided by the asset is lost or the assets' capacity is limited or exceeded, e.g. outage, blackout, overloaded/overwhelmed, congested network(s), supply of water, electricity or gas",
+        "keywords": ["outage(s)", "blackout", "loss of water/electricity/gas/telecommunication/it", "no supply", "limited/exceeded capacity", "overwhelmed", "overheated", "left without water/electricity/gas/telecommunication/it", "failure(s)"],
     },
     "obstruction": {
         "definition": "the asset is obstructed by debris or trees",
-        "keywords": ["debris", "debris on", "fallen tree(s)", "broken tree(s)", "overturned tree(s)", "uprooted tree(s)", "felled tree(s)"],
+        "keywords": ["obstruction", "debris", "debris on", "fallen tree(s)", "broken tree(s)", "overturned tree(s)", "uprooted tree(s)", "felled tree(s)"],
     },
     "disruption": {
-        "definition": "the operation of the asset is disrupted, restricted or stopped, e.g. closures, blockages, delays, cancellations, traffic jams",
-        "keywords": ["disrupted", "blocked", "impassable", "partly closed", "closed", "closure(s)", "traffic jam(s)",
-                     "traffic disruption(s)", "traffic congestion(s)", "delay(s)", "flight delay(s)", "train delay(s)",
+        "definition": "the operation of the asset (only transportation) is disrupted, restricted, or stopped, e.g. closures, blockages, delays, cancellations, traffic jams",
+        "keywords": ["disrupted", "blocked", "impassable", "partly closed", "closed", "closure(s)", "(partly) out of service", "cut off", "traffic jam(s)",
+                     "traffic disruption(s)", "traffic congestion(s)", "delay(s)", "flight delay(s)", "train delay(s)",  
                      "train failure(s)", "cancellation(s)", "canceled"],
     },
     "affected": {
-        "definition": "the asset is reported as (indirectly) affected without further details",
-        "keywords": ["affected", "indirectly affected"],
+        "definition": "the asset is reported as (indirectly) affected or impacted without further details, or reported as (indirectly) affected/impacted by a hazard (e.g., fire, wind, flood, heat, drought) without further details",
+        "keywords": ["affected", "affected by a hazard", "indirectly affected"],
     },
     "restored_recovered": {
         "definition": "the asset or its service is restored, repaired, rebuilt or reconnected",
@@ -79,6 +81,7 @@ def map_damage_to_category(damage):
     if damage in DAMAGE_CATEGORIES:
         return damage
 
+    # TODO FIXME not most severe category should be returned but rather the one that occurs most often, adapt also asset_information_prompt
     parts = [p.strip() for p in re.split(r",|;|\bor\b|\band\b", damage) if p.strip()]
     categories = {_DAMAGE_KEYWORD_TO_CATEGORY.get(p, p if p in DAMAGE_CATEGORIES else None) for p in parts} - {None}
     if not categories:
@@ -297,4 +300,24 @@ def split_ci_entities(df: pd.DataFrame, columns: list[str],) -> pd.DataFrame:
         df = df.explode(column, ignore_index=True)
 
     return df
-       
+
+
+def remove_amounts_not_in_text(df: pd.DataFrame, amount_column: str = "societal_impact_amount", text_column: str = "chunk_text") -> pd.DataFrame:
+    """Set amounts to NaN when one of their numbers does not occur in the text, i.e. likely hallucinated or calculated by the LLM.
+    Numbers are compared after ev.normalize_numbers, e.g. "20,000" (amount) <-> "20 000" (text).
+    Amounts without digits (e.g. "thousands") are kept, number words are not converted, e.g. "1,500,000" <-> "1.5 million" is removed.
+    """
+    df = df.copy()
+
+    def not_in_text(amount, text) -> bool:
+        if ev.is_missing_impact(amount):
+            return False
+        return not set(ev.extract_numbers(amount)) <= set(ev.extract_numbers(text))
+
+    # boolean mask instead of index labels, the index is not unique after splitting entries into multiple rows
+    mask = np.array([not_in_text(amount, text) for amount, text in zip(df[amount_column], df[text_column])], dtype=bool)
+    if mask.any():
+        logger.info(f"Removing {mask.sum()} {amount_column} entries, their numbers do not occur in {text_column}: {df.loc[mask, amount_column].tolist()}")
+    df.loc[mask, amount_column] = np.nan
+
+    return df
