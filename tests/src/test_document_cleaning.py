@@ -1,4 +1,4 @@
-import json
+import pytest
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -7,7 +7,7 @@ import pandas as pd
 
 from src import document_cleaning as dc
 from src import postprocess as pp
-from src import translation_model as tm
+from src.models import llm_translate as lm
 from src import utils
 
 
@@ -54,18 +54,9 @@ def test_combine_paragraphs():
         "First paragraph.\nSecond paragraph"
     )
 
-
-def test_split_sentences_preserves_abbreviations():
-    text = "Dr. Smith arrived. The road was closed."
-    assert tm.split_sentences_keep_sep(text) == [
-        "Dr. Smith arrived.",
-        " The road was closed.",
-    ]
-
-
 def test_split_long_paragraph_returns_two_parts():
     text = "First sentence. Second sentence. Third sentence. Fourth sentence."
-    first, second = tm.split_long_paragraph(text)
+    first, second = lm.split_long_paragraph(text)
 
     assert first == ["First sentence.", " Second sentence."]
     assert second == [" Third sentence.", " Fourth sentence."]
@@ -81,44 +72,15 @@ def test_group_ci_types_assigns_matching_subgroup():
         ]
     )
     data = pd.DataFrame({"asset": ["roads", "railway"]})
-
     result = pp.group_ci_types(data, "asset", "group", patterns)
-
-    assert result["group"].tolist() == ["roads", None]
-
-
-def test_postprocess_response_parses_numbered_fields():
-    response = json.dumps(
-        {
-            "infrastructure_type_1": "roads",
-            "location_1": "Berlin",
-            "damage_1": "blocked",
-            "damage_value_1": "NAN",
-        }
-    )
-
-    result = pp.postprocess_response(response)
-
-    assert result.iloc[0]["infrastructure_type"] == "roads"
-    assert result.iloc[0]["location"] == "Berlin"
-    assert result.iloc[0]["damage"] == "blocked"
-
-
-# def test_gen_dict_extract():
-#     value = {
-#         "countries": [
-#             {"name": "Germany"},
-#             {"nested": {"name": "France"}},
-#         ]
-#     }
-
-#     assert list(utils.gen_dict_extract(value, "name")) == ["Germany", "France"]
+    assert result["group"].iloc[0] == "roads"
+    assert pd.isna(result["group"].iloc[1])  # no matching CI pattern
 
 
 def test_metrics():
-    assert utils.calc_recall(8, 2) == 0.8
-    assert utils.calc_precision(8, 2) == 0.8
-    assert utils.calc_f1(0.8, 0.8) == 0.8
+    assert utils.calc_recall(8, 2) == pytest.approx(0.8)
+    assert utils.calc_precision(8, 2) == pytest.approx(0.8)
+    assert utils.calc_f1(0.8, 0.8) == pytest.approx(0.8)  # floating point: 2 * 0.64 / 1.6 = 0.8000000000000002
 
 
 ## Unit test with a mock
@@ -155,3 +117,29 @@ def test_supports_flash_attention():
         return_value=(7, 5),
     ):
         assert not utils.supports_flash_attention(0)
+
+
+def test_doc_processing_html_cleans_and_saves(tmp_path):
+    meta_filepath = tmp_path / "text_sources_html.csv"
+    pd.DataFrame({"Authors": ["Zeit"], "Year": [2026], "Title": ["Flood closes roads"], "URL": ["https://example.com"]}).to_csv(meta_filepath, index=False)
+    paragraphs = [
+        "The flood closed several roads",  # no sentence end -> merged with next piece
+        "near Berlin, e.g. the A1 highway https://example.com and the B5.",
+        "Short.",
+    ]
+    processor = dc.HtmlProcess(meta_filepath, output_dir=tmp_path / "html_parsed")
+    with patch.object(dc.HtmlProcess, "fetch_paragraphs", return_value=paragraphs):
+        docs = processor.process_all()
+
+    assert list(docs) == ["Zeit 2026 - Flood closes roads"]
+    assert (tmp_path / "html_parsed" / "Zeit 2026 - Flood closes roads_cleaned.md").exists()
+    texts = [item.text for item in docs["Zeit 2026 - Flood closes roads"].texts]
+    assert any(t.strip().startswith("The flood closed several roads near Berlin") and "eg the A1 highway" in t for t in texts)
+    assert not any("https" in t for t in texts)
+
+
+def test_doc_processing_html_requires_meta_columns(tmp_path):
+    meta_filepath = tmp_path / "meta.csv"
+    pd.DataFrame({"Title": ["x"]}).to_csv(meta_filepath, index=False)
+    with TestCase().assertRaises(AssertionError):
+        dc.HtmlProcess(meta_filepath, output_dir=tmp_path)

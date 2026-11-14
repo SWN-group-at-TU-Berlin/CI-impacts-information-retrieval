@@ -63,7 +63,7 @@ from docling.chunking import HybridChunker
 
 # %%
 from src.settings import settings as s
-from src.document_cleaning import extract_citation_info
+import src.document_cleaning as dc
 import src.translation_model as tm
 # import src.extraction_model as em
 import src.postprocess as pp
@@ -206,14 +206,9 @@ docs_list_sample = [
 ]
 
 
-## Test mode
+## Test mode: only the documents of docs_list_sample are used for the CI impact extraction (see "Document cleaning")
 if test_mode:
-    search_path = docs_list_sample
     print("Test mode is ON. Using only a small sample of documents for testing.")
-else:
-    search_path = glob(str(Path(PARSED_TEXT_DIR, "*cleaned.md")))
-
-print(f"Using {len(search_path)} documents for processing.")
 
 
 
@@ -309,6 +304,39 @@ from langchain.tools.tool_node import ToolCallRequest
 from collections.abc import Callable
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.store.memory import InMemoryStore
+
+
+
+
+# %% [markdown]
+# ## Document cleaning
+# PDF: parsed with OCR (docling), metadata from the filename "<authors> <year> - <title>.pdf"
+# HTML: fetched from the URLs in text_sources_html.csv (columns Authors, Year, Title, URL)
+# already cleaned documents ("*_cleaned.md") are loaded instead of processed again
+
+# %%
+start_time = time.time()
+
+## PDF
+pdf_filepaths = glob(str(Path(DOCS_DIR, "*.pdf")))
+print("Number of PDF documents to process:", len(pdf_filepaths))
+pdf_docs = dc.PdfProcess(output_dir=PARSED_TEXT_DIR).process_all(pdf_filepaths)
+
+## HTML
+## TODO replace manually created csv with web-scraping pipeline, querying url directly from web
+html_docs = dc.HtmlProcess(
+    Path(DOCS_DIR, "text_sources_html.csv"),
+    output_dir=Path(PARSED_TEXT_DIR, "html_parsed"),
+).process_all()
+
+print(f"Parsing and cleaning done. Time elapsed: {time.time() - start_time:.2f} seconds.")
+
+## documents for the CI impact extraction: cleaned PDF and HTML documents per filename stem ("<authors> <year> - <title>")
+documents = {**pdf_docs, **html_docs}
+if test_mode:
+    sample_stems = {Path(f).stem for f in docs_list_sample}
+    documents = {stem: doc for stem, doc in documents.items() if stem in sample_stems}
+print(f"Using {len(documents)} documents ({len(pdf_docs)} PDF, {len(html_docs)} HTML) for the CI impact extraction.")
 
 
 
@@ -3687,33 +3715,18 @@ df_ci_cases_not_grouped = pd.DataFrame()
 
 
 ## Start CI impact extraction
-for file_no, filename in enumerate(search_path):
+# cleaned PDF and HTML documents (DoclingDocument) from the cell "Document cleaning"
+no_documents = len(documents)
+for file_no, (filename_stem, doclingdoc) in enumerate(documents.items()):
 
     time1 = time.time()
 
-    src_language_nonengl = None 
+    src_language_nonengl = None
 
-    no_documents = len(search_path)
-    
-    # load input docs
-    if test_mode:
-        org_filepath = Path(os.path.join(DOCS_DIR, Path(filename))) # if pdf TODO fix workaround for handling pdf differently than md
-        filename_stem = org_filepath.stem
-        md_filename = filename_stem + ".md"
-        md_filepath = os.path.join("./", PARSED_TEXT_DIR, Path(md_filename))
-        cleaned_md_filepath = md_filepath.replace(".md", "_cleaned.md")
-    else:
-        org_filepath = Path(filename)
-        filename_stem = org_filepath.stem
-        md_filepath = filename
-        cleaned_md_filepath = filename
-        print("md_filepath", md_filepath)
-
-
-    print(f"\n\n ######## -------- Processing document [{file_no+1}/{no_documents}]: {org_filepath.name} -------- ######## \n")
+    print(f"\n\n ######## -------- Processing document [{file_no+1}/{no_documents}]: {filename_stem} -------- ######## \n")
 
     ## extract authors, publication year and title 
-    author, year, title = extract_citation_info(filename_stem)
+    author, year, title = dc.extract_citation_info(filename_stem)
     citation = f"{author} {year}".replace("  ", " ").strip()
     title = title.replace(" - ", "").replace("_cleaned", "").strip()
 
@@ -3740,27 +3753,6 @@ for file_no, filename in enumerate(search_path):
         # ]
     )
     df_resp_judged = pd.DataFrame()  # records of all chunks incl. verdicts of LLM-as-a-judge (step 3)
-
-    
-    print(f"\n ##### ------- Parsing & Cleaning HTML document -----------########")
-    # TODO 
-    # incl HTLM parsing into pipeline
-    
-    
-    print(f"\n ##### ------- Parsing & Cleaning PDF document -----------########")
-
-
-    time_cleaning = time.time()
-
-    if os.path.exists(cleaned_md_filepath):
-        print("Cleaned markdown file exists, loading it")
-        doclingdoc = md_converter.convert(cleaned_md_filepath).document
-    else:
-        print(f"No cleaned markdown file for '{filename}' ({cleaned_md_filepath}). Skipping document.")
-        continue
-
-    print(f"Document cleaning took, {np.round((time.time() - time_cleaning) / 60, 1)} minutes")
-
 
 
     print("Chunking document...")
@@ -3794,7 +3786,7 @@ for file_no, filename in enumerate(search_path):
         )
 
     
-        print(f"\nProcessing chunk no. {chunk_no+1} / {len(doc)} of document: {org_filepath.name}")
+        print(f"\nProcessing chunk no. {chunk_no+1} / {len(doc)} of document: {filename_stem}")
         print("Chunk text: ", chunk.text)
 
 

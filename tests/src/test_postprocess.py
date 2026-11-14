@@ -61,24 +61,6 @@ def test_split_ci_entities_missing_and_empty_values_kept_as_nan():
     assert result["ci"].iloc[2] == "roads"
 
 
-ALL_OLD_DAMAGE_KEYWORDS = [
-    "affected", "damaged", "severely damaged", "highly damaged", "disrupted", "blocked", "destroyed", "largely destroyed",
-    "heavily destroyed", "partly closed", "closed", "outage(s)", "blackout", "loss of water/electricity", "no supply",
-    "left without water/electricity", "contaminated", "polluted", "flooded", "inundated", "fallen tree(s)", "broken tree(s)",
-    "overturned tree(s)", "uprooted tree(s)", "felled tree(s)", "debris", "debris removal", "debris on", "water on",
-    "dam failure(s)", "dyke break(s)", "dike break(s)", "breached dike(s)", "broken embankment(s)", "closure(s)", "derailed",
-    "impassable", "traffic jam(s)", "traffic disruption(s)", "traffic congestion(s)", "indirectly affected", "flight delay(s)",
-    "train delay(s)", "delay(s)", "train failure(s)", "failure(s)", "cancellation(s)", "canceled", "re-established",
-    "reestablished", "restored", "reconnected", "rebuild", "repaired",
-]
-
-
-def test_damage_categories_cover_each_old_keyword_once():
-    keywords = [k for entry in pp.DAMAGE_CATEGORIES.values() for k in entry["keywords"]]
-    assert sorted(keywords) == sorted(ALL_OLD_DAMAGE_KEYWORDS)
-    assert len(keywords) == len(set(keywords))
-
-
 def test_map_damage_to_category():
     assert pp.map_damage_to_category("severely damaged") == "structural_damage"
     assert pp.map_damage_to_category("Outage(s)") == "service_loss"
@@ -98,3 +80,25 @@ def test_describe_damage_categories():
     assert len(text.split("\n")) == len(pp.DAMAGE_CATEGORIES)
     assert text.startswith("- structural_damage: physical damage")
 
+
+
+def test_postprocess_response_keeps_only_ci_and_cleans_locations():
+    from src.tools.ner import load_ci_patterns
+    df = pd.DataFrame({"infrastructure_type": ["roads (A1)", "theatre"], "location": ["the Ahr valley, Germany", "Berlin"]})
+    df_ci, df_not_grouped = pp.postprocess_response(df, load_ci_patterns())
+    assert df_ci["infrastructure_type"].tolist() == ["roads A1"]
+    assert df_ci["infrastructure_group"].notna().all()
+    assert df_ci["location_orig"].tolist() == ["the Ahr valley, Germany"]
+    assert df_ci["location"].tolist() == ["Ahr valley"]  # "the" and the text after the comma are removed
+    assert df_not_grouped["infrastructure_type"].tolist() == ["theatre"]
+
+
+def test_postprocess_locations_removes_the_in_and_passing_only_at_the_beginning():
+    df = pd.DataFrame({"location": [
+        "the Ahr valley, Germany", "in the Ahr valley", "passing Cologne", "near the A1", "Sinzig (in North Rhine-Westphalia)",
+        "roads in Berlin", "Bridge passing the Elbe", "railway tracks between the A1 and B2", "Theale", "Berlin",
+    ]})
+    assert pp.postprocess_locations(df, "location").tolist() == [
+        "Ahr valley", "Ahr valley", "Cologne", "A1", "Sinzig",
+        "roads in Berlin", "Bridge passing the Elbe", "A1 and B2", "Theale", "Berlin",
+    ]

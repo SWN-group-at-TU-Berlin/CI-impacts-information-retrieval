@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src import llm_judge as lj
+from src.models import llm_judge as lj
 
 
 FIELDS = ["infrastructure_type", "location", "damage"]
