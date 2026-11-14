@@ -155,3 +155,29 @@ def test_supports_flash_attention():
         return_value=(7, 5),
     ):
         assert not utils.supports_flash_attention(0)
+
+
+def test_doc_processing_html_cleans_and_saves(tmp_path):
+    meta_filepath = tmp_path / "text_sources_html.csv"
+    pd.DataFrame({"Authors": ["Zeit"], "Year": [2026], "Title": ["Flood closes roads"], "URL": ["https://example.com"]}).to_csv(meta_filepath, index=False)
+    paragraphs = [
+        "The flood closed several roads",  # no sentence end -> merged with next piece
+        "near Berlin, e.g. the A1 highway https://example.com and the B5.",
+        "Short.",
+    ]
+    processor = dc.HtmlProcess(meta_filepath, output_dir=tmp_path / "html_parsed")
+    with patch.object(dc.HtmlProcess, "fetch_paragraphs", return_value=paragraphs):
+        docs = processor.process_all()
+
+    assert list(docs) == ["Zeit 2026 - Flood closes roads"]
+    assert (tmp_path / "html_parsed" / "Zeit 2026 - Flood closes roads_cleaned.md").exists()
+    texts = [item.text for item in docs["Zeit 2026 - Flood closes roads"].texts]
+    assert any(t.strip().startswith("The flood closed several roads near Berlin") and "eg the A1 highway" in t for t in texts)
+    assert not any("https" in t for t in texts)
+
+
+def test_doc_processing_html_requires_meta_columns(tmp_path):
+    meta_filepath = tmp_path / "meta.csv"
+    pd.DataFrame({"Title": ["x"]}).to_csv(meta_filepath, index=False)
+    with TestCase().assertRaises(AssertionError):
+        dc.HtmlProcess(meta_filepath, output_dir=tmp_path)

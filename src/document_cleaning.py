@@ -631,3 +631,326 @@ def combine_hyphenated_words(p_str):
     p_str = re.sub(r'(\w+)-(\s?\w+)', replace_dash, p_str)
 
     return p_str
+
+
+
+##########################  DOCUMENT PROCESSING (parse + clean + save as cleaned markdown)
+
+class _DocProcessing:
+    """Shared steps of the document processing for PDF and HTML sources: cleaning of the single text pieces,
+    merging them into paragraphs, translation to English, combining hyphenated words and saving the cleaned
+    text (with section names) as markdown file "<filename_stem>_cleaned.md" in output_dir.
+    Already cleaned documents are loaded from output_dir instead of being processed again (unless overwrite=True)."""
+
+    # source languages that can be translated to English (src.translation_model)
+    SUPPORTED_LANGUAGES = ["fr", "de", "es", "it", "itc", "nl"]
+
+    def __init__(self, output_dir: Path, min_paragraph_size: int = 50, translate_fn=None, overwrite: bool = False):
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.min_paragraph_size = min_paragraph_size  # min. number of characters of a paragraph, shorter ones are merged with the next one
+        self.overwrite = overwrite
+        self._translate_fn = translate_fn  # (src_language, text) -> text, default: src.translation_model.translate_2_english
+        self._md_converter = None
+        self._language_detector = None
+
+    @property
+    def md_converter(self) -> DocumentConverter:
+        if self._md_converter is None:
+            self._md_converter = DocumentConverter(allowed_formats=[InputFormat.MD])
+        return self._md_converter
+
+    def detect_language(self, text: str) -> str:
+        """ISO 639-1 code of the language of text, e.g. "en"
+        NOTE langdetect() is sometimes erroneous for short text, eg Luiijf 2010 -> title=en, title.lower=es"""
+        if self._language_detector is None:
+            from lingua import Language, LanguageDetectorBuilder
+            self._language_detector = LanguageDetectorBuilder.from_languages(*Language.all_with_latin_script()).build()
+        language = self._language_detector.detect_language_of(text.lower())
+        return language.iso_code_639_1.name.lower() if language else "en"
+
+    def cleaned_filepath(self, filename_stem: str) -> Path:
+        return self.output_dir / f"{filename_stem}_cleaned.md"
+
+    @staticmethod
+    def free_memory() -> None:
+        """Clean up GPU memory before the next document (translation models)"""
+        import gc
+        gc.collect()
+        with suppress(ImportError):
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    @staticmethod
+    def clean_paragraph(text: str) -> str:
+        """Clean a single text piece from whitespace, figure references, abbreviations and URLs"""
+        # clean from double whitespace, newlines, etc.
+        p_str = clean_text(text)
+        # clean from potential figure references
+        p_str = remove_figure_references(p_str)
+        # replace e.g. and i.e. --> eg and ie to avoid sentence splits
+        p_str = re.sub(r"e\.g\.\s+", "eg ", p_str)
+        p_str = re.sub(r"i\.e\.\s+", "ie ", p_str)
+        # remove URLs, LangExtract tries to open these URLs when they occur in the document text
+        return remove_urls(p_str)
+
+    def translate(self, p_str: str, src_language: str) -> Optional[str]:
+        """Translate p_str to English (to handle hyphenated words they should be in English).
+        Unsupported languages keep the original text, returns None if the translation failed."""
+        if src_language == "en":
+            return p_str
+        if src_language not in self.SUPPORTED_LANGUAGES:
+            logger.warning(f"Unsupported source language: {src_language}. Continue with extraction on original text")
+            return p_str
+        if self._translate_fn is None:
+            import src.translation_model as tm
+            self._translate_fn = tm.translate_2_english
+        print(f"Translating {src_language} --> en")
+        try:
+            return self._translate_fn(src_language, p_str)
+        except Exception as e:
+            print(f"! Cannot translate text, going to next chunk: {p_str} ({e})")
+            return None
+
+    def finalize_paragraph(self, p_str: str, src_language: str) -> Optional[str]:
+        """Translate the merged paragraph and combine hyphenated words, None if nothing is left"""
+        p_str = self.translate(p_str, src_language)
+        if p_str is None:
+            return None
+        return combine_hyphenated_words(p_str) or None
+
+    def save(self, filename_stem: str, texts: List[str], section_names: List[str]) -> DoclingDocument:
+        """Save cleaned paragraphs with their section names as DoclingDocument (markdown)"""
+        from docling_core.types.doc import DocItemLabel
+
+        doclingdoc = DoclingDocument(schema_name="DoclingDocument", version="1.0.0", name="My Custom Document")
+        # write text and structural elements (titles, sections, and paragraphs) to doc
+        title_node = doclingdoc.add_title(text=filename_stem)
+        for text, section_name in zip(texts, section_names):
+            section_node = doclingdoc.add_heading(text=section_name, level=1, parent=title_node)
+            doclingdoc.add_text(label=DocItemLabel.TEXT, text=text, parent=section_node)
+        doclingdoc.save_as_markdown(self.cleaned_filepath(filename_stem))
+        return doclingdoc
+
+    def load_or_process(self, filename_stem: str, process_fn) -> DoclingDocument:
+        """Load the cleaned markdown file if it exists, otherwise clean the document with process_fn and save it"""
+        cleaned_filepath = self.cleaned_filepath(filename_stem)
+        if cleaned_filepath.exists() and not self.overwrite:
+            print("Cleaned markdown file already exists, loading file")
+            return self.md_converter.convert(cleaned_filepath).document
+
+        print(f"Cleaned markdown file does not exist yet. Cleaning document: '{filename_stem}'")
+        self.free_memory()
+        texts, section_names = process_fn()
+        return self.save(filename_stem, texts, section_names)
+
+
+class PdfProcess(_DocProcessing):
+    """Parse PDF documents with OCR (docling), clean them and save them as cleaned markdown files.
+    Metadata (authors, year, title) are taken from the filename "<authors> <year> - <title>.pdf".
+
+    usage:
+        processor = PdfProcess(output_dir=PARSED_TEXT_DIR)
+        docs = processor.process_all(glob(str(Path(DOCS_DIR, "*.pdf"))))
+    """
+
+    def __init__(self, output_dir: Path, **kwargs):
+        super().__init__(output_dir, **kwargs)
+        self._parser = None
+
+    @property
+    def parser(self) -> DocumentParser:
+        if self._parser is None:
+            self._parser = DocumentParser()
+        return self._parser
+
+    def process(self, filepath: Union[str, Path]) -> DoclingDocument:
+        filepath = Path(filepath)
+        return self.load_or_process(filepath.stem, lambda: self._clean(filepath))
+
+    def process_all(self, filepaths: Iterable[Union[str, Path]]) -> Dict[str, DoclingDocument]:
+        """Process all PDF files, returns the cleaned documents per filename stem"""
+        filepaths = list(filepaths)
+        docs = {}
+        for file_no, filepath in enumerate(filepaths):
+            filepath = Path(filepath)
+            print(f"\n\n ######## -------- Processing document [{file_no+1}/{len(filepaths)}]: {filepath.name} -------- ######## \n")
+            docs[filepath.stem] = self.process(filepath)
+        return docs
+
+    def _clean(self, filepath: Path) -> Tuple[List[str], List[str]]:
+        """Cleaned paragraphs and their section names of the PDF document"""
+        _, _, title = extract_citation_info(filepath.stem)
+        title = title.replace(" - ", "").replace("_cleaned", "").strip()
+        src_language = self.detect_language(title)
+
+        ## Document converter with OCR
+        # NOTE: OCR identifies section titles, footers/headers and page numbers as such (all other standard docling
+        # converters return them as BODY not FURNITURE), but partly reads in also figure/table captions and table text
+        pdf_doc = self.parser.ocr_converter.convert(source=filepath).document
+        ## get only list of Doc.items
+        texts = get_processed_texts(pdf_doc)
+
+        texts_clean, section_names = [], []
+        combined_paragraph, combined_chars = "", 0
+        section_name = ""
+
+        for i, text in enumerate(texts):
+            # get next text only when it is not page header/footer
+            next_text = get_next_text(texts, i)
+
+            # update section header if the element is a section header
+            # TODO: Need a stronger check on section headers that takes top of page into account, etc
+            if is_section_header(text):
+                section_name = text.text
+                continue
+            # skip Discussion/Conclusions and References sections
+            if is_conclusions_section(section_name) or is_reference_section(section_name):
+                continue
+            # skip Abstract/Summary
+            if is_abstract(section_name) or is_abstract(text.text):
+                continue
+            if should_skip_element(text):
+                continue
+
+            p_str = self.clean_paragraph(text.text)
+            p_str_chars = len(p_str)
+
+            # if the paragraph does not end with final punctuation, accumulate it
+            if not is_sentence_end(p_str):
+                combined_paragraph = combine_paragraphs(combined_paragraph, p_str)
+                combined_chars += p_str_chars
+                continue
+
+            # p_str ends with a sentence end; decide whether to process or accumulate it
+            total_chars = combined_chars + p_str_chars
+            if is_section_header(next_text):
+                # immediately process if the next text is a section header
+                p_str = combine_paragraphs(combined_paragraph, p_str)
+                combined_paragraph, combined_chars = "", 0
+            elif total_chars < self.min_paragraph_size:
+                if next_text is None or not is_page_text(next_text):
+                    # end of document or next item is not a text item: process the paragraph even though it is short
+                    p_str = combine_paragraphs(combined_paragraph, p_str)
+                    combined_paragraph, combined_chars = "", 0
+                else:
+                    # combine with next paragraph
+                    combined_paragraph = combine_paragraphs(combined_paragraph, p_str)
+                    combined_chars = total_chars
+                    continue
+            else:
+                # sufficient characters: process the paragraph and reset the accumulator
+                p_str = combine_paragraphs(combined_paragraph, p_str)
+                combined_paragraph, combined_chars = "", 0
+
+            p_str = self.finalize_paragraph(p_str, src_language)
+            if p_str:
+                texts_clean.append(p_str)
+                section_names.append(section_name)
+
+        return texts_clean, section_names
+
+
+class HtmlProcess(_DocProcessing):
+    """Fetch HTML documents (web pages) from their URL, clean them and save them as cleaned markdown files.
+    The metadata of the documents are given by a csv file (e.g. text_sources_html.csv) with the columns
+    Authors, Year, Title and URL; the cleaned files are named "<Authors> <Year> - <Title>_cleaned.md".
+
+    usage:
+        processor = HtmlProcess(Path(DOCS_DIR, "text_sources_html.csv"), output_dir=Path(PARSED_TEXT_DIR, "html_parsed"))
+        docs = processor.process_all()
+    """
+
+    META_COLUMNS = ["Authors", "Year", "Title", "URL"]
+
+    def __init__(self, meta_filepath: Union[str, Path], output_dir: Path, **kwargs):
+        super().__init__(output_dir, **kwargs)
+        import pandas as pd
+        self.meta = pd.read_csv(meta_filepath)
+        missing = set(self.META_COLUMNS) - set(self.meta.columns)
+        assert not missing, f"columns {missing} missing in {meta_filepath}"
+
+    @staticmethod
+    def filename_stem(authors, year, title) -> str:
+        return f"{str(authors).strip()} {year} - {str(title).strip()}"
+
+    def process(self, authors, year, title, url) -> DoclingDocument:
+        filename_stem = self.filename_stem(authors, year, title)
+        return self.load_or_process(filename_stem, lambda: self._clean(str(title), url))
+
+    def process_all(self) -> Dict[str, DoclingDocument]:
+        """Process all documents of the metadata csv, returns the cleaned documents per filename stem.
+        Documents which cannot be fetched are skipped."""
+        docs = {}
+        for row in self.meta.itertuples():
+            print(f"\n\n ######## -------- Processing document [{row.Index+1}/{len(self.meta)}]: {row.Title} -------- ######## \n")
+            try:
+                docs[self.filename_stem(row.Authors, row.Year, row.Title)] = self.process(row.Authors, row.Year, row.Title, row.URL)
+            except Exception as e:
+                logger.warning(f"! Cannot process {row.URL}: {type(e).__name__}: {e}")
+        return docs
+
+    @staticmethod
+    def fetch_paragraphs(url: str) -> List[str]:
+        """Text pieces of the web page, only within the main/article section (excludes comments, side-bar text etc.)"""
+        import urllib3
+        from lxml import html
+        from lxml.html import HtmlElement
+
+        # NOTE: better detection of comments, etc when reading from url, instead of locally stored html file
+        resp = urllib3.request("GET", url)
+        tree = html.fromstring(resp.data)
+        main = tree.xpath("//main | //article")
+        root = main[0] if main else tree
+
+        texts = []
+        for p in root.xpath(".//p[normalize-space()]"):
+            p_text = " ".join(p.itertext()).replace("\n", " ").strip()
+            # remove non-sentences in html text
+            if len(p_text.split()) < 3:
+                continue
+            texts.append(p_text)
+
+        # handle html where ".//p[normalize-space()]" did not work, eg. Containerlift 2024, Reuter 2021
+        if not texts:
+            for p_text in tree.xpath(r"//p/text()|.//b | .//strong|.//i | .//em"):
+                if isinstance(p_text, str):
+                    texts.append(p_text.strip())
+                elif isinstance(p_text, HtmlElement):
+                    texts.append("".join(p_text.itertext()))
+        return texts
+
+    def _clean(self, title: str, url: str) -> Tuple[List[str], List[str]]:
+        """Cleaned paragraphs and their (empty) section names of the web page"""
+        src_language = self.detect_language(title)
+
+        texts_clean = []
+        combined_paragraph, combined_chars = "", 0
+
+        for text in self.fetch_paragraphs(url):
+            p_str = self.clean_paragraph(text)
+            p_str_chars = len(p_str)
+
+            # if the paragraph does not end with final punctuation, accumulate it
+            if not is_sentence_end(p_str):
+                combined_paragraph = combine_paragraphs(combined_paragraph, p_str)
+                combined_chars += p_str_chars
+                continue
+
+            total_chars = combined_chars + p_str_chars
+            if total_chars < self.min_paragraph_size:
+                # combine with next paragraph
+                combined_paragraph = combine_paragraphs(combined_paragraph, p_str)
+                combined_chars = total_chars
+                continue
+            # sufficient characters: process the paragraph and reset the accumulator
+            p_str = combine_paragraphs(combined_paragraph, p_str)
+            combined_paragraph, combined_chars = "", 0
+
+            p_str = self.finalize_paragraph(p_str, src_language)
+            if p_str:
+                texts_clean.append(p_str)
+
+        # HTML pages have no section headers
+        return texts_clean, [""] * len(texts_clean)
