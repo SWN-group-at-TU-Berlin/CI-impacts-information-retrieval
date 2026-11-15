@@ -17,14 +17,14 @@
 # NOTE A100 (Ampere, sm_80) has no native FP8 compute -> FP8 and MXFP4 checkpoints run weight-only (Marlin kernels), slower than on H200
 # NOTE no cuda module needed: vLLM/torch wheels bundle their own CUDA runtime (a module can even break the import)
 # NOTE needs vLLM >= 0.19.1 (Gemma 4)
-#SBATCH --job-name=ci-impacts-vllm-a100
+#SBATCH --job-name=ci-impacts-a100
 #SBATCH --partition=gpu_short  # pick a partition with 2 A100 on one node: sinfo -o "%P %N %G"; check its max time
 #SBATCH --account=swn
 #SBATCH --mail-user=anna.buch@tu-berlin.de
 #SBATCH --mail-type=END,FAIL
 #SBATCH --gres=gpu:a100:2  
 #SBATCH --cpus-per-task=4    # 2 per GPU
-#SBATCH --time=01:00:00        # server startups + the workflow
+#SBATCH --time=00:30:00        # server startups + the workflow
 #SBATCH --output=../logs/a100-%j.out
 #SBATCH --error=../logs/a100-%j.%N.err
 
@@ -39,10 +39,10 @@ set -euo pipefail
 
 NODE=$(hostname)
 # NOTE: VAR=${VAR:-xxx} is a default that can be overridden when submitting, e.g. SCRIPT=... sbatch ...
-PROJECTROOT=${PROJECTROOT:-$HOME/_PROJECTS/ci-impacts-vllm}
+PROJECTROOT=${PROJECTROOT:-$HOME/_PROJECTS/CI-impacts-information-retrieval}
 VLLM_ENV=${VLLM_ENV:-$HOME/_PROJECTS/vllm/.venv}   # separate environment with vllm installed (not the project venv)
 PYTHON_ENV=${PYTHON_ENV:-$PROJECTROOT/.venv}       # project venv (runs the workflow)
-SCRIPT=${SCRIPT:-example/extract_ciimpacts.py}   # workflow script, relative to PROJECTROOT
+SCRIPT=${SCRIPT:-examples/extract_ci_impacts.py}           # workflow script, relative to PROJECTROOT
 # absolute log dir (resolved from the submit dir, same place as --output/--error), so a later cd does not break it
 LOG_DIR=$(realpath -m "${LOG_DIR:-../logs}")
 mkdir -p "$LOG_DIR"
