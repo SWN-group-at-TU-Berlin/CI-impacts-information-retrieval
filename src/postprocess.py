@@ -192,22 +192,16 @@ def postprocess_locations(df:pd.Series, location_col:str) -> pd.Series:
 
     cleanup_patterns = [r"\(", ", "]
     for i in cleanup_patterns:
-        # "( "  eg "Sinzig (in North Rhine-Westphalia)""
-        # rm text after comma, e.g. "Ahr valley, Germany" --> "Ahr valley"
+        # rm text after opening brackets, e.g. "Ahr valley (Germany)" --> "Ahr valley"
         df[location_col] = df[location_col].str.split(i, regex=True).str[0].str.strip()
 
     # remove all remaining brackets and commas
     # set this after cleaning up "( " and ", " as it otherwise would take the later location
     df[location_col] = df[location_col].replace(r"[\(\),]", " ", regex=True).str.strip()
 
-    cleanup_patterns = ["between",]
-    for i in cleanup_patterns:
-        # handling loc with "railway tracks between "
-        df[location_col] = df[location_col].str.split(i).str[-1].str.strip()
-
     ## remove "near ", "close to", "the ", "in ", "passing ", ... only at the beginning of the location (also several, e.g. "in the Ahr valley"),
     ## within the location the text stays unchanged (e.g. "roads in Berlin"), and final double whitespace
-    df[location_col] =  df[location_col].str.replace(r"^(?:near |close to |parts of |direction of |passing |along |the |in )+", " ", regex=True).str.strip()
+    df[location_col] =  df[location_col].str.replace(r"^(?:near |between |close to |parts of |direction of |passing |along |the |in )+", " ", regex=True).str.strip()
     df[location_col] =  df[location_col].str.replace("  ", " ").str.strip()
 
     return df[location_col]
