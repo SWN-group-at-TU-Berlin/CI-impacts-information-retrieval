@@ -12,6 +12,7 @@ on:
   pull_request:
     branches:
     - main
+    - dev  # as mostly updated via merge
 
 
 # 3 jobs defined [actionlint [ie. debug ci.yml], build env, test coverage]
