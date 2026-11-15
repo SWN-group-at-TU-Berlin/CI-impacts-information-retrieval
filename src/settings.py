@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     
     PATH_SRC: Path = Path("./src")
     PATH_LOGS: Path = Path("../logs/")
+    DOCLING_ARTIFACTS: Path = Path("../docling_artifacts")
     
     PATH_PROMPTS: Path = Path("./prompt_templates/")
     PROMPT_DIRECT_FILENAME: str = "ci_loc_direct_impacts.txt"

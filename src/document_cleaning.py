@@ -27,7 +27,7 @@ import requests
 # from docling.datamodel.base_models import InputFormat
 from docling.datamodel.settings import settings
 
-from src.settings import init_logger
+from src.settings import settings, init_logger
 
 
 logger = init_logger(__name__)
@@ -38,7 +38,7 @@ class DocumentParser:
 
     def __init__(self):
         # OCR pipeline configs
-        self.artifacts_path = Path("../docling_artifacts")
+        self.artifacts_path = settings.DOCLING_ARTIFACTS
         self.artifacts_path.mkdir(exist_ok=True)
 
         # EASY-OCR and pipeline options
