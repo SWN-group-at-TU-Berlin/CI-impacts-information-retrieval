@@ -12,8 +12,6 @@ on:
   pull_request:
     branches:
     - main
-    - dev  # as mostly updated via merge
-
 
 # 3 jobs defined [actionlint [ie. debug ci.yml], build env, test coverage]
 jobs:
@@ -21,29 +19,30 @@ jobs:
   actionlint:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
       - name: Download actionlint
-      - uses: actions/checkout@v7
         id: get_actionlint
         run: bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
-        shell: bash
+        shell: bash  # process substitution <(...) requires bash
       - name: Check workflow files
         run: ${{ steps.get_actionlint.outputs.executable }} -color
         shell: bash
 
-  # 2. JOB: install packages from pyproject.toml under ubuntu/windows OS
+  # 2. JOB: install packages from pyproject.toml
   build:
     strategy:
-      #fail-fast: false
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest]  # only build for HPC env at the moment
     runs-on: ${{ matrix.os }}
-    name: Runs on "${{matrix.os}}"
+    name: Runs on "${{ matrix.os }}"
     # define steps of job "build"
     steps:
     - name: Checkout repository
       uses: actions/checkout@v7
-    - name: Set up uv (latest version)
-      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+    - name: Set up uv
+      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
       with:
         enable-cache: true
         cache-dependency-glob: "pyproject.toml"
@@ -53,10 +52,7 @@ jobs:
         python-version-file: "pyproject.toml"
     # test to install packages using uv
     - name: Install packages via uv
-      run: |
-        pip install uv
-        uv build
-        echo installed packages via uv, using universal/cross-platform dependencies
+      run: uv sync
 
   # 3. JOB: automated execution of tests
   coverage:
@@ -66,12 +62,9 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v7
     - name: Set up uv
-      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
       with:
         enable-cache: true
         cache-dependency-glob: "pyproject.toml"
     - name: Run Python tests [pytest]
-      working-directory: ./tests
-      run: |
-        uv run python -m pytest ./src/test_*.py
-        echo checking for test errors in ./tests/src/test_*.py
+      run: uv run pytest tests/

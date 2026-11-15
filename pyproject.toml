@@ -26,7 +26,6 @@ dependencies = [
     "fschat[model-worker,webui]>=0.2.36",
     "fuzzywuzzy>=0.18.0",
     "gensim>=4.4.0",
-    "geollama",
     "geonamescache>=3.0.1",
     "geopandas>=1.1.3",
     "geopy>=2.4.1",
@@ -145,13 +144,13 @@ flash-attn = { url = "https://github.com/mjun0812/flash-attention-prebuild-wheel
 # overwrite torch version in dependencies (2.9.1 version not used in local env)
 # torch = { url = "https://download-r2.pytorch.org/whl/cu126/torch-2.9.1%2Bcu126-cp312-cp312-manylinux_2_28_x86_64.whl" }
 # accelerate = { url = "https://files.pythonhosted.org/packages/15/33/b6b4ad5efa8b9f4275d4ed17ff8a44c97276171341ba565fdffb0e3dc5e8/accelerate-0.33.0-py3-none-any.whl" }
-# geollama = { path = "../geollama" }
+# NOTE: geollama (GeoLlama fork, github.com/SWN-group-at-TU-Berlin/geollm) is not a dependency as it lives outside the repo (../geollama).
+# The "geollama" package on PyPI is an unrelated package. Install the fork locally via:
+# uv pip install -e ../geollama
 
-
-## install local packages
-[tool.setuptools]
-packages = ["geollama"] # , "geollama.geollama"
-package-dir = {"" = "../"}  # must be relative path to package dir
 
 [dependency-groups]
-dev = ["pre-commit>=4.7.0",]
+dev = [
+    "pre-commit>=4.7.0",
+    "pytest>=9.1.1",
+]
