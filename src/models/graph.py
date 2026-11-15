@@ -1,28 +1,28 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """LangGraph workflow of LLM 1: nodes, routing and graph structure for the extraction of CI impacts.
-The graph is built for a LlmExtract (src/models/llm_extract.py) with build_graph(llm_extract)."""
+The graph is built for a LlmExtract (src/models/llm_extract.py) with build_graph(llm_extract).
+"""
 
 __author__ = "Anna Buch, TU Berlin"
 __email__ = "anna.buch@tu-berlin.de"
 
 import ast
 import re
-import time
-from typing import List, Literal
+from typing import Annotated, Literal
 
 import numpy as np
 import pandas as pd
-from langchain.agents.middleware import wrap_tool_call, ModelRequest
+from annotated_types import Len
+from langchain.agents.middleware import ModelRequest, wrap_tool_call
 from langchain.messages import ToolMessage
-from langgraph.graph import StateGraph, END
+from langchain_core.messages import HumanMessage
+from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
+from langgraph.types import Send
 from pydantic import BaseModel
 
-from src.models.schemas import *  # noqa: F401,F403  output schemas and GraphState
-from src.models.prompts import *  # noqa: F401,F403  prompts of the graph nodes
-from src.tools.ner import get_infrastructure_entities
-
+from src.models.prompts import *  # noqa: F403  prompts of the graph nodes
+from src.models.schemas import *  # noqa: F403  output schemas and GraphState
 
 # LLM 1 used by the graph nodes, set by build_graph()
 _llm_extract = None
@@ -72,57 +72,54 @@ def llm_tool():
 def enrich_locations(state):
     # NOTE not part of the graph at the moment, llm_enrichment_tools (GeoLLM tool) is not defined
 
-
     # class EnrichedInfrastructureCases(BaseModel):
     #     enriched_cases: list[EnrichedInfrastructureCase]
 
     # llm_structured = llm_enrichment.with_structured_output(EnrichedInfrastructureCases)
 
-
     # call tool, when not done previously
     geo_messages = state["messages"]
     if len(geo_messages) == 0:
-        
         # extract loc coord for each single loc previouls identified:
         loc_list = []
-        for locs in state["locations"]: 
-
+        for locs in state["locations"]:
             if locs == np.nan or locs == "nan" or locs == "NAN" or locs == "NaN" or locs == "":
                 loc_list.append("NAN")
-            
+
             locs = re.split(r" and | or | to ", locs)
 
             for loc in locs:
                 geo_messages = [
                     HumanMessage(
-                    content=enrich_locations_prompt.format(
-                        text=state["text"],
-                        locations=loc,
-                ))]
+                        content=enrich_locations_prompt.format(
+                            text=state["text"],
+                            locations=loc,
+                        )
+                    )
+                ]
                 result = llm_enrichment_tools.invoke(geo_messages)
                 print("loc geo_messages", loc)
                 print("loc geo_messages", geo_messages)
                 print("loc geotool", result)
 
-                # i = 0    
+                # i = 0
                 # while not result.tool_calls or len(result.tool_calls) == 0:
                 #     print(f"⚠️ No Geo-tool call was returned by the model. Trying again [{i}]")
-                #     result = llm_enrichment_tools.invoke(geo_messages)        
-                #     if i == 5: 
+                #     result = llm_enrichment_tools.invoke(geo_messages)
+                #     if i == 5:
                 #         return None
                 #     i += 1
                 # else:
                 #     print("! tool called:", result.tool_calls)
-                        
+
                 # print("enrich_locations m", geo_messages)
                 # print("enrich_locations ", result)
 
                 try:
                     loc_list.append(result)
                 except AttributeError:
-                        loc_list.append("NAN")
+                    loc_list.append("NAN")
                 return {"messages": loc_list}
-
 
     # try:
     #     result = state["messages"][-1].content #.split("[")
@@ -147,7 +144,7 @@ def enrich_locations(state):
 #             [
 #    ("system",
 # """
-# Combine the extracted information for each case. 
+# Combine the extracted information for each case.
 # Take the first element from each field (ASSETS, LOCATIONS, DAMAGES) and combine them into a dictionary, proceed with the second element of each field and combine them into a second dictionary, and so on..
 
 # Return one or more dictionaries.
@@ -192,7 +189,7 @@ def enrich_locations(state):
 # 8. Preserve the GeoLLM geometry exactly.
 # """
 #     )])
-#     except Exception  as e: 
+#     except Exception  as e:
 #         print(f"! ERROR {e}. Sleeping for 1 min and then try again")
 #         time.sleep(60)
 #         result = llm_structured.invoke(
@@ -238,7 +235,6 @@ def enrich_locations(state):
 ###########################################
 
 
-
 ###########################################
 # Tools
 ###########################################
@@ -263,7 +259,7 @@ def enrich_locations(state):
 def should_continue_is_case(state) -> Literal["assets", END]:
     """Route to decide if paragraph text contains infrastructure damages caused by natural hazard"""
 
-    if state["is_infrastructure_case"] == False:
+    if state["is_infrastructure_case"] is False:
         return END
 
     return "assets"
@@ -276,7 +272,7 @@ def should_continue(state) -> Literal["tools", "extract_asset_information"]:
     last_message = state["messages"][-1]
     # If the last message is a tool call, check if it's a Done tool call
     if last_message.tool_calls:
-        return "tools" # run_tool
+        return "tools"  # run_tool
     # Otherwise, proceed with next node
     return "extract_asset_information"
 
@@ -296,17 +292,19 @@ def should_continue(state) -> Literal["tools", "extract_asset_information"]:
 #             tool_call_id=request.tool_call["id"],
 #         )
 
+
 @wrap_tool_call
-def handle_tool_errors(request : ModelRequest, handler) -> ToolMessage:
-   print("#### AGENT ABOUT TO CALL TOOL (wrap-style hook) #####")
-   print(f"=> TOOL: {request.tool_call['name']}")
-   try:
-       return handler(request)
-   except Exception as e:
-       return ToolMessage(
-           content=f"TOOL ERROR: Please check your input and try again. ({str(e)})",
-           tool_call_id=request.tool_call["id"]
-       )
+def handle_tool_errors(request: ModelRequest, handler) -> ToolMessage:
+    print("#### AGENT ABOUT TO CALL TOOL (wrap-style hook) #####")
+    print(f"=> TOOL: {request.tool_call['name']}")
+    try:
+        return handler(request)
+    except Exception as e:
+        return ToolMessage(
+            content=f"TOOL ERROR: Please check your input and try again. ({str(e)})",
+            tool_call_id=request.tool_call["id"],
+        )
+
 
 # # bind tool two 2nd model
 # geo_tools = [get_coordinates_and_meta_info]
@@ -323,7 +321,7 @@ def handle_tool_errors(request : ModelRequest, handler) -> ToolMessage:
 
 # ## create agent
 # llm_tool = create_agent(
-#     model=llm_tool, 
+#     model=llm_tool,
 #     # system_prompt="You are a helpful assistant",
 #     middleware=[handle_tool_errors],
 # )
@@ -334,11 +332,9 @@ def handle_tool_errors(request : ModelRequest, handler) -> ToolMessage:
 ###########################################################################
 # Node 1
 ###########################################################################
-from langchain_core.messages import HumanMessage
 
 
 def extract_asset_information(state: GraphState) -> GraphState:
-
     # Structured-output model
     llm_structured = structured_llm(InfrastructureCases)
 
@@ -348,15 +344,10 @@ def extract_asset_information(state: GraphState) -> GraphState:
 
     # remove non-CI types
     ci_patterns = pd.read_json("./ner_patterns.jsonl/patterns", lines=True)
-    assets_list = pp.keep_ci_types(assets_list, ci_patterns) # (e.g. "24Rhein")
+    assets_list = pp.keep_ci_types(assets_list, ci_patterns)  # (e.g. "24Rhein")
     print("tool_message.content", assets_list)
 
-
-    messages = [HumanMessage(
-        content=asset_information_prompt.format(
-            text=state["text"],
-            entities=assets_list
-    ))]
+    messages = [HumanMessage(content=asset_information_prompt.format(text=state["text"], entities=assets_list))]
     result = llm_structured.invoke(messages)
     print("cld:", result)
 
@@ -367,26 +358,20 @@ def extract_asset_information(state: GraphState) -> GraphState:
             print(f"cld {i}", len(result), result)
         except (TypeError, AttributeError):
             print(f"cld {i}", result)
-        
+
         if i == 1:
             response_list = []
 
             llm_structured = structured_llm(InfrastructureCase)
 
             for asset in assets_list:
-                result = llm_structured.invoke(
-                    [HumanMessage(
-                        content=asset_information_prompt.format(
-                            text=state["text"],
-                            entities=asset
-                    ))]
-                )
+                result = llm_structured.invoke([HumanMessage(content=asset_information_prompt.format(text=state["text"], entities=asset))])
                 print(f"cld response for {asset}:", result)
                 try:
                     response_list.append(result)
                 except AttributeError:
                     pass  # avoid to concate enties without Infrastructure case
-                
+
             # postprocess
             response_list = [x for x in response_list if x is not None]  # keep only InfrastructureCase entries
             result = InfrastructureCases(cases=response_list)
@@ -395,21 +380,17 @@ def extract_asset_information(state: GraphState) -> GraphState:
             return {"assets_org": result, "infrastructure_cases": result}
         i += 1
 
-    return {"assets_org": result, "infrastructure_cases": result,}
+    return {
+        "assets_org": result,
+        "infrastructure_cases": result,
+    }
 
-     
+
 def extract_assets(state):
-
     messages = state.get("messages", [])
 
     if not messages:
-        messages = [
-            HumanMessage(
-                content=asset_prompt.format(
-                    text=state["text"]
-                )
-            )
-        ]
+        messages = [HumanMessage(content=asset_prompt.format(text=state["text"]))]
 
     result = llm_tool().invoke(messages)
 
@@ -417,11 +398,11 @@ def extract_assets(state):
     #     raise RuntimeError(
     #         "LLM did not call get_infrastructure_entities."
     #     )
-    i = 0    
+    i = 0
     while not result.tool_calls or len(result.tool_calls) == 0:
         print(f"⚠️ No tool calls were returned by the model.Trying again [{i}]")
-        result = llm_tool().invoke(messages)        
-        if i == 5: 
+        result = llm_tool().invoke(messages)
+        if i == 5:
             return None
         i += 1
 
@@ -429,39 +410,34 @@ def extract_assets(state):
 
     print("asset m", messages)
     print("asset ", result)
-    
+
     # # if response is not empty, proceed with location extraction
     # if result.content:
     # state["assets"] = result #state["messages"][-1].content # result
     # return state
-    # else:        
+    # else:
     # NOTE ToolNode expects a list of messages, thus state["assets"] = result does not work
     return {"messages": [result]}
-   
+
 
 def determine_infrastructure_case(state):
-
     llm_structured = structured_llm(InfrastructureCase)
-    
-    messages = [
-        HumanMessage(
-            content=is_case_prompt.format(
-                text=state["text"]
-    ))]
+
+    messages = [HumanMessage(content=is_case_prompt.format(text=state["text"]))]
 
     result = llm_structured.invoke(messages)
     print("is CI Damage", result.is_infrastructure_case)
-    
+
     return {"is_infrastructure_case": result.is_infrastructure_case}
-   
+
 
 ##########################################################################
 # Conditional Node
 ###########################################################################
 
-# process tool call into 
-def asset_finalize(state):
 
+# process tool call into
+def asset_finalize(state):
     # result = llm_structured.invoke([
     #     HumanMessage(
     #         content=asset_finalize_prompt.format(
@@ -469,19 +445,18 @@ def asset_finalize(state):
     #         )
     # )])
     # make as List[str]
-    result = state["messages"][-1].content #.split("[")
+    result = state["messages"][-1].content  # .split("[")
     # result = result[1].split("]")[0].split(",")#
     print("Asset finalize", len(ast.literal_eval(result)), result)
 
     # if result in ["None", "null", None]:
 
     # if not result in ["None", "null", None]:
-    result = ast.literal_eval(result) # make str[list[str]] -> list[str]
+    result = ast.literal_eval(result)  # make str[list[str]] -> list[str]
 
     # remove non-CI types
     ci_patterns = pd.read_json("./ner_patterns.jsonl/patterns", lines=True)
-    result = pp.keep_ci_types(result, ci_patterns) # (e.g. "24Rhein")
-    
+    result = pp.keep_ci_types(result, ci_patterns)  # (e.g. "24Rhein")
 
     return {"assets": result}
 
@@ -492,14 +467,15 @@ def asset_finalize(state):
 ###########################################################################
 # Node 2
 ###########################################################################
-from typing import Annotated
-from annotated_types import Len
+
 
 def extract_locations(state) -> GraphState:
-
     class Location(BaseModel):
-        location: Annotated[List[str], Len(min_length=len(state["assets"]), max_length=len(state["assets"]))]
-                # Dict[str, List[str]] #List[str]
+        location: Annotated[
+            list[str],
+            Len(min_length=len(state["assets"]), max_length=len(state["assets"])),
+        ]
+        # Dict[str, List[str]] #List[str]
         # longitude: List[float]
         # latitude: List[float]
         # rag_estimated: List[bool]
@@ -507,27 +483,23 @@ def extract_locations(state) -> GraphState:
     # bind PydanticSchema to LLM
     llm_structured = structured_llm(Location)
 
-    result = llm_structured.invoke([
-                HumanMessage(
-                    content=location_prompt.format(
-                        text=state["text"],
-                        assets=state["assets"],
-                ))
-            ])
+    result = llm_structured.invoke(
+        [
+            HumanMessage(
+                content=location_prompt.format(
+                    text=state["text"],
+                    assets=state["assets"],
+                )
+            )
+        ]
+    )
     print("locs", result)
-
 
     # try again if could not extract location (None) or location info is shorter than no. of assets
     # TODO force LLM wiht LangGraph func/method to output response in certain length
     i = 0
     while (result is None) or (len(result.location) < len(state["assets"])):
-
-        result = llm_structured.invoke([
-                HumanMessage(
-                    content=location_prompt.format(
-                        text=state["text"],
-                        assets=state["assets"]
-        ))])
+        result = llm_structured.invoke([HumanMessage(content=location_prompt.format(text=state["text"], assets=state["assets"]))])
         try:
             print(f"locs {i}", len(result.location), result)
         except (TypeError, AttributeError):
@@ -539,17 +511,13 @@ def extract_locations(state) -> GraphState:
             location_list = []
 
             class SingleLocation(BaseModel):
-                location: Annotated[List[str], Len(min_length=1, max_length=1)] | str="NAN"
+                location: Annotated[list[str], Len(min_length=1, max_length=1)] | str = "NAN"
+
             # bind PydanticSchema to LLM
             llm_structured = structured_llm(SingleLocation)
 
             for asset in assets_list:
-                result = llm_structured.invoke([
-                        HumanMessage(
-                            content=location_prompt.format(
-                                text=state["text"],
-                                assets=asset
-                ))])
+                result = llm_structured.invoke([HumanMessage(content=location_prompt.format(text=state["text"], assets=asset))])
                 try:
                     location_list.append(result.location)
                 except AttributeError:
@@ -561,45 +529,51 @@ def extract_locations(state) -> GraphState:
     # else:
     return {"locations": result.location}
 
+
 ###########################################################################
 # Node 3
 ###########################################################################
 
-def extract_damage(state) -> GraphState:
 
+def extract_damage(state) -> GraphState:
     # define Output Schema and bind it to LLM
     class Damage(BaseModel):
-        damage: Annotated[List[str], Len(min_length=len(state["assets"]), max_length=len(state["assets"]))]
+        damage: Annotated[
+            list[str],
+            Len(min_length=len(state["assets"]), max_length=len(state["assets"])),
+        ]
 
     llm_structured = structured_llm(Damage)
 
     result = llm_structured.invoke(
-        [HumanMessage(
-            content=damage_prompt.format(
-                text=state["text"],
-                assets=state["assets"],
-                # locations=state["locations"]
-    ))])
-
-
-    print("damage m:", HumanMessage(
+        [
+            HumanMessage(
                 content=damage_prompt.format(
                     text=state["text"],
                     assets=state["assets"],
-                    # assets_length=len(state["assets"]),
                     # locations=state["locations"]
-    )))
+                )
+            )
+        ]
+    )
+
+    print(
+        "damage m:",
+        HumanMessage(
+            content=damage_prompt.format(
+                text=state["text"],
+                assets=state["assets"],
+                # assets_length=len(state["assets"]),
+                # locations=state["locations"]
+            )
+        ),
+    )
     print("damages", result)
 
     i = 0
     while (result is None) or (len(result.damage) < len(state["assets"])):
-    # while (result is None) or (len(result.location) < len(ast.literal_eval(state["assets"]))):
-        result = llm_structured.invoke([
-                HumanMessage(
-                    content=damage_prompt.format(
-                        text=state["text"],
-                        assets=state["assets"]
-        ))])
+        # while (result is None) or (len(result.location) < len(ast.literal_eval(state["assets"]))):
+        result = llm_structured.invoke([HumanMessage(content=damage_prompt.format(text=state["text"], assets=state["assets"]))])
         try:
             print(f"damages {i}", len(result.damage), result)
         except (TypeError, AttributeError):
@@ -609,19 +583,15 @@ def extract_damage(state) -> GraphState:
         if i == 5:
 
             class SingleDamage(BaseModel):
-                damage: Annotated[List[str], Len(min_length=1, max_length=1)] | str="NAN"
+                damage: Annotated[list[str], Len(min_length=1, max_length=1)] | str = "NAN"
+
             # bind PydanticSchema to LLM
             llm_structured = structured_llm(SingleDamage)
 
             assets_list = state["assets"]
             damages_list = []
             for asset in assets_list:
-                result = llm_structured.invoke([
-                        HumanMessage(
-                            content=damage_prompt.format(
-                                text=state["text"],
-                                assets=asset
-                ))])
+                result = llm_structured.invoke([HumanMessage(content=damage_prompt.format(text=state["text"], assets=asset))])
                 try:
                     # print(type(result.damage), result.damage)
                     damages_list.append(result.damage)
@@ -633,10 +603,8 @@ def extract_damage(state) -> GraphState:
 
         i += 1
 
+    return {"damages": result.damage}
 
-    return {
-        "damages": result.damage
-    }
 
 ###########################################################################
 # Node 4
@@ -646,36 +614,32 @@ def extract_damage(state) -> GraphState:
 ###########################################################################
 # Node 5
 ###########################################################################
- 
+
 
 def verify(state):
-
     # define Output Schema
     llm_structured = structured_llm(InfrastructureCases)
-    
+
     chain = verification_prompt | llm_structured
 
-    result = chain.invoke({
-        "text": state["text"],
-        "cases": state["extracted_cases"]
-    })
+    result = chain.invoke({"text": state["text"], "cases": state["extracted_cases"]})
 
     print("verify", result)
 
     return {
         "secondary_effects": result.secondary_effects,
-        "affected_asset_or_services": result.affected_asset_or_services
+        "affected_asset_or_services": result.affected_asset_or_services,
     }
 
 
 # Determine for every damaged infrastructure asset or service (ASSETS) whether it causes a downstream impact according to the TEXT.
 
 # For every infrastructure asset or service returned by ASSETS determine whether the following TEXT mentions also one or multiple cascading impacts caused by the failure or disruption of this infrastructure, i.e. determine for each infrastructure failure if it led to one or multiple downstream impacts.
-# A cascading impact occurs when: 
+# A cascading impact occurs when:
 # An a single infrastructure asset or service (ASSETS) is damaged or disrupted, AND causes a further impact, such as economic costs, affects people or households, or affects another infrastructure asset or service.
 
 
-#     Determine for each infrastructure failure (DAMAGED_ASSET) if the TEXT mentioned that it led to one or multiple downstream impacts. 
+#     Determine for each infrastructure failure (DAMAGED_ASSET) if the TEXT mentioned that it led to one or multiple downstream impacts.
 # A downstream impact occurs when: A single infrastructure asset or service is damaged or disrupted (DAMAGED_ASSET), AND caused a further impact, e.g., caused economic costs, affects people or households, or affects another infrastructure asset or service.
 
 # ITEM TO EXTRACT:
@@ -697,7 +661,6 @@ def verify(state):
 
 
 def detect_cascade(state) -> GraphState:
-
     # # merge cases first
     # assets = state["assets"]
     # damages = state["damages"]
@@ -715,30 +678,40 @@ def detect_cascade(state) -> GraphState:
     llm_structured = structured_llm(CascadingImpactDetection)
     result = None
     while not result:
-        result = llm_structured.invoke([
-            HumanMessage(content=prompt_has_cascade.format(
-                text=state["text"],
-                ci_damages=state["infrastructure_cases"].cases,
-        ))])
+        result = llm_structured.invoke(
+            [
+                HumanMessage(
+                    content=prompt_has_cascade.format(
+                        text=state["text"],
+                        ci_damages=state["infrastructure_cases"].cases,
+                    )
+                )
+            ]
+        )
     print("has_cascading_impacts", result)
 
     return {"has_cascading_impacts": result}
 
 
 def extract_economic_impacts(state: GraphState) -> GraphState:
-
     print("state[infrastructure_cases]", state["ci_damages"])
+
     class EconomicImpacts(BaseModel):
         # impacts: list[EconomicImpact]
-        impacts: List[EconomicImpact]  # any number: empty if none is mentioned, several per asset possible (matched by source_asset)
+        impacts: list[EconomicImpact]  # any number: empty if none is mentioned, several per asset possible (matched by source_asset)
 
     llm_structured = structured_llm(EconomicImpacts)
 
-    result = llm_structured.invoke([
-        HumanMessage(content=economic_impact_prompt.format(
-            text=state["text"],
-            ci_damages=state["ci_damages"],
-       ))])
+    result = llm_structured.invoke(
+        [
+            HumanMessage(
+                content=economic_impact_prompt.format(
+                    text=state["text"],
+                    ci_damages=state["ci_damages"],
+                )
+            )
+        ]
+    )
 
     try:
         print("economic impacts", result.impacts)
@@ -767,22 +740,26 @@ def extract_economic_impacts(state: GraphState) -> GraphState:
 
 
 def extract_infrastructure_impacts(state: GraphState) -> GraphState:
-
     class SecondaryInfrastructureImpacts(BaseModel):
         # impacts: list[SecondaryInfrastructureImpact]
-        impacts: List[SecondaryInfrastructureImpact]  # any number: empty if none is mentioned, several per asset possible (matched by source_asset)
+        impacts: list[SecondaryInfrastructureImpact]  # any number: empty if none is mentioned, several per asset possible (matched by source_asset)
 
     llm_structured = structured_llm(SecondaryInfrastructureImpacts)
 
-    result = llm_structured.invoke([
-            HumanMessage(content=infrastructure_impact_prompt.format(
-                text=state["text"],
-                ci_damages=state["ci_damages"],
-        ))])
+    result = llm_structured.invoke(
+        [
+            HumanMessage(
+                content=infrastructure_impact_prompt.format(
+                    text=state["text"],
+                    ci_damages=state["ci_damages"],
+                )
+            )
+        ]
+    )
 
     try:
-        print("secondary_infrastructure_impacts", result )
-        return {"secondary_infrastructure_impacts": result.impacts }
+        print("secondary_infrastructure_impacts", result)
+        return {"secondary_infrastructure_impacts": result.impacts}
     except:
         return {"secondary_infrastructure_impacts": None}
 
@@ -812,87 +789,96 @@ def extract_infrastructure_impacts(state: GraphState) -> GraphState:
 
 
 def extract_societal_impacts(state: GraphState) -> GraphState:
-
     class SocietalImpacts(BaseModel):
         # impacts: list[SocietalImpact]
-        impacts: List[SocietalImpact]  # any number: empty if none is mentioned, several per asset possible (matched by source_asset)
+        impacts: list[SocietalImpact]  # any number: empty if none is mentioned, several per asset possible (matched by source_asset)
 
     llm_structured = structured_llm(SocietalImpacts)
 
+    result = llm_structured.invoke(
+        [
+            HumanMessage(
+                content=societal_impact_prompt.format(
+                    text=state["text"],
+                    ci_damages=state["ci_damages"],
+                )
+            )
+        ]
+    )
 
-    result = llm_structured.invoke([
-            HumanMessage(content=societal_impact_prompt.format(
-                text=state["text"],
-                ci_damages=state["ci_damages"],
-        ))])
-    
     try:
-        print("societal_impacts", result )
-        return {"societal_impacts": result.impacts }
+        print("societal_impacts", result)
+        return {"societal_impacts": result.impacts}
     except:
         return {"societal_impacts": None}
 
 
 def extract_environmental_impacts(state: GraphState) -> GraphState:
-
     class EnvironmentalImpacts(BaseModel):
-        impacts: List[EnvironmentalImpact]  # any number: empty if none is mentioned, several per asset possible (matched by source_asset)
+        impacts: list[EnvironmentalImpact]  # any number: empty if none is mentioned, several per asset possible (matched by source_asset)
 
     llm_structured = structured_llm(EnvironmentalImpacts)
 
-    result = llm_structured.invoke([
-            HumanMessage(content=environmental_impact_prompt.format(
-                text=state["text"],
-                ci_damages=state["ci_damages"],
-        ))])
+    result = llm_structured.invoke(
+        [
+            HumanMessage(
+                content=environmental_impact_prompt.format(
+                    text=state["text"],
+                    ci_damages=state["ci_damages"],
+                )
+            )
+        ]
+    )
 
     try:
-        print("environmental_impacts", result )
-        return {"environmental_impacts": result.impacts }
+        print("environmental_impacts", result)
+        return {"environmental_impacts": result.impacts}
     except:
         return {"environmental_impacts": None}
 
 
-from langgraph.types import Send
-
 def route_cascading_impacts(state: GraphState):
-    """ If cascading impacts exists, extract them"""
-    
+    """If cascading impacts exists, extract them"""
+
     # if not state["has_cascading_impacts"].has_cascading_impacts:
     #     return END
     # print("state", state)
     return [
-        Send("economic_impacts", {
-            "text": state["text"],
-            "ci_damages": state["infrastructure_cases"].cases,
-        }),
+        Send(
+            "economic_impacts",
+            {
+                "text": state["text"],
+                "ci_damages": state["infrastructure_cases"].cases,
+            },
+        ),
         Send(
             "societal_impacts",
             {
                 "text": state["text"],
                 "ci_damages": state["infrastructure_cases"].cases,
-        }),
+            },
+        ),
         Send(
             "secondary_infrastructure_impacts",
             {
                 "text": state["text"],
                 "ci_damages": state["infrastructure_cases"].cases,
-            }
+            },
         ),
         Send(
             "environmental_impacts",
             {
                 "text": state["text"],
                 "ci_damages": state["infrastructure_cases"].cases,
-            }
+            },
         ),
     ]
-
 
 
 ###########################################################################
 # Graph
 ###########################################################################
+
 
 def build_graph(llm_extract):
     """Build and compile the LangGraph workflow of LLM 1 for the given LlmExtract (src/models/llm_extract.py).

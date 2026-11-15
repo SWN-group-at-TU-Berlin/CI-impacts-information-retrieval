@@ -31,11 +31,17 @@ The creation of the database within the container and the creation of the embedd
 
 ### Pre-commit hooks
 In case you have not used `pre-commit` hooks before, please run following line just once when you set up the project locally
+
+**local install as dependency of dev-branch**
 ````
- pre-commit install
+uv add --dev pre-commit
+uv run pre-commit install
+uv run pre-commit run --all-files
 ````
-Every time when you push a commit, the hooks will be applied and will help to maintain the quality of your code. For instance, by formatting and linting the code (e.g., remove whitespaces, consistent usage of double/single-quotes etc.), and enabling version control for jupyter notebooks.
-You can run these hooks also locally by executing `pre-commit run --all-files`.
+
+
+Every time when you push a commit ot the development branch, the hooks will be applied and will help to maintain the quality of your code. For instance, by formatting and linting the code (e.g., remove whitespaces, consistent usage of double/single-quotes etc.), and enabling version control for jupyter notebooks.
+You can run these hooks also locally by executing `uv run pre-commit run --all-files`. Note: the first run will always take a while and will cache the changes, so all further runs will then be only on the code that was changed by you.
 
 
 ## Trouble shooting

@@ -166,4 +166,3 @@ else
     echo "ERROR: workflow $SCRIPT failed with exit code $rc"
 fi
 exit $rc   # the EXIT trap stops both vLLM servers
-

@@ -1,14 +1,13 @@
-import pytest
 from unittest import TestCase
 from unittest.mock import patch
 
-import numpy as np
 import pandas as pd
+import pytest
 
 from src import document_cleaning as dc
 from src import postprocess as pp
-from src.models import llm_translate as lm
 from src import utils
+from src.models import llm_translate as lm
 
 
 def test_extract_citation_info():
@@ -30,9 +29,7 @@ def test_remove_references():
 
 
 def test_remove_figure_references():
-    assert dc.remove_figure_references("Roads were damaged (A1).") == (
-        "Roads were damaged."
-    )
+    assert dc.remove_figure_references("Roads were damaged (A1).") == ("Roads were damaged.")
 
 
 def test_clean_text_normalizes_whitespace_and_punctuation():
@@ -47,12 +44,9 @@ def test_sentence_end():
 
 
 def test_combine_paragraphs():
-    assert dc.combine_paragraphs("First paragraph", "second paragraph") == (
-        "First paragraph second paragraph"
-    )
-    assert dc.combine_paragraphs("First paragraph.", "Second paragraph") == (
-        "First paragraph.\nSecond paragraph"
-    )
+    assert dc.combine_paragraphs("First paragraph", "second paragraph") == ("First paragraph second paragraph")
+    assert dc.combine_paragraphs("First paragraph.", "Second paragraph") == ("First paragraph.\nSecond paragraph")
+
 
 def test_split_long_paragraph_returns_two_parts():
     text = "First sentence. Second sentence. Third sentence. Fourth sentence."
@@ -88,18 +82,18 @@ def test_metrics():
 # Your mocked function (or mocked code in general) acts in a way that it simulates another service (e.g., an API) or some data, etc.
 # In other words, we use mocking when we want to replace a function/data etc. with a dummy representation of it.
 # For example, if we need an API call for a test function, then we dont want to call the API each time when we run the test.
-# For such a case, we mock the API call and provide a Dummy version of the API call 
+# For such a case, we mock the API call and provide a Dummy version of the API call
 
 # class TestNominatimCall(TestCase):
-    
+
 #     @patch('my_module.requests.get')
 #     def test_get_user_email(self, mock_get):
 #         # Arrange: set up the fake return value
 #         mock_get.return_value.json.return_Value = {"email": "test@example.com"}
-        
+
 #         # Act: call the function
 #         email = get_user_email(123)
-        
+
 #         # Assert: check the result
 #         self.assertEqual(email, "test@example.com")
 #         mock_get.assert_called_once_with("https://example.com")
@@ -121,7 +115,14 @@ def test_supports_flash_attention():
 
 def test_doc_processing_html_cleans_and_saves(tmp_path):
     meta_filepath = tmp_path / "text_sources_html.csv"
-    pd.DataFrame({"Authors": ["Zeit"], "Year": [2026], "Title": ["Flood closes roads"], "URL": ["https://example.com"]}).to_csv(meta_filepath, index=False)
+    pd.DataFrame(
+        {
+            "Authors": ["Zeit"],
+            "Year": [2026],
+            "Title": ["Flood closes roads"],
+            "URL": ["https://example.com"],
+        }
+    ).to_csv(meta_filepath, index=False)
     paragraphs = [
         "The flood closed several roads",  # no sentence end -> merged with next piece
         "near Berlin, e.g. the A1 highway https://example.com and the B5.",

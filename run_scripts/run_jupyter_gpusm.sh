@@ -24,10 +24,10 @@ NOTEBOOK_LOGFILE=../logs/jupyterlog_gpu.out
 compute_node=$(hostname -f)
 
 
-if 
-   [ -f "${NOTEBOOK_LOGFILE}" ]; then 
+if
+   [ -f "${NOTEBOOK_LOGFILE}" ]; then
    echo "Removing existing ${NOTEBOOK_LOGFILE}"
-   rm ${NOTEBOOK_LOGFILE} 
+   rm ${NOTEBOOK_LOGFILE}
 fi
 
 
@@ -55,4 +55,3 @@ echo "######################################"
 echo
 
 $PYTHONPATH/bin/jupyter notebook --no-browser --ip="0.0.0.0" --port=${port} --IdentityProvider.token=youshallnotpass >> ${NOTEBOOK_LOGFILE} 2>&1
-

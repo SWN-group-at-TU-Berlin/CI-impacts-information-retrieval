@@ -1,4 +1,8 @@
-## local run: pre-commit run --all-files
+## local install as dev dependencies
+# uv add --dev pre-commit
+# uv run pre-commit install
+# uv run pre-commit run --all-files
+## local run: uv run pre-commit run --all-files
 
 repos: #  definitions see: https://pre-commit.com/hooks.html
 
@@ -9,23 +13,8 @@ repos: #  definitions see: https://pre-commit.com/hooks.html
     rev: v0.11.5
     hooks:
     -   id: ruff     # run linter (pre-commit.yml incl isort thus no need to add it as addtional hook)
-        args: [ --fix, --show-fixes]
+        args: [ --fix, --show-fixes, --unsafe-fixes]
     -   id: ruff-format    # run formatter
-
-# Black hooks (--preview flag allows autofix of line-lengths which were before detected by ruff linter)
--   repo: https://github.com/psf/black
-    rev: 25.1.0
-    hooks:
-    -   id: black
-        args: [--check, --diff, --preview]
-    -   id: black-jupyter
-
-# supports version control of jupyter notebooks, removes cell outputs
--   repo: https://github.com/kynan/nbstripout
-    rev: 0.8.1
-    hooks:
-    -   id: nbstripout
-        files: ".ipynb"
 
 # check pyproject.toml file
 -   repo: https://github.com/abravalheri/validate-pyproject
@@ -33,16 +22,24 @@ repos: #  definitions see: https://pre-commit.com/hooks.html
     hooks:
     -   id: validate-pyproject  # Validate the contents of pyproject.toml
 
+
+# # supports version control of jupyter notebooks, removes cell outputs
+# -   repo: https://github.com/kynan/nbstripout
+#     rev: 0.8.1
+#     hooks:
+#     -   id: nbstripout
+#         files: ".ipynb"
+
+
 # pre-commit-hooks (as part of Continuous Integration)
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer  # Ensure newline characters at file end
     -   id: check-json
     -   id: check-yaml
     -   id: check-toml
-    -   id: requirements-txt-fixer # short lines in requirements file
     -   id: check-merge-conflict
     -   id: check-added-large-files # default 500kb
         exclude_types:

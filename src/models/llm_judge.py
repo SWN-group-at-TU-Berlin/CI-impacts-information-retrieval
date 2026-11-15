@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """LLM-as-a-judge: check extracted CI impact records against the text chunk they were extracted from"""
 
 __author__ = "Anna Buch, TU Berlin"
@@ -14,7 +13,6 @@ import pandas as pd
 
 from src.settings import init_logger
 
-
 logger = init_logger(__name__)
 
 
@@ -22,10 +20,10 @@ JUDGE_VERDICTS = ["correct", "adapted", "false"]
 NOT_JUDGED = "not_judged"  # judge gave no (valid) verdict for this record, record is kept unchanged
 
 JUDGE_COLUMNS = [
-    "judge_verdict",           # correct | adapted | false | not_judged
-    "judge_adapted_fields",    # JSON: {field: {"old": ..., "new": ...}} for adapted records
-    "judge_reason",            # short explanation of the judge
-    "judge_evidence",          # sentence(s) of the chunk text the verdict is based on
+    "judge_verdict",  # correct | adapted | false | not_judged
+    "judge_adapted_fields",  # JSON: {field: {"old": ..., "new": ...}} for adapted records
+    "judge_reason",  # short explanation of the judge
+    "judge_evidence",  # sentence(s) of the chunk text the verdict is based on
     "judge_evidence_in_text",  # True if the evidence is found verbatim in the chunk text
     "judge_adaptation_in_text",  # True if all adapted (new) values are found in the chunk text, None if nothing adapted
 ]
@@ -44,7 +42,7 @@ def _to_json_value(value):
         return None
     if isinstance(value, np.generic):
         return value.item()
-    if isinstance(value, (str, int, float, bool)):
+    if isinstance(value, str | int | float | bool):
         return value
     return str(value)
 
@@ -64,24 +62,22 @@ def literal_values(annotation) -> list[str]:
 def records_to_judge_payload(df: pd.DataFrame, fields: list[str]) -> str:
     """Serialize the records of df (only the given fields) as JSON list, each with a positional record_id."""
     fields = [f for f in fields if f in df.columns]
-    records = [
-        {"record_id": record_id, **{f: _to_json_value(row[f]) for f in fields}}
-        for record_id, (_, row) in enumerate(df.iterrows())
-    ]
+    records = [{"record_id": record_id, **{f: _to_json_value(row[f]) for f in fields}} for record_id, (_, row) in enumerate(df.iterrows())]
     return json.dumps(records, ensure_ascii=False, indent=1)
 
 
 def parse_judge_response(text: str) -> list[dict]:
     """Extract the list of judgements from the raw LLM answer (may contain reasoning, markdown code fences
-    or a wrapping object such as {"records": [...]}). Raises ValueError if no JSON list is found."""
+    or a wrapping object such as {"records": [...]}). Raises ValueError if no JSON list is found.
+    """
     text = re.sub(r"<think>.*?</think>", "", str(text), flags=re.DOTALL)
     text = re.sub(r"```(?:json)?", "", text)
 
     start, end = text.find("["), text.rfind("]")
-    candidates = [text[start:end + 1]] if start != -1 and end > start else []
+    candidates = [text[start : end + 1]] if start != -1 and end > start else []
     start, end = text.find("{"), text.rfind("}")
     if start != -1 and end > start:
-        candidates.append(text[start:end + 1])
+        candidates.append(text[start : end + 1])
 
     for candidate in candidates:
         try:
@@ -110,7 +106,8 @@ def strip_determiners(value) -> str:
 
 def _is_allowed(value, allowed: list) -> bool:
     """True if value is an allowed value, or a comma-separated combination of allowed values
-    (cascading impact columns can hold several values, e.g. "repair_recovery_cost, downstream_economic_consequence")."""
+    (cascading impact columns can hold several values, e.g. "repair_recovery_cost, downstream_economic_consequence").
+    """
     if value in allowed:
         return True
     return all(part.strip() in allowed for part in str(value).split(","))
@@ -142,8 +139,14 @@ def apply_judgements(
     text_norm = _normalize_text(chunk_text) if chunk_text is not None else None
 
     results = [
-        {"judge_verdict": NOT_JUDGED, "judge_adapted_fields": None, "judge_reason": None,
-         "judge_evidence": None, "judge_evidence_in_text": None, "judge_adaptation_in_text": None}
+        {
+            "judge_verdict": NOT_JUDGED,
+            "judge_adapted_fields": None,
+            "judge_reason": None,
+            "judge_evidence": None,
+            "judge_evidence_in_text": None,
+            "judge_adaptation_in_text": None,
+        }
         for _ in range(len(df))
     ]
     judged = set()
@@ -182,15 +185,9 @@ def apply_judgements(
                 old = _to_json_value(df.iat[record_id, df.columns.get_loc(field)])
                 if new == old:
                     continue
-                if (
-                    field in normalize_values and new is not None and old is not None
-                    and normalize_values[field](new) == normalize_values[field](old)
-                ):
+                if field in normalize_values and new is not None and old is not None and normalize_values[field](new) == normalize_values[field](old):
                     continue
-                if (
-                    new is None and protect_values_in_text and text_norm is not None
-                    and old is not None and _normalize_text(old) in text_norm
-                ):
+                if new is None and protect_values_in_text and text_norm is not None and old is not None and _normalize_text(old) in text_norm:
                     continue
                 changes[field] = {"old": old, "new": new}
                 df.iat[record_id, df.columns.get_loc(field)] = new if new is not None else np.nan
@@ -214,7 +211,8 @@ def apply_judgements(
 def format_judge_report(df_judged: pd.DataFrame, verdicts: str | tuple[str, ...] = ("adapted", "false")) -> str:
     """Readable summary of the judge verdicts: counts per verdict, and for each record with one of the given
     verdicts (e.g. "adapted" or ("adapted", "false")) its CI type and location, the changed fields (old -> new)
-    and the reason of the judge."""
+    and the reason of the judge.
+    """
     if isinstance(verdicts, str):
         verdicts = (verdicts,)
     counts = df_judged["judge_verdict"].value_counts().to_dict()
@@ -229,10 +227,7 @@ def format_judge_report(df_judged: pd.DataFrame, verdicts: str | tuple[str, ...]
         for idx, row in df_verdict.iterrows():
             # describe the record by its values before adaptation
             changes = json.loads(row["judge_adapted_fields"]) if isinstance(row.get("judge_adapted_fields"), str) else {}
-            label = [
-                str(changes[f]["old"] if f in changes else _to_json_value(row.get(f)))
-                for f in ["infrastructure_type", "location", "damage"]
-            ]
+            label = [str(changes[f]["old"] if f in changes else _to_json_value(row.get(f))) for f in ["infrastructure_type", "location", "damage"]]
             lines.append(f"    record {idx}: {' | '.join(label)}")
             for field, change in changes.items():
                 lines.append(f"      {field}: {change['old']!r} -> {change['new']!r}")
@@ -280,8 +275,16 @@ class LlmJudge:
     ):
         if llm is None:
             from langchain_openai import ChatOpenAI
-            llm = ChatOpenAI(model=model, base_url=base_url, api_key=api_key,
-                             temperature=temperature, seed=seed, timeout=timeout, max_tokens=max_tokens)
+
+            llm = ChatOpenAI(
+                model=model,
+                base_url=base_url,
+                api_key=api_key,
+                temperature=temperature,
+                seed=seed,
+                timeout=timeout,
+                max_tokens=max_tokens,
+            )
         self.llm = llm
         self.prompt = prompt
         self.field_schema = field_schema
@@ -293,16 +296,19 @@ class LlmJudge:
         self.max_retries = max_retries
         self.retry_wait = retry_wait
         # default: ignore changes that only add/remove articles, quantifiers or numbers, e.g. "bridges" -> "Two bridges"
-        self.normalize_values = normalize_values if normalize_values is not None else {
-            "infrastructure_type": strip_determiners, "secondary_infrastructure_asset": strip_determiners,
-        }
+        self.normalize_values = (
+            normalize_values
+            if normalize_values is not None
+            else {
+                "infrastructure_type": strip_determiners,
+                "secondary_infrastructure_asset": strip_determiners,
+            }
+        )
         self.protect_values_in_text = protect_values_in_text
 
         # fields with a fixed keyword list in the schema (Literal), e.g. damage, economic_impact_origin -> judge may only use these keywords
         self.allowed_values = {
-            column: literal_values(model.model_fields[name].annotation)
-            for column, (model, name) in field_schema.items()
-            if literal_values(model.model_fields[name].annotation)
+            column: literal_values(model.model_fields[name].annotation) for column, (model, name) in field_schema.items() if literal_values(model.model_fields[name].annotation)
         }
         self.field_rules = self.build_field_rules()
         self.reset()
@@ -316,7 +322,10 @@ class LlmJudge:
         """Definition, allowed keywords and extra rules for each judged field, as text for the judge prompt."""
         blocks = []
         for column, (model, name) in self.field_schema.items():
-            lines = [f'"{column}":', f"- Definition: {model.model_fields[name].description}"]
+            lines = [
+                f'"{column}":',
+                f"- Definition: {model.model_fields[name].description}",
+            ]
             if column in self.allowed_values:
                 lines.append(f"- Allowed values (or null): {', '.join(self.allowed_values[column])}")
             else:
@@ -332,6 +341,7 @@ class LlmJudge:
     def call(self, df_batch: pd.DataFrame, chunk_text: str, ner_entities: list[str]) -> list[dict] | None:
         """Ask the LLM to judge the records of df_batch. Returns the parsed judgements, or None if all attempts failed."""
         import time
+
         import openai
 
         messages = self.prompt.format_messages(
@@ -358,7 +368,10 @@ class LlmJudge:
                 self.last_error = f"{type(e).__name__}: {e}"
                 print(f"! LLM-as-a-judge failed (attempt {attempt + 1}/{self.max_retries + 1}): {self.last_error}")
                 # model not found / wrong api key: retrying does not help
-                if isinstance(e, (openai.NotFoundError, openai.AuthenticationError, openai.PermissionDeniedError)):
+                if isinstance(
+                    e,
+                    openai.NotFoundError | openai.AuthenticationError | openai.PermissionDeniedError,
+                ):
                     break
                 if attempt < self.max_retries:
                     time.sleep(self.retry_wait)
@@ -368,13 +381,14 @@ class LlmJudge:
 
     def judge(self, df_records: pd.DataFrame, chunk_text: str) -> pd.DataFrame:
         """Let the LLM judge each record of df_records against chunk_text (in batches of batch_size records).
-        Returns df_records (same rows) with adapted values and the judge columns, see JUDGE_COLUMNS."""
+        Returns df_records (same rows) with adapted values and the judge columns, see JUDGE_COLUMNS.
+        """
         # same NER tool as for LLM 1, as guidance for infrastructure_type and secondary_infrastructure_asset
         ner_entities = self.ner_fn(chunk_text) or []
 
         df_batches_judged = []
         for batch_start in range(0, max(len(df_records), 1), self.batch_size):
-            df_batch = df_records.iloc[batch_start:batch_start + self.batch_size]
+            df_batch = df_records.iloc[batch_start : batch_start + self.batch_size]
 
             judgements = []
             if self.is_skipped:
@@ -383,13 +397,17 @@ class LlmJudge:
                 judgements = self.call(df_batch, chunk_text, ner_entities) or []
 
             # record_ids in the judgements refer to the positions within this batch
-            df_batches_judged.append(apply_judgements(
-                df_batch, judgements, self.fields,
-                chunk_text=chunk_text,
-                allowed_values=self.allowed_values,
-                normalize_values=self.normalize_values,
-                protect_values_in_text=self.protect_values_in_text,
-            ))
+            df_batches_judged.append(
+                apply_judgements(
+                    df_batch,
+                    judgements,
+                    self.fields,
+                    chunk_text=chunk_text,
+                    allowed_values=self.allowed_values,
+                    normalize_values=self.normalize_values,
+                    protect_values_in_text=self.protect_values_in_text,
+                )
+            )
 
         return pd.concat(df_batches_judged)
 

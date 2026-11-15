@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """CI impact extraction pipeline per chunk and document: NER pre-filter -> LLM 1 (LlmExtract) -> postprocessing -> LLM-as-a-judge (LlmJudge)"""
 
 __author__ = "Anna Buch, TU Berlin"
@@ -12,21 +11,22 @@ from pathlib import Path
 import pandas as pd
 
 import src.document_cleaning as dc
-import src.postprocess as pp
 import src.models.llm_extract as le
 import src.models.llm_judge as lj
+import src.postprocess as pp
 from src.tools.ner import get_infrastructure_entities, load_ci_patterns
 
 
 def prepare_chunk_text(text: str) -> str:
-    """Add the punctuation of "e.g." and "i.e." back for the LLMs, it is removed during the document cleaning
-    (dc._DocProcessing.clean_paragraph: "e.g. " -> "eg ") to avoid sentence splits by the chunker"""
+    """Add the punctuation of e.g. and i.e. back for the LLMs, it is removed during the document cleaning
+    (dc._DocProcessing.clean_paragraph: `e.g.  -> `eg `) to avoid sentence splits by the chunker
+    """
     text = re.sub(r"\beg\s+", "e.g. ", text)
     return re.sub(r"\bie\s+", "i.e. ", text)
 
 
 def get_citation(name: str) -> str:
-    """Citation id "<authors> <year>" of a document name "<authors> <year> - <title>" """
+    """Citation id <authors> <year> of a document name `<authors> <year> - <title>`"""
     author, year, _ = dc.extract_citation_info(name)
     return f"{author} {year}".replace("  ", " ").strip()
 
@@ -43,9 +43,17 @@ class CiImpactPipeline:
         df_records = pipeline.run(documents)
     """
 
-    def __init__(self, chunker, llm_extract: le.LlmExtract, llm_judge: lj.LlmJudge | None = None,
-                 ci_patterns: pd.DataFrame | None = None, output_dir: Path | None = None,
-                 max_retries: int = 1, retry_wait: int = 60, verbose: bool = True):
+    def __init__(
+        self,
+        chunker,
+        llm_extract: le.LlmExtract,
+        llm_judge: lj.LlmJudge | None = None,
+        ci_patterns: pd.DataFrame | None = None,
+        output_dir: Path | None = None,
+        max_retries: int = 1,
+        retry_wait: int = 60,
+        verbose: bool = True,
+    ):
         self.chunker = chunker
         self.llm_extract = llm_extract
         self.llm_judge = llm_judge
@@ -75,7 +83,14 @@ class CiImpactPipeline:
             result = self.llm_extract.extract(text, max_retries=self.max_retries, retry_wait=self.retry_wait)
         except Exception as e:
             print(f"! LLM 1 failed for chunk {chunk_no} of {citation}: {type(e).__name__}: {e}")
-            self.errors.append({"citation_id": citation, "chunk_id": chunk_no, "response": None, "error": f"{type(e).__name__}: {e}"})
+            self.errors.append(
+                {
+                    "citation_id": citation,
+                    "chunk_id": chunk_no,
+                    "response": None,
+                    "error": f"{type(e).__name__}: {e}",
+                }
+            )
             return None
         if not result.get("is_infrastructure_case"):
             return None
@@ -84,7 +99,14 @@ class CiImpactPipeline:
             df = le.result_to_dataframe(result)
         except Exception as e:
             print(f"! Cannot convert LLM 1 response of chunk {chunk_no} of {citation}: {e}")
-            self.errors.append({"citation_id": citation, "chunk_id": chunk_no, "response": str(result), "error": f"{type(e).__name__}: {e}"})
+            self.errors.append(
+                {
+                    "citation_id": citation,
+                    "chunk_id": chunk_no,
+                    "response": str(result),
+                    "error": f"{type(e).__name__}: {e}",
+                }
+            )
             return None
         df["citation_id"], df["chunk_id"], df["chunk_text"] = citation, chunk_no, text
         if df.empty or df["infrastructure_type"].isna().all():
@@ -118,9 +140,16 @@ class CiImpactPipeline:
         df_doc = pd.concat(records, ignore_index=True) if records else pd.DataFrame()
 
         if self.output_dir is not None:
-            df_doc.to_csv(self.output_dir / f"llm_chain_judge_{citation}.csv", encoding="utf-8", index=False)
+            df_doc.to_csv(
+                self.output_dir / f"llm_chain_judge_{citation}.csv",
+                encoding="utf-8",
+                index=False,
+            )
             pd.DataFrame(self.errors, columns=["citation_id", "chunk_id", "response", "error"]).astype(str).to_csv(
-                self.output_dir / "llm_responses_errors.csv", encoding="utf-8", index=False)
+                self.output_dir / "llm_responses_errors.csv",
+                encoding="utf-8",
+                index=False,
+            )
         return df_doc
 
     def run(self, documents: dict) -> pd.DataFrame:

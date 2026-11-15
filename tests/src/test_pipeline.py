@@ -38,19 +38,44 @@ class FakeChunker:
 
 
 def records(**kwargs):
-    return pd.DataFrame([{"infrastructure_type": "roads", "location": "Berlin", "damage": "inundation", "societal_impact_amount": None, **kwargs}])
+    return pd.DataFrame(
+        [
+            {
+                "infrastructure_type": "roads",
+                "location": "Berlin",
+                "damage": "inundation",
+                "societal_impact_amount": None,
+                **kwargs,
+            }
+        ]
+    )
 
 
 def make_pipeline(monkeypatch, result, texts, tmp_path=None):
     monkeypatch.setattr(pl.le, "result_to_dataframe", lambda result: records())
     patterns = pd.DataFrame()
-    monkeypatch.setattr(pl.pp, "group_ci_types", lambda df, col, col_grouped, patterns, **kw: df.assign(**{col_grouped: "Transportation"}))
-    return pl.CiImpactPipeline(FakeChunker(texts), FakeExtract(result), FakeJudge(), ci_patterns=patterns, output_dir=tmp_path, verbose=False)
+    monkeypatch.setattr(
+        pl.pp,
+        "group_ci_types",
+        lambda df, col, col_grouped, patterns, **kw: df.assign(**{col_grouped: "Transportation"}),
+    )
+    return pl.CiImpactPipeline(
+        FakeChunker(texts),
+        FakeExtract(result),
+        FakeJudge(),
+        ci_patterns=patterns,
+        output_dir=tmp_path,
+        verbose=False,
+    )
 
 
 def test_pipeline_runs_ner_filter_llm1_and_judge(monkeypatch, tmp_path):
-    pipeline = make_pipeline(monkeypatch, {"is_infrastructure_case": True},
-                             ["The roads in Berlin were flooded.", "The weather was nice."], tmp_path)
+    pipeline = make_pipeline(
+        monkeypatch,
+        {"is_infrastructure_case": True},
+        ["The roads in Berlin were flooded.", "The weather was nice."],
+        tmp_path,
+    )
     df = pipeline.run({"Koks 2022 - Brief communication": object()})
     assert pipeline.llm_extract.calls == 1  # second chunk has no infrastructure entity (NER pre-filter)
     assert df[["citation_id", "chunk_id", "infrastructure_group", "judge_verdict"]].values.tolist() == [["Koks 2022", 0, "Transportation", "correct"]]

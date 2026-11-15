@@ -81,10 +81,15 @@ def test_describe_damage_categories():
     assert text.startswith("- structural_damage: physical damage")
 
 
-
 def test_postprocess_response_keeps_only_ci_and_cleans_locations():
     from src.tools.ner import load_ci_patterns
-    df = pd.DataFrame({"infrastructure_type": ["roads (A1)", "theatre"], "location": ["the Ahr valley, Germany", "Berlin"]})
+
+    df = pd.DataFrame(
+        {
+            "infrastructure_type": ["roads (A1)", "theatre"],
+            "location": ["the Ahr valley, Germany", "Berlin"],
+        }
+    )
     df_ci, df_not_grouped = pp.postprocess_response(df, load_ci_patterns())
     assert df_ci["infrastructure_type"].tolist() == ["roads A1"]
     assert df_ci["infrastructure_group"].notna().all()
@@ -94,11 +99,31 @@ def test_postprocess_response_keeps_only_ci_and_cleans_locations():
 
 
 def test_postprocess_locations_removes_the_in_and_passing_only_at_the_beginning():
-    df = pd.DataFrame({"location": [
-        "the Ahr valley, Germany", "in the Ahr valley", "passing Cologne", "near the A1", "Sinzig (in North Rhine-Westphalia)",
-        "roads in Berlin", "Bridge passing the Elbe", "railway tracks between the A1 and B2", "Theale", "Berlin",
-    ]})
+    df = pd.DataFrame(
+        {
+            "location": [
+                "the Ahr valley, Germany",
+                "in the Ahr valley",
+                "passing Cologne",
+                "near the A1",
+                "Sinzig (in North Rhine-Westphalia)",
+                "roads in Berlin",
+                "Bridge passing the Elbe",
+                "railway tracks between the A1 and B2",
+                "Theale",
+                "Berlin",
+            ]
+        }
+    )
     assert pp.postprocess_locations(df, "location").tolist() == [
-        "Ahr valley", "Ahr valley", "Cologne", "A1", "Sinzig",
-        "roads in Berlin", "Bridge passing the Elbe", "A1 and B2", "Theale", "Berlin",
+        "Ahr valley",
+        "Ahr valley",
+        "Cologne",
+        "A1",
+        "Sinzig",
+        "roads in Berlin",
+        "Bridge passing the Elbe",
+        "A1 and B2",
+        "Theale",
+        "Berlin",
     ]

@@ -3,7 +3,6 @@ import pandas as pd
 
 from src import evaluation as ev
 
-
 THRESHOLDS = {"ci": 1.0, "damage": 0.7, "location": 0.7}
 
 
@@ -13,33 +12,52 @@ def exact_match(pred, valid):
 
 def make_data():
     # doc "A": paragraph 1 has 2 predictions, paragraph 2 has 1 prediction (no validation record -> FP)
-    df_pred = pd.DataFrame({
-        "citation_id": ["A", "A", "A"],
-        "chunk_id": [1, 1, 2],
-        "id_pred": [0, 1, 2],
-        "infrastructure_group": ["roads", "power", "rail"],
-        "damage": ["flooded", "outage", "destroyed"],
-        "location": ["Berlin", "Hamburg", "Bonn"],
-    })
+    df_pred = pd.DataFrame(
+        {
+            "citation_id": ["A", "A", "A"],
+            "chunk_id": [1, 1, 2],
+            "id_pred": [0, 1, 2],
+            "infrastructure_group": ["roads", "power", "rail"],
+            "damage": ["flooded", "outage", "destroyed"],
+            "location": ["Berlin", "Hamburg", "Bonn"],
+        }
+    )
     # 3 validation records: two belong to paragraph 1, one matches no paragraph (-> FN)
-    df_valid = pd.DataFrame({
-        "publication_id": ["A", "A", "A"],
-        "id_valid": [0, 1, 2],
-        "ci1_group": ["roads", "power", "water"],
-        "ci1_damage": ["flooded", "damaged", "polluted"],
-        "ci1_location": ["Berlin", np.nan, "Köln"],
-    })
+    df_valid = pd.DataFrame(
+        {
+            "publication_id": ["A", "A", "A"],
+            "id_valid": [0, 1, 2],
+            "ci1_group": ["roads", "power", "water"],
+            "ci1_damage": ["flooded", "damaged", "polluted"],
+            "ci1_location": ["Berlin", np.nan, "Köln"],
+        }
+    )
     # sentence of valid 0 also partially matches paragraph 2, but less well than paragraph 1
-    pairs = [(0, 0, 1, 100), (1, 0, 1, 100), (0, 1, 1, 90), (1, 1, 1, 90), (2, 0, 2, 70)]
+    pairs = [
+        (0, 0, 1, 100),
+        (1, 0, 1, 100),
+        (0, 1, 1, 90),
+        (1, 1, 1, 90),
+        (2, 0, 2, 70),
+    ]
     rows = []
     for id_pred, id_valid, chunk, sim in pairs:
         p, v = df_pred.loc[id_pred], df_valid.loc[id_valid]
-        rows.append({
-            "citation_id": "A", "chunk_id_pred": chunk, "id_pred": id_pred, "id_valid": id_valid,
-            "text_similarity": sim,
-            "ci_group_pred": p.infrastructure_group, "damage_pred": p.damage, "location_pred": p.location,
-            "ci_group_valid": v.ci1_group, "damage_valid": v.ci1_damage, "location_valid": v.ci1_location,
-        })
+        rows.append(
+            {
+                "citation_id": "A",
+                "chunk_id_pred": chunk,
+                "id_pred": id_pred,
+                "id_valid": id_valid,
+                "text_similarity": sim,
+                "ci_group_pred": p.infrastructure_group,
+                "damage_pred": p.damage,
+                "location_pred": p.location,
+                "ci_group_valid": v.ci1_group,
+                "damage_valid": v.ci1_damage,
+                "location_valid": v.ci1_location,
+            }
+        )
     return df_pred, df_valid, pd.DataFrame(rows)
 
 
@@ -49,19 +67,27 @@ def run_pipeline():
     df_pairs = ev.select_paragraph_pairs(df_pred_valid_all, df_valid_paragraphs)
     df_pairs = ev.calc_pair_similarities(df_pairs, exact_match, exact_match)
     df_matched = ev.match_pairs_one_to_one(df_pairs)
-    return df_valid_paragraphs, df_matched, ev.count_paragraph_scores(
-        df_matched, df_pred, df_valid, df_valid_paragraphs, THRESHOLDS
+    return (
+        df_valid_paragraphs,
+        df_matched,
+        ev.count_paragraph_scores(df_matched, df_pred, df_valid, df_valid_paragraphs, THRESHOLDS),
     )
 
 
 def test_assign_valid_to_best_paragraph():
     df_valid_paragraphs, _, _ = run_pipeline()
-    assert df_valid_paragraphs.set_index("id_valid")["chunk_id"].to_dict() == {0: 1, 1: 1}
+    assert df_valid_paragraphs.set_index("id_valid")["chunk_id"].to_dict() == {
+        0: 1,
+        1: 1,
+    }
 
 
 def test_match_pairs_one_to_one():
     _, df_matched, _ = run_pipeline()
-    assert sorted(zip(df_matched["id_pred"], df_matched["id_valid"])) == [(0, 0), (1, 1)]
+    assert sorted(zip(df_matched["id_pred"], df_matched["id_valid"])) == [
+        (0, 0),
+        (1, 1),
+    ]
 
 
 def test_count_paragraph_scores():
@@ -102,7 +128,10 @@ def test_fuzzy_match_counts_one_to_one():
 
     # each prediction matches at most one validation entry -> the second "3 bridges" stays a FN
     assert (tps, fps, fns) == (2, 1, 1)
-    assert sorted(m[:2] for m in matches) == [("3 bridges", "3 bridges"), ("about 200 km of roads", "200 km of roads")]
+    assert sorted(m[:2] for m in matches) == [
+        ("3 bridges", "3 bridges"),
+        ("about 200 km of roads", "200 km of roads"),
+    ]
 
 
 def test_fuzzy_match_counts_below_threshold():
@@ -136,7 +165,14 @@ def test_numbers_must_match():
 
 
 def test_normalize_numbers_thousands_separators():
-    for text in ["20 000 houses", "20 000 houses", "20,000 houses", "20.000 houses", "20'000 houses", "20000 houses"]:
+    for text in [
+        "20 000 houses",
+        "20 000 houses",
+        "20,000 houses",
+        "20.000 houses",
+        "20'000 houses",
+        "20000 houses",
+    ]:
         assert ev.normalize_numbers(text) == "20000 houses"
     assert ev.normalize_numbers("1 000 000") == "1000000"
     assert ev.normalize_numbers("1,000,000") == "1000000"
@@ -180,7 +216,10 @@ def test_numbers_must_match_ignores_repeated_numbers():
     scorer = ev.numbers_must_match(fuzz.partial_ratio)
     assert scorer("100 to 200, between 100 to 200 households", "100 to 200") == 100
     assert ev.fuzzy_match_counts(
-        ["100 to 200, between 100 to 200 households"], ["100 to 200"], scorer, threshold=70
+        ["100 to 200, between 100 to 200 households"],
+        ["100 to 200"],
+        scorer,
+        threshold=70,
     )[:3] == (1, 0, 0)
     # different numbers still do not match
     assert scorer("100 to 300 households", "100 to 200") == 0

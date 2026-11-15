@@ -15,14 +15,14 @@ How to Contribute
 
 > At the moment we would appropriate to receive contributions in the form of GitHub issues and in the GitHub discussion section, rather than pull requests by others than our research group.
 
-We are in particular looking for feedback on the usability of our software, ideas for further improvements and extension of our LLM-based extraction workflow. 
+We are in particular looking for feedback on the usability of our software, ideas for further improvements and extension of our LLM-based extraction workflow.
 
 > :flashlight: Please see the steps below as some guidelines to create a good issue or discussion:
 
 > 1. Check if your issue or discussion has already been raised by searching the issues and discussions.
 > 2. If your issue or discussion is new, please create a new issue or discussion and provide a clear and descriptive title.
-> 3. Provide a detailed description of the issue or discussion, including any relevant context, and if needed, steps to reproduce the issue and a brief explanation of the expected vs. actual behavior. It is sufficient when you report the issue or suggestion from a user perspective. 
-> 4. If applicable, you can also reference the respective code line(s) in your commit or discussion. Simply, go to the respective file (or the respective commit when it is not the most recent commit message), click on the code number, and select either a permalink (<- good when you have already opened an issue or discussion) or reference to a new issue or discussion. 
+> 3. Provide a detailed description of the issue or discussion, including any relevant context, and if needed, steps to reproduce the issue and a brief explanation of the expected vs. actual behavior. It is sufficient when you report the issue or suggestion from a user perspective.
+> 4. If applicable, you can also reference the respective code line(s) in your commit or discussion. Simply, go to the respective file (or the respective commit when it is not the most recent commit message), click on the code number, and select either a permalink (<- good when you have already opened an issue or discussion) or reference to a new issue or discussion.
 > 5. Maybe the most important point: keep in mind, every kind of feedback you provide or question you ask is valuable for improving the software project. Therefore, see the above points as ideas to help you to post an issue or discussion, but feel free to deviate from them at any time.
 
 
@@ -87,4 +87,3 @@ Closing remark
 -------------------
 Some of the ideas and text snippets were taken from awesome open-source projects:
 * [Celery](https://github.com/celery/celery/blob/main/CONTRIBUTING.rst#security)
-

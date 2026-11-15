@@ -1,21 +1,18 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """Connect and inset to vector DB"""
 
 __author__ = "Anna Buch, TU Berlin"
 __email__ = "anna.buch@tu-berlin.de"
 
 
-from uuid import UUID, uuid4
-from pydantic import BaseModel, Field, ConfigDict
 import json
-from typing import Optional, Dict, Any
+from typing import Any
+from uuid import UUID, uuid4
 
 import psycopg2 as pg
-
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.settings import init_logger
-
 
 logger = init_logger(__name__)
 
@@ -29,8 +26,8 @@ class TextSource(BaseModel):
     title: str
     source: str
     content: str
-    authors: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    authors: str | None = None
+    metadata: dict[str, Any] | None = None
 
     # make model immutable
     model_config = ConfigDict(frozen=True)
@@ -48,9 +45,7 @@ def connect_db():
     return conn
 
 
-def fill_db(
-    entry: TextSource, schema_name: str = "public", table_name: str = "text_sources"
-):
+def fill_db(entry: TextSource, schema_name: str = "public", table_name: str = "text_sources"):
     conn = connect_db()
     curs = conn.cursor()
 

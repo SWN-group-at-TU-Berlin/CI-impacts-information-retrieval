@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """NER model (spaCy pipeline + CI patterns) and the NER tools of LLM 1 and the LLM-as-a-judge"""
 
 __author__ = "Anna Buch, TU Berlin"
@@ -7,7 +6,6 @@ __email__ = "anna.buch@tu-berlin.de"
 
 import re
 from pathlib import Path
-from typing import List
 
 import numpy as np
 import pandas as pd
@@ -25,21 +23,18 @@ def load_ci_patterns() -> pd.DataFrame:
     return pd.read_json(NER_PATTERNS_DIR / "patterns", lines=True)
 
 
-
-
-# 
+#
 
 # ## NER model
 
-class NERModel():
 
+class NERModel:
     def __init__(self):
         self.nlp_model = self.initialize()
-    
 
     def initialize(self):
-        """ Return initialized NER model"""
-  
+        """Return initialized NER model"""
+
         dir_model_pipeline = SPACY_MODEL_PIPELINE_DIR
         dir_ci_patterns = NER_PATTERNS_DIR
 
@@ -73,46 +68,43 @@ def get_nlp_model():
 
 
 @tool
-def get_infrastructure_entities(text:str) -> List[str]| None:
-    """This tool detects infrastructure assets and services from text by using a spaCy model to conduct Named Entity Recognition (NER)""" 
+def get_infrastructure_entities(text: str) -> list[str] | None:
+    """This tool detects infrastructure assets and services from text by using a spaCy model to conduct Named Entity Recognition (NER)"""
 
-    # remove common misleading CI keywords 
+    # remove common misleading CI keywords
     # ("dam" - "damage.*", "train"- "training") as NER patterns not recognize stop-char "\b" for any reason
-    # but keep when rest of entity is CI, eg, "damaged rails", 
+    # but keep when rest of entity is CI, eg, "damaged rails",
     regex = re.compile(r"\b[Dd]amage\w*|\b[Tt]raining\w*|\b[Cc]ommunication\w*")
     text_clean = re.sub(regex, "", text).replace("  ", " ")
-    
 
     # get ci entities
     nlp_chunk = get_nlp_model()(text_clean)
     ci_entities = [ent for ent in nlp_chunk.ents if ent.label_ in ["CI_TYPE", "FAC"]]
-    
+
     ## cleaning:
     # remove common errorneous CI keywords ("dam" - "damage.*", "train"- "training") as NER patterns not recognize stop-char "\b" for any reason
     regex = re.compile(r".*damage.*|.*training.*|\b[Cc]ommunication")
     ci_entities = [str(i) for i in ci_entities if not regex.match(str(i))]
-    
+
     if ci_entities:
         return ci_entities
-        
+
     return None
     # return f"Following entities about critical infrastructure were found in the text: {ci_entities}."
 
 
 # @tool
-def get_infrastructure_location_pairs(text:str) -> List[str] | None:
-    """This tool detects infrastructure assets and services from text by using a spaCy model to conduct Named Entity Recognition (NER)""" 
-    
-    
-    # remove common misleading CI keywords 
+def get_infrastructure_location_pairs(text: str) -> list[str] | None:
+    """This tool detects infrastructure assets and services from text by using a spaCy model to conduct Named Entity Recognition (NER)"""
+
+    # remove common misleading CI keywords
     # ("dam" - "damage.*", "train"- "training") as NER patterns not recognize stop-char "\b" for any reason
-    # but keep when rest of entity is CI, eg, "damaged rails", 
+    # but keep when rest of entity is CI, eg, "damaged rails",
     regex = re.compile(r"\b[Dd]amage\w*|\b[Tt]raining\w*|\b[Cc]ommunication\w*")
     text_clean = re.sub(regex, "", text).replace("  ", " ")
-    
+
     nlp_chunk = get_nlp_model()(text_clean)
-    
- 
+
     # GET CI and related LOCs entities
     all_ents = [ent for ent in nlp_chunk.ents]
 
@@ -120,13 +112,13 @@ def get_infrastructure_location_pairs(text:str) -> List[str] | None:
     # remove common errorneous CI keywords ("dam" - "damage.*", "train"- "training") as NER patterns not recognize stop-char "\b" for any reason
     regex = re.compile(r".*damage.*|.*training.*")
     all_ents = [i for i in all_ents if not (regex.match(str(i)) and i.label_ in ["CI_TYPE", "FAC"])]
-    
+
     # remove all FAC which are not roads, airport or port names
     print("FAC before removal", [i for i in all_ents if i.label_ in ["FAC"]])
     regex_roadnames = re.compile(r".*[A-Z]{1,3}[0-9]{1,3}.*|.*[A-Z]{1,3}-[0-9]{1,3}.*")  # matches: A-75, BE105
     regex_others = re.compile(r".*airport.*|.*port.*|")
     all_ents = [i for i in all_ents if ((regex_roadnames.match(str(i)) or regex_others.match(str(i))) and i.label_ in ["FAC"])]
-    
+
     print("FAC after removal", [i for i in all_ents if i.label_ in ["FAC"]])
 
     # init dfs for interim results for each chunk
@@ -142,12 +134,12 @@ def get_infrastructure_location_pairs(text:str) -> List[str] | None:
             "token_distance",
             "token_2_distance",
         ]
-    )    
+    )
 
     # iterate over all entities within text
     for ent_idx in range(len(all_ents)):
         # when entity is CI_TYPE
-        if all_ents[ent_idx].label_ in ["CI_TYPE", "FAC"]: 
+        if all_ents[ent_idx].label_ in ["CI_TYPE", "FAC"]:
             ci_idx = ent_idx
 
             ## .. calculate distances between CI_TYPE entity and all GEO entities based on index position
@@ -155,28 +147,26 @@ def get_infrastructure_location_pairs(text:str) -> List[str] | None:
             idx_in_chunk = []
             try:
                 for ent_idx in range(len(all_ents)):
-
                     # TODO calc distances between CI_TYPE ~ GEO entities based on word numbers and not entities (ie tokens)
                     if all_ents[ent_idx].label_ in ["GPE", "LOC"]:
-
                         ## check that GPE,LOC are not countries (too coarse info CI-GEO pair)
-                        # of GPE/LOC is country -> proceed with next GPE/LOC 
+                        # of GPE/LOC is country -> proceed with next GPE/LOC
                         # if all_ents[ent_idx].text in ci_geo_countries:
                         #     continue
 
                         geo_idx = ent_idx
                         dist_ent_pair = np.abs(ci_idx - geo_idx)
                         distance_list.append(dist_ent_pair)
-                        idx_in_chunk.append((ent_idx))
+                        idx_in_chunk.append(ent_idx)
 
-                # for each calc of the distance of a ci-loc pair, sort distance list always in ascending order 
-                closest_pair_idx = np.argsort(distance_list)[0]#np.argmin(distance_list)  # idx of closest GEO entity
-                
+                # for each calc of the distance of a ci-loc pair, sort distance list always in ascending order
+                closest_pair_idx = np.argsort(distance_list)[0]  # np.argmin(distance_list)  # idx of closest GEO entity
+
                 # handle case when only 1 location exists in text
                 closest_2nd_pair_idx = None
-                if len(distance_list) > 1: 
-                    closest_2nd_pair_idx = np.argsort(distance_list)[1]                    
-                
+                if len(distance_list) > 1:
+                    closest_2nd_pair_idx = np.argsort(distance_list)[1]
+
                 distance_closest_pair = distance_list[closest_pair_idx]
                 # print("If token dist > 5 then probably no link. See how often ths is th case")
 
@@ -195,21 +185,19 @@ def get_infrastructure_location_pairs(text:str) -> List[str] | None:
                     "ci_entity": all_ents[ci_idx].text,
                     "ci_entity_label": all_ents[ci_idx].label_,
                     "geo_entity": all_ents[idx_in_chunk[closest_pair_idx]].text,
-                    "geo_2_entity": all_ents[idx_in_chunk[closest_2nd_pair_idx]].text if (len(distance_list)>1 and distance_list[closest_2nd_pair_idx]<threshold) else None,
+                    "geo_2_entity": (all_ents[idx_in_chunk[closest_2nd_pair_idx]].text if (len(distance_list) > 1 and distance_list[closest_2nd_pair_idx] < threshold) else None),
                     "geo_entity_label": all_ents[idx_in_chunk[closest_pair_idx]].label_,
                     "token_distance": distance_closest_pair,
-                    "token_2_distance": distance_list[closest_2nd_pair_idx], # np.sort(distance_list)],
-                }                        
-                df_ci_geo_chunk = pd.concat(
-                    [  df_ci_geo_chunk, pd.DataFrame([result_dict])], ignore_index=True
-                )
-            except (IndexError, NameError) as e:
+                    "token_2_distance": distance_list[closest_2nd_pair_idx],  # np.sort(distance_list)],
+                }
+                df_ci_geo_chunk = pd.concat([df_ci_geo_chunk, pd.DataFrame([result_dict])], ignore_index=True)
+            except (IndexError, NameError):
                 # print(e)
                 continue
-    
+
             # ## post-process of DF CI-GEO pairs for each chunk
             # df_ci_geo_chunk = df_ci_geo_chunk.drop_duplicates(
             #     subset=["ci_entity", "geo_entity","chunk_text"])
             # ## return only closest pairs
-    
-    return df_ci_geo_chunk[["ci_entity","geo_entity","geo_2_entity"]]# ,"token_distance", "token_2_distance"]]
+
+    return df_ci_geo_chunk[["ci_entity", "geo_entity", "geo_2_entity"]]  # ,"token_distance", "token_2_distance"]]

@@ -3,7 +3,7 @@
 #SBATCH --partition=gpu_short
 #SBATCH --job-name=llm-agents
 #SBATCH --account=swn
-#SBATCH --output=../logs/llm-agents.%j.%N.out 
+#SBATCH --output=../logs/llm-agents.%j.%N.out
 #SBATCH --error=../logs/llm-agents.%j.%N.err
 #SBATCH --mail-user=anna.buch@tu-berlin.de
 #SBATCH --mail-type=END,FAIL

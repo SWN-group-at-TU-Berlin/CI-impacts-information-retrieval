@@ -1,9 +1,8 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from src.settings import init_logger
-
 
 logger = init_logger(__name__)
 
@@ -19,7 +18,7 @@ BASELINE = "#c3c2b7"
 
 
 def adjust_positions(items, min_gap=0.08):
-    """ Avoid overlap in donut plot """
+    """Avoid overlap in donut plot"""
     items = sorted(items, key=lambda d: d["end_y"])
 
     for j in range(1, len(items)):
@@ -69,7 +68,10 @@ def plot_pooled_precision_recall(
     scores = calc_pooled_scores(counts)
     metrics = ["Precision", "Recall"]
     # number of cases each score is based on: precision -> prediction set, recall -> validation set
-    counts_per_metric = {"Precision": (scores["n_pred"].to_numpy(), "pred."), "Recall": (scores["n"].to_numpy(), "valid.")}
+    counts_per_metric = {
+        "Precision": (scores["n_pred"].to_numpy(), "pred."),
+        "Recall": (scores["n"].to_numpy(), "valid."),
+    }
 
     n_impacts = len(scores)
     if ax is None:
@@ -82,24 +84,40 @@ def plot_pooled_precision_recall(
     bar_height = 0.34
     gap = 0.03  # surface gap between the two bars of a group
     y = np.arange(n_impacts)[::-1]
-    offsets = {"Precision": bar_height / 2 + gap / 2, "Recall": -(bar_height / 2 + gap / 2)}
+    offsets = {
+        "Precision": bar_height / 2 + gap / 2,
+        "Recall": -(bar_height / 2 + gap / 2),
+    }
 
     for metric in metrics:
         values = scores[metric.lower()].to_numpy()
         ax.barh(
-            y + offsets[metric], values, height=bar_height,
-            color=SERIES_COLORS[metric], label=metric, zorder=2,
+            y + offsets[metric],
+            values,
+            height=bar_height,
+            color=SERIES_COLORS[metric],
+            label=metric,
+            zorder=2,
         )
         # direct value labels at the bar ends, in text ink
         n_cases, set_name = counts_per_metric[metric]
         for yi, v, n in zip(y + offsets[metric], values, n_cases):
             label = f"{v:.2f}" + (f" · {int(n)} {set_name}" if show_counts else "")
-            ax.text(v + 0.01, yi, label, va="center", ha="left", fontsize=8.5, color=INK_SECONDARY)
+            ax.text(
+                v + 0.01,
+                yi,
+                label,
+                va="center",
+                ha="left",
+                fontsize=8.5,
+                color=INK_SECONDARY,
+            )
 
     ax.set_yticks(y)
     ax.set_yticklabels(
         [f"{imp}" for imp in scores["impact"]],
-        color=INK_PRIMARY, fontsize=9.5,
+        color=INK_PRIMARY,
+        fontsize=9.5,
     )
     ax.set_xlim(0, 1.25 if show_counts else 1.08)  # room for the bar labels
     ax.set_xticks(np.linspace(0, 1, 6))
@@ -118,8 +136,14 @@ def plot_pooled_precision_recall(
         for handle in ax.get_legend_handles_labels()[0]:
             handle.set_label(f"{handle.get_label()} (n = {'predicted' if handle.get_label() == 'Precision' else 'validation'} cases)")
     ax.legend(
-        loc="lower left", bbox_to_anchor=(0, 1.0), ncol=len(metrics), frameon=False,
-        fontsize=9, labelcolor=INK_SECONDARY, handlelength=1.0, borderaxespad=0.2,
+        loc="lower left",
+        bbox_to_anchor=(0, 1.0),
+        ncol=len(metrics),
+        frameon=False,
+        fontsize=9,
+        labelcolor=INK_SECONDARY,
+        handlelength=1.0,
+        borderaxespad=0.2,
     )
 
     fig.tight_layout()
@@ -150,10 +174,7 @@ def plot_pooled_precision_recall_step1_vs_judge(
     """
     scores_judge = calc_pooled_scores(counts_judge).set_index("impact")
     # align Step 1 scores to the impact order of the judge scores, impacts missing in Step 1 get score 0
-    scores_step1 = (
-        calc_pooled_scores(counts_step1).set_index("impact")
-        .reindex(scores_judge.index).fillna(0.0)
-    )
+    scores_step1 = calc_pooled_scores(counts_step1).set_index("impact").reindex(scores_judge.index).fillna(0.0)
     metrics = ["Precision", "Recall"]
     # number of cases each score is based on: precision -> prediction set, recall -> validation set
     n_col = {"Precision": ("n_pred", "pred."), "Recall": ("n", "valid.")}
@@ -169,7 +190,10 @@ def plot_pooled_precision_recall_step1_vs_judge(
     bar_height = 0.34
     gap = 0.03  # surface gap between the two bars of a group
     y = np.arange(n_impacts)[::-1]
-    offsets = {"Precision": bar_height / 2 + gap / 2, "Recall": -(bar_height / 2 + gap / 2)}
+    offsets = {
+        "Precision": bar_height / 2 + gap / 2,
+        "Recall": -(bar_height / 2 + gap / 2),
+    }
 
     for metric in metrics:
         values_judge = scores_judge[metric.lower()].to_numpy()
@@ -178,14 +202,24 @@ def plot_pooled_precision_recall_step1_vs_judge(
 
         # LLM-judge: filled bars, narrower than the Step 1 bars so that the dashed Step 1 outline stays visible
         ax.barh(
-            y_metric, values_judge, height=bar_height * 0.6,
-            color=SERIES_COLORS[metric], label=f"{metric} (LLM-judge)", zorder=2,
+            y_metric,
+            values_judge,
+            height=bar_height * 0.6,
+            color=SERIES_COLORS[metric],
+            label=f"{metric} (LLM-judge)",
+            zorder=2,
         )
         # Step 1: empty, dashed bars framing the LLM-judge bars
         ax.barh(
-            y_metric, values_step1, height=bar_height,
-            fill=False, edgecolor=SERIES_COLORS[metric], linestyle=(0, (3, 2)), linewidth=1.3,
-            label=f"{metric} (Step 1)", zorder=3,
+            y_metric,
+            values_step1,
+            height=bar_height,
+            fill=False,
+            edgecolor=SERIES_COLORS[metric],
+            linestyle=(0, (3, 2)),
+            linewidth=1.3,
+            label=f"{metric} (Step 1)",
+            zorder=3,
         )
 
         # direct value labels behind the longer of both bars, in text ink
@@ -197,7 +231,15 @@ def plot_pooled_precision_recall_step1_vs_judge(
             if show_counts:
                 label += f" · {int(nj)} {set_name}"
             label += f"  (Step 1: {vs:.2f}" + (f" · {int(ns)} {set_name})" if show_counts else ")")
-            ax.text(max(vj, vs) + 0.01, yi, label, va="center", ha="left", fontsize=8, color=INK_SECONDARY)
+            ax.text(
+                max(vj, vs) + 0.01,
+                yi,
+                label,
+                va="center",
+                ha="left",
+                fontsize=8,
+                color=INK_SECONDARY,
+            )
 
     ax.set_yticks(y)
     ax.set_yticklabels(list(scores_judge.index), color=INK_PRIMARY, fontsize=9.5)
@@ -216,12 +258,18 @@ def plot_pooled_precision_recall_step1_vs_judge(
     ax.set_title(title, loc="left", color=INK_PRIMARY, fontsize=11.5, pad=40)
     handles, labels = ax.get_legend_handles_labels()
     if show_counts:
-        labels = [
-            f"{lab} (n = {'predicted' if lab.startswith('Precision') else 'validation'} cases)" for lab in labels
-        ]
+        labels = [f"{lab} (n = {'predicted' if lab.startswith('Precision') else 'validation'} cases)" for lab in labels]
     ax.legend(
-        handles, labels, loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2, frameon=False,
-        fontsize=8.5, labelcolor=INK_SECONDARY, handlelength=1.6, borderaxespad=0.2,
+        handles,
+        labels,
+        loc="lower left",
+        bbox_to_anchor=(0, 1.0),
+        ncol=2,
+        frameon=False,
+        fontsize=8.5,
+        labelcolor=INK_SECONDARY,
+        handlelength=1.6,
+        borderaxespad=0.2,
     )
 
     fig.tight_layout()

@@ -103,9 +103,10 @@ dependencies = [
 
 [tool.ruff]
 line-length = 180
+extend-exclude = ["*.ipynb", "notebooks/"]
 
 [tool.ruff.format]
-quote-style = "single"
+quote-style = "double"
 
 [tool.ruff.lint]
 # see, https://docs.astral.sh/ruff/rules
@@ -119,6 +120,7 @@ select = [
     "I",    # isort imports
     "N",    # check for PEP8 naming conventions
     "W",    # pycodestyle Warning
+    "UP",   # pyupgrade: modern syntax for py3.12, e.g. List[str] -> list[str], Optional[X] -> X | None
 
     # clean docstrings
     "D201", "D207", "D208", "D209", "D210", "D214", "D215", "D300", "D403",
@@ -128,20 +130,15 @@ select = [
 ]
 
 ignore = [
-    # too complex function
-    "C901",
+    "C901",    # too complex function
+    "E722",    # bare except
+    "E501",    # line too long
+    "F405",    # import when done with wildcard
 
-    # bare except
-    "E714",
-
-    "I001",
-
-    # line too long
-    "E501"
 ]
 
 fixable = ["ALL"]
-exclude = [".venv", ".ipynb", "versioneer.py", "*_cache"]
+exclude = [".venv", "versioneer.py", "*_cache"]
 
 [tool.uv.sources]
 flash-attn = { url = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.7.4+cu128torch2.8-cp312-cp312-linux_x86_64.whl" }
@@ -154,4 +151,7 @@ flash-attn = { url = "https://github.com/mjun0812/flash-attention-prebuild-wheel
 ## install local packages
 [tool.setuptools]
 packages = ["geollama"] # , "geollama.geollama"
-package-dir = {"" = "../"}  # must be relative path to package dir 
+package-dir = {"" = "../"}  # must be relative path to package dir
+
+[dependency-groups]
+dev = ["pre-commit>=4.7.0",]

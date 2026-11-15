@@ -1,18 +1,16 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """Postprocess LLM responses"""
 
 __author__ = "Anna Buch, TU Berlin"
 __email__ = "anna.buch@tu-berlin.de"
 
 import re
+
 import numpy as np
 import pandas as pd
 
-import src.document_cleaning as dc
 import src.evaluation as ev
 from src.settings import init_logger
-
 
 logger = init_logger(__name__)
 
@@ -22,8 +20,20 @@ logger = init_logger(__name__)
 DAMAGE_CATEGORIES = {
     "structural_damage": {
         "definition": "physical damage to or destruction of the asset itself",
-        "keywords": ["damaged", "severely damaged", "highly damaged", "destroyed", "largely destroyed", "heavily destroyed",
-                     "dam failure(s)", "dyke break(s)", "dike break(s)", "breached dike(s)", "broken embankment(s)", "derailed"],
+        "keywords": [
+            "damaged",
+            "severely damaged",
+            "highly damaged",
+            "destroyed",
+            "largely destroyed",
+            "heavily destroyed",
+            "dam failure(s)",
+            "dyke break(s)",
+            "dike break(s)",
+            "breached dike(s)",
+            "broken embankment(s)",
+            "derailed",
+        ],
     },
     "inundation": {
         "definition": "the asset is flooded or covered by water",
@@ -35,17 +45,52 @@ DAMAGE_CATEGORIES = {
     },
     "service_loss": {
         "definition": "the service (only water/wastewater/telecommunication/IT/energy/gas) provided by the asset is lost or the assets' capacity is limited or exceeded, e.g. outage, blackout, overloaded/overwhelmed, congested network(s), supply of water, electricity or gas",
-        "keywords": ["outage(s)", "blackout", "loss of water/electricity/gas/telecommunication/it", "no supply", "limited/exceeded capacity", "overwhelmed", "overheated", "left without water/electricity/gas/telecommunication/it", "failure(s)"],
+        "keywords": [
+            "outage(s)",
+            "blackout",
+            "loss of water/electricity/gas/telecommunication/it",
+            "no supply",
+            "limited/exceeded capacity",
+            "overwhelmed",
+            "overheated",
+            "left without water/electricity/gas/telecommunication/it",
+            "failure(s)",
+        ],
     },
     "obstruction": {
         "definition": "the asset is obstructed by debris or trees",
-        "keywords": ["obstruction", "debris", "debris on", "fallen tree(s)", "broken tree(s)", "overturned tree(s)", "uprooted tree(s)", "felled tree(s)"],
+        "keywords": [
+            "obstruction",
+            "debris",
+            "debris on",
+            "fallen tree(s)",
+            "broken tree(s)",
+            "overturned tree(s)",
+            "uprooted tree(s)",
+            "felled tree(s)",
+        ],
     },
     "disruption": {
         "definition": "the operation of the asset (only transportation) is disrupted, restricted, or stopped, e.g. closures, blockages, delays, cancellations, traffic jams",
-        "keywords": ["disrupted", "blocked", "impassable", "partly closed", "closed", "closure(s)", "(partly) out of service", "cut off", "traffic jam(s)",
-                     "traffic disruption(s)", "traffic congestion(s)", "delay(s)", "flight delay(s)", "train delay(s)",  
-                     "train failure(s)", "cancellation(s)", "canceled"],
+        "keywords": [
+            "disrupted",
+            "blocked",
+            "impassable",
+            "partly closed",
+            "closed",
+            "closure(s)",
+            "(partly) out of service",
+            "cut off",
+            "traffic jam(s)",
+            "traffic disruption(s)",
+            "traffic congestion(s)",
+            "delay(s)",
+            "flight delay(s)",
+            "train delay(s)",
+            "train failure(s)",
+            "cancellation(s)",
+            "canceled",
+        ],
     },
     "affected": {
         "definition": "the asset is reported as (indirectly) affected or impacted without further details, or reported as (indirectly) affected/impacted by a hazard (e.g., fire, wind, flood, heat, drought) without further details",
@@ -53,27 +98,31 @@ DAMAGE_CATEGORIES = {
     },
     "restored_recovered": {
         "definition": "the asset or its service is restored, repaired, rebuilt or reconnected",
-        "keywords": ["re-established", "reestablished", "restored", "reconnected", "rebuild", "repaired", "debris removal"],
+        "keywords": [
+            "re-established",
+            "reestablished",
+            "restored",
+            "reconnected",
+            "rebuild",
+            "repaired",
+            "debris removal",
+        ],
     },
 }
 
-_DAMAGE_KEYWORD_TO_CATEGORY = {
-    keyword: category for category, entry in DAMAGE_CATEGORIES.items() for keyword in entry["keywords"]
-}
+_DAMAGE_KEYWORD_TO_CATEGORY = {keyword: category for category, entry in DAMAGE_CATEGORIES.items() for keyword in entry["keywords"]}
 
 
 def describe_damage_categories() -> str:
     """Damage categories with definition and examples, one per line (e.g. for prompts and schema descriptions)."""
-    return "\n".join(
-        f"- {category}: {entry['definition']} (e.g. {', '.join(entry['keywords'])})"
-        for category, entry in DAMAGE_CATEGORIES.items()
-    )
+    return "\n".join(f"- {category}: {entry['definition']} (e.g. {', '.join(entry['keywords'])})" for category, entry in DAMAGE_CATEGORIES.items())
 
 
 def map_damage_to_category(damage):
     """Map a detailed damage keyword (or several, separated by ',', ';' or ' or ') to its general damage category,
     e.g. "severely damaged" -> "structural_damage". Several keywords give the most severe category.
-    Values that are already a category are returned unchanged, unknown values and NaN give None."""
+    Values that are already a category are returned unchanged, unknown values and NaN give None.
+    """
     if damage is None or (isinstance(damage, float) and pd.isna(damage)):
         return None
     damage = str(damage).strip().lower()
@@ -89,54 +138,51 @@ def map_damage_to_category(damage):
 
 
 def keep_ci_types(ci_list: list, ci_patterns) -> list:
-    
     # load regular expressions and subgroups from NER patterns as dict
-    regexes_1 = [
-            {ci_patterns["pattern"][i][0]["TEXT"]["REGEX"] : ci_patterns["subgroup_name"][i]}
-            for i in range(len(ci_patterns)) 
-                if len(ci_patterns["pattern"][i])==1 
-    ]
+    regexes_1 = [{ci_patterns["pattern"][i][0]["TEXT"]["REGEX"]: ci_patterns["subgroup_name"][i]} for i in range(len(ci_patterns)) if len(ci_patterns["pattern"][i]) == 1]
     # for all special cases with "LOWER"-pattern
     regexes_2 = [
-        {ci_patterns["pattern"][i][0]["TEXT"]["REGEX"] + " " + ci_patterns["pattern"][i][1]["LOWER"] : ci_patterns["subgroup_name"][i] }
+        {ci_patterns["pattern"][i][0]["TEXT"]["REGEX"] + " " + ci_patterns["pattern"][i][1]["LOWER"]: ci_patterns["subgroup_name"][i]}
         for i in range(len(ci_patterns))
-            if len(ci_patterns["pattern"][i])==2
+        if len(ci_patterns["pattern"][i]) == 2
     ]
-    regexes = regexes_1 + regexes_2 #+ regexes_3
+    regexes = regexes_1 + regexes_2  # + regexes_3
     # TODO condense function - rmeove redundance to group_ci_types()
 
     patterns = [next(iter(r)) for r in regexes]
-    
+
     # Keep elements matching at least one regex
     ci_list = [x for x in ci_list if any(re.match(pattern, x) for pattern in patterns)]
 
     return ci_list
 
-def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.DataFrame, grouping_scheme: str = "subgroup_name") -> pd.DataFrame:
 
+def group_ci_types(
+    df: pd.DataFrame,
+    col_type,
+    col_grouped,
+    ci_patterns: pd.DataFrame,
+    grouping_scheme: str = "subgroup_name",
+) -> pd.DataFrame:
     # load regular expressions and subgroups from NER patterns as dict
     # # for general cases
     # try:
     #     regexes_3 = [
     #         {ci_patterns["pattern"][i][0]["TEXT"] : ci_patterns[grouping_scheme][i]}
-    #         for i in range(len(ci_patterns)) 
-    #             if len(ci_patterns["pattern"][i])==1 
+    #         for i in range(len(ci_patterns))
+    #             if len(ci_patterns["pattern"][i])==1
     #     ]
     # except Exception:
-    regexes_1 = [
-            {ci_patterns["pattern"][i][0]["TEXT"]["REGEX"] : ci_patterns[grouping_scheme][i]}
-            for i in range(len(ci_patterns)) 
-                if len(ci_patterns["pattern"][i])==1 
-    ]
+    regexes_1 = [{ci_patterns["pattern"][i][0]["TEXT"]["REGEX"]: ci_patterns[grouping_scheme][i]} for i in range(len(ci_patterns)) if len(ci_patterns["pattern"][i]) == 1]
     # for all special cases with "LOWER"-pattern
     regexes_2 = [
-        {ci_patterns["pattern"][i][0]["TEXT"]["REGEX"] + " " + ci_patterns["pattern"][i][1]["LOWER"] : ci_patterns[grouping_scheme][i] }
+        {ci_patterns["pattern"][i][0]["TEXT"]["REGEX"] + " " + ci_patterns["pattern"][i][1]["LOWER"]: ci_patterns[grouping_scheme][i]}
         for i in range(len(ci_patterns))
-            if len(ci_patterns["pattern"][i])==2
+        if len(ci_patterns["pattern"][i]) == 2
     ]
-    # for speial cases where regex not worked due to reducnandcy to other regex Ci word,eg access roads <-> roads 
+    # for speial cases where regex not worked due to reducnandcy to other regex Ci word,eg access roads <-> roads
 
-    regexes = regexes_1 + regexes_2 #+ regexes_3
+    regexes = regexes_1 + regexes_2  # + regexes_3
 
     # records which match no CI pattern keep an empty group (NaN)
     if col_grouped not in df.columns:
@@ -151,25 +197,26 @@ def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.Data
         # remove words considered wrongly as Ci keywords
         regex = re.compile(r"\b[Dd]amage\w*|\b[Tt]raining\w*|\b[Cc]ommunication\w*")
         df[col_type].str.replace(regex, "", regex=True).str.replace("  ", " ")
-            
+
         # assign subgroups to CI records, na=False to remove all records which not match patterns
         # mask = df[col_type].str.match(pattern)
         df[[col_type, col_grouped]] = df[[col_type, col_grouped]].astype(str)
         mask = is_ci_entity(df[col_type], pattern)
         df.loc[mask, col_grouped] = subgroup
-    
+
     return df
 
 
 def is_ci_entity(ci_entity: pd.Series, regex_pattern: str) -> pd.Series:
-    """returns boolean mask where records in pd.Series are a certain CI type based on regex pattern"""
+    """Returns boolean mask where records in pd.Series are a certain CI type based on regex pattern"""
     # return ci_entity.str.contains(regex_pattern, regex=True, na=False)
     return ci_entity.str.match(regex_pattern)
 
 
 def postprocess_response(df: pd.DataFrame, ci_patterns: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Postprocess the records of LLM 1 (one row per infrastructure case): group the CI types into subgroups and clean the locations.
-    Returns the records about CI and the records whose infrastructure type matches no CI type (e.g. theatres, stadiums)."""
+    Returns the records about CI and the records whose infrastructure type matches no CI type (e.g. theatres, stadiums).
+    """
     df = df.copy()
     df["infrastructure_type"] = df["infrastructure_type"].replace(r"[\(\),]", "", regex=True)  # clean up CI from brackets and commas
     # split multiple CI entries ("road and rail network" -> road network, rail network)
@@ -186,8 +233,8 @@ def postprocess_response(df: pd.DataFrame, ci_patterns: pd.DataFrame) -> tuple[p
     return df, not_grouped
 
 
-def postprocess_locations(df:pd.Series, location_col:str) -> pd.Series:
-    """remove surrounding text for locations"""
+def postprocess_locations(df: pd.Series, location_col: str) -> pd.Series:
+    """Remove surrounding text for locations"""
     # TODO condense function
 
     cleanup_patterns = [r"\(", ", "]
@@ -201,18 +248,26 @@ def postprocess_locations(df:pd.Series, location_col:str) -> pd.Series:
 
     ## remove "near ", "close to", "the ", "in ", "passing ", ... only at the beginning of the location (also several, e.g. "in the Ahr valley"),
     ## within the location the text stays unchanged (e.g. "roads in Berlin"), and final double whitespace
-    df[location_col] =  df[location_col].str.replace(r"^(?:near |between |close to |parts of |direction of |passing |along |the |in )+", " ", regex=True).str.strip()
-    df[location_col] =  df[location_col].str.replace("  ", " ").str.strip()
+    df[location_col] = (
+        df[location_col]
+        .str.replace(
+            r"^(?:near |between |close to |parts of |direction of |passing |along |the |in )+",
+            " ",
+            regex=True,
+        )
+        .str.strip()
+    )
+    df[location_col] = df[location_col].str.replace("  ", " ").str.strip()
 
     return df[location_col]
 
 
-def split_text_into_multiple_rows(df: pd.DataFrame, column: str, split_at = " and ") -> pd.DataFrame:
-    """ split text at splitting_point into multiple rows """
+def split_text_into_multiple_rows(df: pd.DataFrame, column: str, split_at=" and ") -> pd.DataFrame:
+    """Split text at splitting_point into multiple rows"""
     # split CIs and LOCs with "and" into multiple rows
     # NOTE: Removes info from CI - drops info if CI is singular o plural (e.g, road and railway infrastrcutre --> "road", "railway infrastructure")
     try:
-        df[column] = df[column].str.split(rf"{split_at}")   
+        df[column] = df[column].str.split(rf"{split_at}")
         df_e = df.explode(column=column)
         df_e = df_e.drop_duplicates().reset_index(drop=True)
     except (TypeError, AttributeError):
@@ -223,14 +278,15 @@ def split_text_into_multiple_rows(df: pd.DataFrame, column: str, split_at = " an
     return df_e
 
 
-
-def split_ci_entities(df: pd.DataFrame, columns: list[str],) -> pd.DataFrame:
+def split_ci_entities(
+    df: pd.DataFrame,
+    columns: list[str],
+) -> pd.DataFrame:
     """Split entries containing 'and' or 'or'; expand the resulting entities into separate rows."""
 
     df = df.copy()
 
     def split_entity_string(text):
-
         if pd.isna(text):
             return []
 
@@ -240,11 +296,7 @@ def split_ci_entities(df: pd.DataFrame, columns: list[str],) -> pd.DataFrame:
             return []
 
         # Split on standalone "and" / "or"
-        parts = re.split(
-            r"\s+(?:and|or)\s+",
-            text,
-            flags=re.IGNORECASE
-        )
+        parts = re.split(r"\s+(?:and|or)\s+", text, flags=re.IGNORECASE)
 
         if len(parts) == 1:
             return [text]
@@ -259,12 +311,7 @@ def split_ci_entities(df: pd.DataFrame, columns: list[str],) -> pd.DataFrame:
         if len(right_words) >= 2:
             shared_head = right_words[-1]
 
-            parts = [
-                f"{part} {shared_head}"
-                if len(part.split()) == 1 and part.lower() != shared_head.lower()
-                else part
-                for part in parts[:-1]
-            ] + [parts[-1]]
+            parts = [(f"{part} {shared_head}" if len(part.split()) == 1 and part.lower() != shared_head.lower() else part) for part in parts[:-1]] + [parts[-1]]
 
         return parts
 
@@ -279,7 +326,11 @@ def split_ci_entities(df: pd.DataFrame, columns: list[str],) -> pd.DataFrame:
     return df
 
 
-def remove_amounts_not_in_text(df: pd.DataFrame, amount_column: str = "societal_impact_amount", text_column: str = "chunk_text") -> pd.DataFrame:
+def remove_amounts_not_in_text(
+    df: pd.DataFrame,
+    amount_column: str = "societal_impact_amount",
+    text_column: str = "chunk_text",
+) -> pd.DataFrame:
     """Set amounts to NaN when one of their numbers does not occur in the text, i.e. likely hallucinated or calculated by the LLM.
     Numbers are compared after ev.normalize_numbers, e.g. "20,000" (amount) <-> "20 000" (text).
     Amounts without digits (e.g. "thousands") are kept, number words are not converted, e.g. "1,500,000" <-> "1.5 million" is removed.
@@ -292,7 +343,10 @@ def remove_amounts_not_in_text(df: pd.DataFrame, amount_column: str = "societal_
         return not set(ev.extract_numbers(amount)) <= set(ev.extract_numbers(text))
 
     # boolean mask instead of index labels, the index is not unique after splitting entries into multiple rows
-    mask = np.array([not_in_text(amount, text) for amount, text in zip(df[amount_column], df[text_column])], dtype=bool)
+    mask = np.array(
+        [not_in_text(amount, text) for amount, text in zip(df[amount_column], df[text_column])],
+        dtype=bool,
+    )
     if mask.any():
         logger.info(f"Removing {mask.sum()} {amount_column} entries, their numbers do not occur in {text_column}: {df.loc[mask, amount_column].tolist()}")
     df.loc[mask, amount_column] = np.nan
