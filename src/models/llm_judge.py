@@ -240,3 +240,160 @@ def format_judge_report(df_judged: pd.DataFrame, verdicts: str | tuple[str, ...]
                 lines.append(f"      reason: {row['judge_reason']}")
 
     return "\n".join(lines)
+
+
+class LlmJudge:
+    """LLM-as-a-judge (step 3): check each extracted record of a chunk on its plausibility, based ONLY on the chunk text.
+    The judge can accept ("correct") or adapt ("adapted") a record, or mark it as "false" - records are never removed.
+    It uses the same field definitions (pydantic schemas of LLM 1), keyword lists (Literal) and NER entities as LLM 1.
+
+    field_schema: record column -> (pydantic model, field name) whose definition is given to the judge
+    extra_rules: record column -> additional rules on top of the field definition
+    prompt: ChatPromptTemplate with the variables text, ner_entities, records and field_rules
+    ner_fn: text -> list of NER entities (guidance for infrastructure_type and secondary_infrastructure_asset)
+
+    usage:
+        llm_judge = LlmJudge(s.JUDGE_MODEL, s.JUDGE_BASE_URL, s.VLLM_API_KEY, prompt=judge_prompt, field_schema=judge_field_schema)
+        df_judged = llm_judge.judge(df_records, chunk_text)
+    """
+
+    def __init__(
+        self,
+        model: str,
+        base_url: str,
+        api_key: str,
+        prompt,
+        field_schema: dict,
+        extra_rules: dict | None = None,
+        ner_fn=None,
+        batch_size: int = 5,  # max. number of records judged in one LLM call (keeps reasoning + answer within max_tokens)
+        max_consecutive_failures: int = 3,  # afterwards the judge is skipped for the rest of the run (records get "not_judged")
+        max_retries: int = 1,
+        retry_wait: int = 30,
+        normalize_values: dict | None = None,
+        protect_values_in_text: bool = True,
+        temperature: float = 0,
+        seed: int = 42,
+        timeout: int = 300,
+        max_tokens: int = 8000,  # the judge (reasoning model) needs tokens for reasoning + JSON answer; vLLM --max-model-len must be >= prompt + max_tokens
+        llm=None,
+    ):
+        if llm is None:
+            from langchain_openai import ChatOpenAI
+            llm = ChatOpenAI(model=model, base_url=base_url, api_key=api_key,
+                             temperature=temperature, seed=seed, timeout=timeout, max_tokens=max_tokens)
+        self.llm = llm
+        self.prompt = prompt
+        self.field_schema = field_schema
+        self.fields = list(field_schema)  # record fields the judge checks and may adapt
+        self.extra_rules = extra_rules or {}
+        self.ner_fn = ner_fn or (lambda text: [])
+        self.batch_size = batch_size
+        self.max_consecutive_failures = max_consecutive_failures
+        self.max_retries = max_retries
+        self.retry_wait = retry_wait
+        # default: ignore changes that only add/remove articles, quantifiers or numbers, e.g. "bridges" -> "Two bridges"
+        self.normalize_values = normalize_values if normalize_values is not None else {
+            "infrastructure_type": strip_determiners, "secondary_infrastructure_asset": strip_determiners,
+        }
+        self.protect_values_in_text = protect_values_in_text
+
+        # fields with a fixed keyword list in the schema (Literal), e.g. damage, economic_impact_origin -> judge may only use these keywords
+        self.allowed_values = {
+            column: literal_values(model.model_fields[name].annotation)
+            for column, (model, name) in field_schema.items()
+            if literal_values(model.model_fields[name].annotation)
+        }
+        self.field_rules = self.build_field_rules()
+        self.reset()
+
+    def reset(self) -> None:
+        """Reset the failure counter, e.g. after the model endpoint is reachable again"""
+        self.consecutive_failures = 0
+        self.last_error = None  # shown when the judge is skipped, as the per-attempt messages may be far up in the output
+
+    def build_field_rules(self) -> str:
+        """Definition, allowed keywords and extra rules for each judged field, as text for the judge prompt."""
+        blocks = []
+        for column, (model, name) in self.field_schema.items():
+            lines = [f'"{column}":', f"- Definition: {model.model_fields[name].description}"]
+            if column in self.allowed_values:
+                lines.append(f"- Allowed values (or null): {', '.join(self.allowed_values[column])}")
+            else:
+                lines.append("- Free text: the examples in the definition are NOT a closed list of allowed values. Keep the wording of the TEXT.")
+            lines += [rule if rule.startswith("-") else f"- {rule}" for rule in self.extra_rules.get(column, [])]
+            blocks.append("\n".join(lines))
+        return "\n\n".join(blocks)
+
+    @property
+    def is_skipped(self) -> bool:
+        return self.consecutive_failures >= self.max_consecutive_failures
+
+    def call(self, df_batch: pd.DataFrame, chunk_text: str, ner_entities: list[str]) -> list[dict] | None:
+        """Ask the LLM to judge the records of df_batch. Returns the parsed judgements, or None if all attempts failed."""
+        import time
+        import openai
+
+        messages = self.prompt.format_messages(
+            text=chunk_text,
+            ner_entities=json.dumps(ner_entities, ensure_ascii=False),
+            records=records_to_judge_payload(df_batch, self.fields),
+            field_rules=self.field_rules,
+        )
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = self.llm.invoke(messages)
+                finish_reason = response.response_metadata.get("finish_reason")
+                if not response.content.strip() and finish_reason == "length":
+                    # reasoning models (e.g. gemma-4 in thinking mode) can use up all tokens for reasoning before writing the answer
+                    usage = response.response_metadata.get("token_usage", {}) or {}
+                    raise ValueError(
+                        f"answer cut off before any JSON was written (finish_reason=length, completion_tokens={usage.get('completion_tokens')}). "
+                        "Increase max_tokens of the judge or decrease batch_size."
+                    )
+                judgements = parse_judge_response(response.content)
+                self.consecutive_failures = 0
+                return judgements
+            except Exception as e:
+                self.last_error = f"{type(e).__name__}: {e}"
+                print(f"! LLM-as-a-judge failed (attempt {attempt + 1}/{self.max_retries + 1}): {self.last_error}")
+                # model not found / wrong api key: retrying does not help
+                if isinstance(e, (openai.NotFoundError, openai.AuthenticationError, openai.PermissionDeniedError)):
+                    break
+                if attempt < self.max_retries:
+                    time.sleep(self.retry_wait)
+
+        self.consecutive_failures += 1
+        return None
+
+    def judge(self, df_records: pd.DataFrame, chunk_text: str) -> pd.DataFrame:
+        """Let the LLM judge each record of df_records against chunk_text (in batches of batch_size records).
+        Returns df_records (same rows) with adapted values and the judge columns, see JUDGE_COLUMNS."""
+        # same NER tool as for LLM 1, as guidance for infrastructure_type and secondary_infrastructure_asset
+        ner_entities = self.ner_fn(chunk_text) or []
+
+        df_batches_judged = []
+        for batch_start in range(0, max(len(df_records), 1), self.batch_size):
+            df_batch = df_records.iloc[batch_start:batch_start + self.batch_size]
+
+            judgements = []
+            if self.is_skipped:
+                print(f"! LLM-as-a-judge skipped: failed {self.consecutive_failures} times in a row. Call .reset() to reset.\n  Last error: {self.last_error}")
+            elif len(df_batch):
+                judgements = self.call(df_batch, chunk_text, ner_entities) or []
+
+            # record_ids in the judgements refer to the positions within this batch
+            df_batches_judged.append(apply_judgements(
+                df_batch, judgements, self.fields,
+                chunk_text=chunk_text,
+                allowed_values=self.allowed_values,
+                normalize_values=self.normalize_values,
+                protect_values_in_text=self.protect_values_in_text,
+            ))
+
+        return pd.concat(df_batches_judged)
+
+    def smoke_test(self) -> None:
+        """Check that the vLLM server of the judge responds"""
+        print(self.llm.root_client.models.list())
+        print(self.llm.invoke("What is 17 * 23?").content)

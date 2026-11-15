@@ -234,7 +234,7 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
 def split_sentences_keep_sep(text: str):
     # #Abbreviations of names ad 
     ABBR_RE = re.compile(
-        r"(?:e\.g|i\.e|z\.B|u\.a|bzw|vgl|Dr|Nr|etc)\.$",
+        r"(?:e\.g|i\.e)\.$",
         flags=re.IGNORECASE,
     )
     # pattern: ignore digits and when "." is followed by lowercase latter (3.000, 3. hans), keep separator "."  
@@ -242,7 +242,7 @@ def split_sentences_keep_sep(text: str):
 
     # protect abbreviations so they do not get split
     protected = " ".join(
-        [w.replace(".", "§") if w in ["e.g.", "i.e.", "z.B.", "bzw.", "vgl.", "Dr.", "Nr.", "etc."] else w for w in text.split()]
+        [w.replace(".", "§") if w in ["e.g.", "i.e."] else w for w in text.split()]
     )
     # split at "." when it is not decimal number and after followed by uppercase letter
     parts = [m.group(0) for m in SEP_RE.finditer(protected)]

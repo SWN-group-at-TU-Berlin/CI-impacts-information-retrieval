@@ -23,8 +23,8 @@
 #SBATCH --mail-user=anna.buch@tu-berlin.de
 #SBATCH --mail-type=END,FAIL
 #SBATCH --gres=gpu:a100:2     # 2 A100 on the same node; adjust gres name to the output of sinfo
-#SBATCH --cpus-per-task=6     # 8 per server
-#SBATCH --time=02:30:00        # server startups + the workflow
+#SBATCH --cpus-per-task=4     # 2 per gpu
+#SBATCH --time=01:30:00        # server startups + the workflow
 #SBATCH --output=../logs/a100-%j.out
 #SBATCH --error=../logs/a100-%j.%N.err
 

@@ -6,7 +6,6 @@ __author__ = "Anna Buch, TU Berlin"
 __email__ = "anna.buch@tu-berlin.de"
 
 import re
-from io import StringIO
 import numpy as np
 import pandas as pd
 
@@ -77,9 +76,22 @@ def map_damage_to_category(damage):
     Values that are already a category are kept, unknown values and NaN are ignored (None if nothing is left)."""
     if damage is None or (isinstance(damage, float) and pd.isna(damage)):
         return None
+<<<<<<< HEAD
     parts = [p.strip() for p in re.split(r",|;|\bor\b|\band\b", str(damage).strip().lower()) if p.strip()]
     categories = [_DAMAGE_KEYWORD_TO_CATEGORY.get(p, p if p in DAMAGE_CATEGORIES else None) for p in parts]
     return "; ".join(dict.fromkeys(c for c in categories if c)) or None
+=======
+    damage = str(damage).strip().lower()
+    if damage in DAMAGE_CATEGORIES:
+        return damage
+
+    # TODO FIXME not most severe category should be returned but rather the one that occurs most often, adapt also asset_information_prompt
+    parts = [p.strip() for p in re.split(r",|;|\bor\b|\band\b", damage) if p.strip()]
+    categories = {_DAMAGE_KEYWORD_TO_CATEGORY.get(p, p if p in DAMAGE_CATEGORIES else None) for p in parts} - {None}
+    if not categories:
+        return None
+    return min(categories, key=list(DAMAGE_CATEGORIES).index)  # most severe
+>>>>>>> dev
 
 
 def keep_ci_types(ci_list: list, ci_patterns) -> list:
@@ -132,6 +144,10 @@ def group_ci_types(df: pd.DataFrame, col_type, col_grouped, ci_patterns: pd.Data
 
     regexes = regexes_1 + regexes_2 #+ regexes_3
 
+    # records which match no CI pattern keep an empty group (NaN)
+    if col_grouped not in df.columns:
+        df[col_grouped] = None
+
     for i, r in enumerate(regexes):
         # get regex pattern for CI type (key) and its subgroup (value)
         # NOTE, nice shortcut: get key containing regex by unpacking each dict into list, then get key
@@ -157,67 +173,46 @@ def is_ci_entity(ci_entity: pd.Series, regex_pattern: str) -> pd.Series:
     return ci_entity.str.match(regex_pattern)
 
 
-def postprocess_response(resp: str) -> pd.DataFrame:
+def postprocess_response(df: pd.DataFrame, ci_patterns: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Postprocess the records of LLM 1 (one row per infrastructure case): group the CI types into subgroups and clean the locations.
+    Returns the records about CI and the records whose infrastructure type matches no CI type (e.g. theatres, stadiums)."""
+    df = df.copy()
+    df["infrastructure_type"] = df["infrastructure_type"].replace(r"[\(\),]", "", regex=True)  # clean up CI from brackets and commas
+    # split multiple CI entries ("road and rail network" -> road network, rail network)
+    # df = split_ci_entities(df, columns=["infrastructure_type"])
+    df["infrastructure_group"] = None
+    df = group_ci_types(df, "infrastructure_type", "infrastructure_group", ci_patterns)
 
-    # Remove linebreak symbols and case numbers in the keys ("damage_1" -> "damage")
-    resp = resp.replace("\n", "")
-    resp = re.sub(pattern=r"_\d+", repl="", string=resp)
+    not_grouped = df[df["infrastructure_group"].isna()]
+    # keep only records which are actually about CI (e.g., not theatre, stadion ..)
+    df = df.dropna(subset=["infrastructure_group"])
 
-    # fix missing bracket at beginning and end of response by splitting at first/last complete entry
-    if "[{" not in resp:
-        resp = "[{" + resp.split("{", 1)[1]
-    if "}]" or "},]" not in resp:
-        resp = resp.rpartition('}')[-3] + "}]"
+    df["location_orig"] = df["location"]  # copy for tracing back
+    df["location"] = postprocess_locations(df, "location")  # clean-up locs from unneeded text: "the", "between"
+    return df, not_grouped
 
-    # remove potential text outside - no matter if it exists or not
-    final_resp = ("[" + resp.split("[")[1]) 
-    final_resp = (final_resp.split("]", 1)[0] + "]") 
 
-    # check for empty response due to removal of text outside of brackets
-    if final_resp == "[]" or final_resp == "[{}]":
-        # remove potential double [[ and ]]
-        final_resp = resp.replace("[[{", "[{").replace("}]]", "}]")
-        # remove potential text outside - no matter if it exists or not
-        final_resp = ("[{" + final_resp.split("[{")[1]) 
-        final_resp = (final_resp.split("}]", 1)[0] + "}]") 
-
-    try:
-        df_final_resp = pd.read_json(StringIO(final_resp))
-
-    except Exception as e:
-    # special handling for some GPT oss responses where value is a list item
-        final_resp = ("[" + resp.split("[")[2]) 
-        final_resp = (final_resp.split("]", 1)[0] + "]") 
-        df_final_resp = pd.read_json(StringIO(final_resp))
-
-    return df_final_resp
-
-        
 def postprocess_locations(df:pd.Series, location_col:str) -> pd.Series:
     """remove surrounding text for locations"""
     # TODO condense function
 
-    # cleanup_patterns = [r"\(", ", "]
-    # for i in cleanup_patterns:
-    #     # "( "  eg "Sinzig (in North Rhine-Westphalia)""
-    #     # rm text after comma, e.g. "Ahr valley, Germany" --> "Ahr valley"
-    #     df[location_col] = df[location_col].str.split(i, regex=True).str[0].str.strip()
+    cleanup_patterns = [r"\(", ", "]
+    for i in cleanup_patterns:
+        # rm text after opening bracket, e.g. "Ahr valley (Germany)" --> "Ahr valley"
+        df[location_col] = df[location_col].str.split(i, regex=True).str[0].str.strip()
 
-    # cleanup_patterns = [r"[\(\),]", "\bthe ",  "\bin ", "\bpassing ", "city of"]
-    # for i in cleanup_patterns:
-    #     # remove all remaining brackets and commas
-    #     # remove "the" when it is not contained in other word
-    #     # remove "in"  when it is not contained in other word
-    #         # set this after cleaning up "( " and ", " as it otherwise would take the later location
-    #     df[location_col] = df[location_col].replace(rf"{i}", " ", regex=True).str.strip()   
+    # remove all remaining brackets and commas
+    # set this after cleaning up "( " and ", " as it otherwise would take the later location
+    df[location_col] = df[location_col].replace(r"[\(\),]", " ", regex=True).str.strip()
 
     # cleanup_patterns = ["between",]
     # for i in cleanup_patterns:
     #     # handling loc with "railway tracks between "
     #     df[location_col] = df[location_col].str.split(i).str[-1].str.strip()
 
-    # ## remove "near ", "close to", "passing " from location names, and final double whitespace
-    # df[location_col] =  df[location_col].str.replace(r"^(\bnear |close to |parts of |direction of |passing |along )", " ", regex=True).str.strip()
+    ## remove "near ", "close to", "the ", "in ", "passing ", ... only at the beginning of the location (also several, e.g. "in the Ahr valley"),
+    ## within the location the text stays unchanged (e.g. "roads in Berlin"), and final double whitespace
+    df[location_col] =  df[location_col].str.replace(r"^(?:near |close to |parts of |direction of |passing |along |the |in )+", " ", regex=True).str.strip()
     df[location_col] =  df[location_col].str.replace("  ", " ").str.strip()
 
     return df[location_col]
