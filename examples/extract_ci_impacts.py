@@ -46,6 +46,7 @@ import src.models.prompts as pr
 from src.models.schemas import InfrastructureCases, JUDGE_FIELD_SCHEMA
 from src.tools.ner import get_infrastructure_entities
 from src.pipeline import CiImpactPipeline
+import src.postprocess as pp
 
 # %%
 DOCS_DIR = Path(s.PATH_DATA / "text_sources")
@@ -54,10 +55,11 @@ OUTPUT_DIR = Path("../interim_results_example")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # documents of the example (filename stems "<authors> <year> - <title>"), None: all documents
-SAMPLE_DOCUMENTS = [
-    "Koks 2022 - Brief communication",
-    "ABC 2024 - Traffic jams and flight delays due to heavy rain and lightning storm in Malaga",
-]
+# SAMPLE_DOCUMENTS = [
+#     "Koks 2022 - Brief communication",
+#     "ABC 2024 - Traffic jams and flight delays due to heavy rain and lightning storm in Malaga",
+# ]
+SAMPLE_DOCUMENTS = None
 PROCESS_HTML = False  # True: also fetch and clean the web pages of text_sources_html.csv
 
 # %% [markdown]
