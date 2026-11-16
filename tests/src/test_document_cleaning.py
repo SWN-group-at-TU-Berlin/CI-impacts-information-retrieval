@@ -84,20 +84,6 @@ def test_metrics():
 # For example, if we need an API call for a test function, then we dont want to call the API each time when we run the test.
 # For such a case, we mock the API call and provide a Dummy version of the API call
 
-# class TestNominatimCall(TestCase):
-
-#     @patch('my_module.requests.get')
-#     def test_get_user_email(self, mock_get):
-#         # Arrange: set up the fake return value
-#         mock_get.return_value.json.return_Value = {"email": "test@example.com"}
-
-#         # Act: call the function
-#         email = get_user_email(123)
-
-#         # Assert: check the result
-#         self.assertEqual(email, "test@example.com")
-#         mock_get.assert_called_once_with("https://example.com")
-
 
 def test_supports_flash_attention():
     with patch(

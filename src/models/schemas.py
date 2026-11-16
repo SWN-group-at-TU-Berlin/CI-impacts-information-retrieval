@@ -10,12 +10,6 @@ import typing
 from typing import Literal
 
 from langgraph.graph import MessagesState
-
-# # text = "A few national highways were partly flooded (e.g. the A76 in both directions) or briefly closed (&lt; 3 d) because of the potential of flooding. Most likely due to relative low-flow velocities, damage to Dutch national road infrastructure was limited. Several railway sections were closed (e.g. the railway section between Maastricht and Liége) and some damage occurred to the railway infrastructure, in particular to the electronic 'track circuit' devices and saturated railway embankments (Prorail, 2021).   "
-# text = "Similar to Germany, severe damage had been observed to the gas network. In the villages around Liége, such as Chaudfontaine and Pepinster (Belgium), gas supply was fully recovered within 5 months (Grosjean, 2021; De Wolf, 2021). In the Netherlands, 1000-2000 households experienced a loss of electricity supply at the peak of the event. Between 100 to 200 households had no gas supply. Within several days, electricity supply was restored (Task Force Fact Finding Hoogwater, 2021)."
-# # print(text)
-# get_infrastructure_location_pairs(text)#[["ci_entity", "geo_entity","geo_2_entity","token_distance", "token_2_distance"]]
-# #### LangGraph OutputSchema and Graph
 from pydantic import BaseModel, Field, field_validator
 
 import src.postprocess as pp
@@ -144,13 +138,6 @@ class EconomicImpact(BaseModel):
             "Specific type of economic impact, for example: affected employees, affected companies, affected customers, repair cost, reconstruction/replacement cost, total/general cost, total/general losses, business interruption, supply-chain disruption, production interruption or loss, freight or logistics or trade disruption, revenue loss, agricultural loss, insurance loss, additional operating cost, or other explicitly reported economic consequence."
         ),
     )
-    # damage_type: str | None = Field(
-    #     default=None,
-    #     description=("Original damage, failure or disruption affecting the source infrastructure."
-    # ))
-    # description: str = Field(
-    #     description=("Concise description of the economic impact explicitly stated in the source text."
-    # ))
     amount: str | None = Field(
         default=None,
         description=(
@@ -164,21 +151,6 @@ class EconomicImpact(BaseModel):
 
     # tool calling does not enforce the Literal: e.g. 'direct_cost' -> 'repair_recovery_cost', 'insured_loss' -> 'other_costs_or_losses'
     _map_impact_origin = field_validator("impact_origin", mode="before")(lambda v: coerce_category(v, ECONOMIC_ORIGIN_KEYWORDS, fallback="other_costs_or_losses"))
-
-
-# class EconomicImpact(BaseModel):
-#     # description: str
-#     source_asset: str | None = Field(default=None, description="Infrastructure asset or service whose damage or disruption caused the economic impact.")
-#     source_location: str | None = Field(default=None, description="Original location of the source asset.")
-#     impact_type: str | None = Field(default=None, description="The type of the economic impact caused by the damaged infrastructure (qualitative information).")
-#     # e.g. impact-type: freight industry, industrial disruptions, supply-chains, agricultural
-#     # damage_type: str | None = Field(default=None, description="The damage type of the economic impact caused by the damaged infrastructure (qualitative information).")
-#     impact_origin: Literal["repair_recovery_cost","downstream_economic_consequence"] = Field(
-#         description=("Whether the impact is a direct cost of repairing, restoring, replacing or recovering damaged infrastructure, or a downstream economic consequence caused by infrastructure damage or disruption."
-#     ))
-#     # magnitude: str | None = Field(default=None, description="Monetary consequence of the damaged infrastructure.")
-#     amount: str | None = Field(default=None, description="Amount of the economic consequence (quantitative information).") # e.g. thousands of people, 3,000 households
-#     unit: Literal[None, "*€*", "*EURO*", "Euros", "£",] | None = Field(default=None, description="Currency or Unit of the economic consequence (qualitative information).")
 
 
 class SocietalImpact(BaseModel):
@@ -212,13 +184,6 @@ class SocietalImpact(BaseModel):
     )
     # keep only human-related impact types: e.g. 'evacuated residents' -> 'people', 'school pupils' -> 'students', 'power outage' -> None
     _map_impact_type = field_validator("impact_type", mode="before")(lambda v: coerce_category(v, SOCIETAL_TYPE_KEYWORDS, fallback=None))
-    # damage_type: str | None = Field(
-    #     default=None,
-    #     description=("Original damage, failure, or disruption affecting the source infrastructure."
-    # ))
-    # description: str = Field(
-    #     description=("Concise description of the societal impact explicitly reported in the text."
-    #     ))
     amount: str | None = Field(
         default=None,
         description=(
@@ -231,19 +196,6 @@ class SocietalImpact(BaseModel):
             "Unit associated with the quantitative amount, if explicitly stated. Examples: 'households', 'people', 'families', 'passengers', 'patients', 'students', 'residents', 'citizens',  'commuters', 'farmers', 'communities', 'municipalities'."
         ),
     )
-
-
-# class SocietalImpact(BaseModel):
-#     source_asset: str | None = Field(default=None, description="Infrastructure asset or service whose damage or disruption caused the societal impact.")
-#     source_location: str | None = Field(default=None, description="Original location of the source asset.")
-#     impact_type: str | None = Field(default=None, description="The type of the societal impact caused by the damaged infrastructure.")
-#     damage_type: str | None = Field(default=None, description="The damage type of the societal impact caused by the damaged infrastructure (qualitative information).")
-#     # impact_description: str = Field(description="Non-monetary societal consequence.")
-#     magnitude: str | None = Field(default=None, description="Quantitative magnitude of the societal impact, e.g. '5,000 households', '3 school days', '20.000 people'.")
-#     amount: str | None = Field(default=None, description="Amount of the economic consequence.")
-#     unit: Literal[None, "*families*", "*households*", "*people*", "*passengers*", "*patients*",
-#         "*students*", "*pupils*", "*residents*", "*citizens*",  "*commuters*", "*farmers*", "*communities*", "municipalities"
-#     ] | None = Field(default=None, description="Currency or Unit of the economic consequence.")
 
 
 class EnvironmentalImpact(BaseModel):
@@ -315,36 +267,8 @@ class SecondaryInfrastructureImpact(BaseModel):
             "If several categories apply, use the most severe one (the first one in this list):\n" + pp.describe_damage_categories()
         ),
     )
-    # impact_description: str = Field(description="Explicitly stated downstream impact on the infrastructure asset or service.")
-
     # tool calling does not enforce the Literal: map free-text damage (e.g. "severely damaged") to its category, unknown -> None
     _map_target_damage = field_validator("target_damage", mode="before")(lambda v: pp.map_damage_to_category(v))
-
-
-# class SecondaryInfrastructureImpact(BaseModel):
-
-#     source_asset: str = Field(
-#         description=("Infrastructure asset or service originally damaged or disrupted.")
-#     )
-#     source_location: str | None = Field(
-#         default=None,
-#         description=("Location of the original infrastructure asset.")
-#     )
-#     source_damage: str | None = Field(
-#         default=None,
-#         description=("Original damage, failure, or disruption affecting the source infrastructure."
-#         ))
-#     impact_type: str = Field(
-#         description=(
-#             "Type of secondary infrastructure impact, for example: service disruption, outage, closure, delay, reduced capacity, restricted access, interrupted supply, or loss of connectivity."
-#     ))
-#     target_asset: str = Field(
-#         description=("Other infrastructure asset or infrastructure-related service affected as a consequence of the source damage.")
-#     )
-#     target_damage: str | None = Field(
-#         default=None,
-#         description=("The resulting condition, disruption, or operational effect experienced by the affected infrastructure asset or service. Examples: delayed, disrupted, closed, blocked, unavailable, reduced capacity, inoperable, restricted access, interrupted, failed, loss of connectivity, interrupted supply."
-#     ))
 
 
 class InfrastructureCase(BaseModel):
@@ -371,18 +295,6 @@ class InfrastructureCase(BaseModel):
         default=None,
         description="Location explicitly associated with this infrastructure asset.",
     )
-    # damage: Literal[
-    #     None, "affected", "damaged", "severely damaged", "highly damaged", "disrupted", "blocked", "destroyed", "largely destroyed",
-    #     "heavily destroyed", "partly closed", "closed", "outage(s)", "blackout", "loss of water/electricity", "no supply", "left without water/electricity", "contaminated", "polluted", "flooded", "inundated",
-    #     "fallen tree(s)", "broken tree(s)", "overturned tree(s)", "uprooted tree(s)", "felled tree(s)", "debris", "debris removal",
-    #     "debris on", "water on", "dam failure(s)", "dyke break(s)", "dike break(s)", "breached dike(s)", "broken embankment(s)",
-    #     "closure(s)", "derailed", "impassable", "traffic jam(s)", "traffic disruption(s)", "traffic congestion(s)",
-    #     "indirectly affected", "flight delay(s)", "train delay(s)", "delay(s)", "train failure(s)", "failure(s)", "cancellation(s)",
-    #     "canceled", "re-established", "reestablished", "restored", "reconnected", "rebuild", "repaired"
-    # ] | None = Field(
-    #     default=None,
-    #     description="Damage, failure, disruption, or operational status explicitly associated with this infrastructure asset."
-    # )
     damage: (
         Literal[
             None,
@@ -419,19 +331,9 @@ class InfrastructureCases(BaseModel):
 
 class GraphState(MessagesState):  # TypedDict
     text: str
-    # chunk_relevant: bool
-    # assets: list[str]
-    # damages: list[str]
-    # locations: list[str]
     is_infrastructure_case: bool
     assets_org: InfrastructureCases
     infrastructure_cases: InfrastructureCases
-
-    # # assets: Annotated[list, add_messages]
-
-    # # extracted_cases: list[InfrastructureCase] # List[Dict[str, str]]
-    # # verified_cases: list[VerifiedInfrastructureCase]
-    # # final_output: List[Dict]
 
     # cascades
     has_cascading_impacts: bool

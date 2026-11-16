@@ -1,4 +1,3 @@
-# %% [markdown]
 # # CI impact extraction pipeline – example
 #
 # Runs the extraction pipeline of `notebooks/extract_ciimpacts.py` on a few documents:
@@ -14,10 +13,7 @@
 #
 # Requirements: the vLLM servers of LLM 1 and the judge are running and reachable (`LLM1_BASE_URL`, `JUDGE_BASE_URL`, `VLLM_API_KEY` in `.env`), see `run_scripts/serve_vllm_*.sbatch`.
 
-# %% [markdown]
 # ## Setup
-
-# %%
 import os
 import sys
 from pathlib import Path
@@ -36,15 +32,7 @@ from src.pipeline import CiImpactPipeline
 from src.settings import settings as s
 from src.tools.ner import get_infrastructure_entities
 
-# use_geollama = False
-# RUN_EXAMPLE = False      # True: run the single text2 example graph before the document loop
-# # RUN_EVALUATION = False   # True: run the evaluation cells after the extraction
-# test_mode = False # True
-# SAMPLE_DOCUMENTS = [
-#     "Koks 2022 - Brief communication",
-#     "ABC 2024 - Traffic jams and flight delays due to heavy rain and lightning storm in Malaga",
-# ]
-SAMPLE_DOCUMENTS = None
+SAMPLE_DOCUMENTS = None  # None: all documents, or a list of document names, e.g. ["Koks 2022 - Brief communication"]
 PROCESS_HTML = False  # True: also fetch and clean the web pages of text_sources_html.csv
 
 
@@ -60,11 +48,9 @@ OUTPUT_DIR = Path("../interim_results_example")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# %% [markdown]
 # ## 1. Document cleaning
 # Already cleaned documents (`*_cleaned.md`) are loaded instead of processed again.
 
-# %%
 pdf_filepaths = [f for f in DOCS_DIR.glob("*.pdf") if SAMPLE_DOCUMENTS is None or f.stem in SAMPLE_DOCUMENTS]
 documents = dc.PdfProcess(output_dir=PARSED_TEXT_DIR).process_all(pdf_filepaths)
 
@@ -76,10 +62,9 @@ if PROCESS_HTML:
 
 print(f"{len(documents)} documents: {list(documents)}")
 
-# %% [markdown]
+
 # ## 2. Chunker
 
-# %%
 embed_model = "sentence-transformers/all-MiniLM-L6-v2"
 tokenizer = HuggingFaceTokenizer(
     tokenizer=AutoTokenizer.from_pretrained(embed_model),
@@ -90,10 +75,8 @@ tokenizer = HuggingFaceTokenizer(
 # hierarchical chunker which also considers the max. token length and merges smaller chunks (merge_peers=True)
 chunker = HybridChunker(tokenizer=tokenizer, merge_peers=True)
 
-# %% [markdown]
 # ## 3. LLM 1 (CI impact extraction) and LLM-as-a-judge
 
-# %%
 # LLM 1 (gpt-oss) incl. the NER tool, the graph (nodes, prompts, output schemas) is defined in src/models/graph.py
 llm_extract = le.LlmExtract(
     model=s.LLM1_MODEL,
@@ -122,23 +105,17 @@ llm_judge = lj.LlmJudge(
 llm_extract.smoke_test(schema=InfrastructureCases)
 llm_judge.smoke_test()
 
-# %%
-graph  # structure of the LangGraph workflow
+# graph  # structure of the LangGraph workflow
 
-# %% [markdown]
 # ## 4. Pipeline
 # Per chunk: NER pre-filter → LLM 1 → grouping of the CI types + cleaning of the locations → LLM-as-a-judge, see `src/pipeline.py`.
 
-# %%
 pipeline = CiImpactPipeline(chunker, llm_extract, llm_judge, output_dir=OUTPUT_DIR)
 
-# %% [markdown]
 # ## 5. Run
-
-# %%
 df_all = pipeline.run(documents)  # records of all documents, also saved per document in OUTPUT_DIR
 
-# %%
+
 # extracted records incl. the verdicts of the LLM-as-a-judge
 columns = [
     "citation_id",

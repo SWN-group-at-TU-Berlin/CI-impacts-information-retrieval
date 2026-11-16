@@ -4,7 +4,6 @@
 __author__ = "Anna Buch, TU Berlin"
 __email__ = "anna.buch@tu-berlin.de"
 
-import json
 import re
 import warnings
 from collections.abc import Iterable
@@ -13,14 +12,11 @@ from pathlib import Path
 
 import nltk
 from docling.datamodel.pipeline_options import EasyOcrOptions, PdfPipelineOptions
-
-# from docling.datamodel.base_models import InputFormat
 from docling.document_converter import ConversionResult, DocumentConverter, InputFormat, PdfFormatOption
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import CoordOrigin
 from docling_core.types.doc.document import DocItem, ListItem, SectionHeaderItem, TextItem
 from haystack.dataclasses import ByteStream
-from langchain_core.documents import Document
 
 from src.settings import init_logger, settings
 
@@ -38,7 +34,6 @@ class DocumentParser:
         # EASY-OCR and pipeline options
         ocr_options = EasyOcrOptions(
             lang=["fr", "de", "es", "it", "nl"],
-            # lang=["en", "fr", "de", "es", "pt", "it", "pl", "cs", "nl", "da", "sv", "no", "hr", "ro", "bg" "sl", "sk", "lt", "et" ],
             download_enabled=True,
         )
         pipeline_opts = PdfPipelineOptions(
@@ -46,28 +41,21 @@ class DocumentParser:
             do_ocr=True,  # Required for text extraction
             do_table_structure=False,  # Disable table analysis as not needed, and not well working for EasyOCR
             generate_picture_images=False,
-            # allow_external_plugins=True,
             ocr_options=ocr_options,
         )
 
         # PDF format options
         pdf_format_option = PdfFormatOption(
             pipeline_options=pipeline_opts,
-            # reading_order="natural"
         )
         # init pdf converter
         self.ocr_converter = DocumentConverter(format_options={InputFormat.PDF: pdf_format_option})
-
-        # # for RAPID-OCR
-        # # NOTE: needs language detection beforehand and download of respective model, issue: detecting text in 2-column pages eg. frontpage Koks 2022
-        # # !uv add rapidocr_onnxruntime
 
 
 def extract_citation_info(citation_text: str) -> str:
     """Extract citation information from the document title (i.e. citation id)."""
 
     citation_pattern = r"(.*?)(\d{4})(.*)"  # split at first occurrence of year
-    # with suppress(AttributeError):
     authors, year, title = re.findall(citation_pattern, citation_text)[0]  # [:2]
     authors = authors.replace("et al ", "")
 
@@ -130,26 +118,6 @@ def remove_headers_footers(conv_file: ConversionResult) -> ConversionResult:
     logger.info(f"Total texts after deletion: {len(conv_file.document.texts)}")
 
     return conv_file, text_items_to_drop_visualization
-
-
-def save_doc_to_jsonl(array: Iterable[Document], file_path: str) -> None:
-    """Saving langchain for DocumentLoader to jsonl"""
-    # taken from: https://github.com/langchain-ai/langchain/issues/3016
-    with open(file_path, "w") as f:  # , encoding="utf-8") as f:
-        for d in array:
-            f.write(d.json() + "\n")
-
-
-def load_doc_from_jsonl(file_path: str) -> Iterable[Document]:
-    """Loading Documents for DocumentLoader from jsonl"""
-    # taken from: https://github.com/langchain-ai/langchain/issues/3016
-    array = []
-    with open(file_path) as jsonl_file:
-        for line in jsonl_file:
-            data = json.loads(line)
-            obj = Document(**data)
-            array.append(obj)
-    return array
 
 
 ### taken and adapted from https://github.com/brucenielson/BookSearchArchive/blob/e2d6c4145d7931648d5854ba29186cbec8150e87/docling_parser.py
@@ -421,41 +389,13 @@ def get_processed_texts(doc: DoclingDocument) -> list[DocItem]:
         if is_section_header(text_item):
             mislabeled.append(text_item)
 
-    # new_texts = regular_texts + notes
     new_texts = regular_texts  # NOTE test without notes, this text that is already added by " workaround to keep paragraphs in correct section "
-
-    # # is reference or conlcusion
-    # if dc.is_conclusions_section(section_name):
-    #     print("Discussion / Conclusions section found. Stopping further processing of document.")
-    #     continue
-    # if dc.is_reference_section(section_name):
-    #     print("Reference section found. Stopping further processing of document.")
-    #     continue
-
-    # # skip paragraph belonging to Abstract/Summary
-    # # keep "overview" section as might be more like introduction with detailed info, recognized also "Abstract." in text-body fontsize
-    # if (dc.is_abstract(section_name)) or (dc.is_abstract(text.text)):
-    #     print("Abstract/Summary section found. Continue with next text piece.")
-    #     continue
 
     return new_texts
 
-    # return regular_texts + notes
 
-
-def add_paragraph(
-    text: str,
-    # para_num: int, section: str, page: Optional[int],
-    docs: list[ByteStream],
-    # meta: List[Dict]
-):
+def add_paragraph(text: str, docs: list[ByteStream]):
     docs.append(ByteStream(text.encode("utf-8")))
-    # meta.append({
-    #     **meta_data,
-    #     # "paragraph_#": str(para_num),
-    #     "section_name": section,
-    #     "page_#": str(page)
-    # })
 
 
 ##########################  HYPHEN CLEANING SOLO  (keep solo or inc. in DoclingParser class)
@@ -466,11 +406,6 @@ def add_paragraph(
 _words_list = None
 _lemmatizer = None
 _stemmer = None
-
-
-# ## load nltk libs for handling hyphens
-# nltk.download('wordnet')
-# nltk.download('omw-1.4')
 
 
 def get_words_list():
@@ -569,7 +504,6 @@ def combine_hyphenated_words(p_str):
             return match.group(0)
         # If there is a space after the hyphen and the combined word is valid,
         # assume the hyphen was splitting a single word.
-        # if word2.startswith(" ") and is_valid_word(combined):  # org
         # NOTE: test if it not merges two proper nouns, eg. Sachsen-Anhalt, Elbe-Havel
         if word2.startswith(" ") and is_valid_word(combined) and word2.strip()[0].islower():
             return combined

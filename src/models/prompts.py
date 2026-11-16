@@ -39,14 +39,6 @@ Return False when:
     ]
 )
 
-
-# An impact or damage to critical infrastructure occurs when critical infrastructure asset or infrastructure service is damaged through disruption, structural damage, failure or limited operability.
-
-
-# **Important**
-# * When an entry contains two or more infrastructure assets then keep them together. For instance: entry: "There is heavy traffic on the access roads from Juan Avenue to Plaza Manuel Azaña and to Blas Infante Avenue" --> "on the access roads from Juan Avenue to Plaza Manuel Azaña and to Blas Infante Avenue"
-# * When an entry contains two or more infrastructure assets then split them in two. For instance: entry: "Road and railway infrastructure" -->  "Road infrastructure", "railway infrastructure"
-
 asset_prompt = ChatPromptTemplate.from_messages(
     [
         (
@@ -129,299 +121,9 @@ INFRASTRUCTURE ENTITIES DETECTED BY NER: {entities}
         ),
     ]
 )
-
-
 ###########################################################################
-# Conditional Prompt
-# Asset finalize
+# Cascading impacts (subagents)
 ###########################################################################
-
-# asset_finalize_prompt = ChatPromptTemplate.from_messages([
-#     ("system",
-# """Take the MESSAGE and return the list of items into a JSON object.
-# **Important**: DON'T add or remove any items.
-
-# Return a JSON object.
-
-# Example:
-# infrastructure_type: ["roads", "railway infrastructure"]
-# """),
-#     ("human", "MESSAGE: {messages}")
-# ])
-
-
-###########################################################################
-# Prompt 2
-# Extract locations
-###########################################################################
-
-# For each infrastructure in the list ASSETS, you should find its location mentioned in the TEXT.
-
-
-# The list of locations must be as long as LENGTH_ASSETS.
-
-
-location_prompt = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            """For every infrastructure asset or service returned by ASSETS determine its location by reading the TEXT.
-Store each identified location as an entry in the "location" list.
-DON'T create new items about locations that were not there.
-
-ITEM TO EXTRACT:
-- "location": "List the location of each infrastructure asset or service mentioned in ASSETS."
-
-
-**Important:**
-* Prioritize the most specific location of each infrastructure (e.g., street names, neighborhoods, towns over cities, cities over regions, regions over countries).
-* **Only for transportation infrastructure:** When the specific name of an ASSET is mentioned (e.g. Juan Avenue, intersection to Maria Statue, highway A-1, B510, Berlusconi Airport) and no location information can be found, then consider the specific name of this asset as the location.
-* **Only for transportation infrastructure:** when an ASSET refers to two or more locations then extract the locations together. For instance: text:"There is much damage on the access roads from Juan Avenue to Plaza Manuel Azaña" --> location:["from Juan Avenue to Plaza Manuel Azaña"]
-* If you cannot find information about the location of an infrastructure, then return a "NAN" value for this entry in the "location" list.
-* The location of the affected infrastructure must be explicitly mentioned in the TEXT.
-
-
-**Exclude:**
-* You should not consider adjectives (e.g. "German", "English", "Wallonian") as information about the location. Instead derive the correct location based on the TEXT or the adjectives (e.g., "Germany", "United Kingdom", "Belgium").
-* **Future/Warning:** Locations listed as "at risk", "under warning", "may face", "could be affected," or "preparing for" a hazard event.
-* **Historical/Contextual:** Locations mentioned only as background information or prior events (e.g., "This follows flooding in [Location X] last month," or "[Location Y] had **already** experienced flooding by this period").
-
-
-Example Input:
-text: Some road and railway infrastructure were damaged in Western Germany. The event caused damages in entire Europe, said the General Officer of the EU. Bridges were often damaged.
-asset: ["road and railway infrastructure", "bridges"]
-
-Example Output:
-location: ["Western Germany", "NAN"]
-
-""",
-        ),
-        (
-            "human",
-            """
-TEXT: {text}
-
-ASSETS: {assets}
-
-""",
-        ),
-    ]
-)
-
-
-# # Return a JSON object.
-
-# "location": [
-# {{
-#     "roads":"Western Germany",
-#     "railway infrastructure":"Western Germany",
-#     "waterways":"NAN",
-#     <assets_nth>: <location_nth>,
-# }}
-# ]
-# **Important:**
-# Only if you identified an affected critical infrastructure asset or object.
-# - Identify the specific location of the affected infrastructure that the TEXT explicitly states that this infrastructure asset or service was affected. Return "NAN" if the TEXT does not mention a location of the affected infrastructure.
-# - If no information about the location of an affected infrastructure is found, then return a "NAN" value.
-# - The location of the affected infrastructure must be explicitly mentioned in the TEXT.
-# - In case of transport infrastructure (e.g. railway lines, roads or highways) the location can consists of two or more towns, cities or regions (e.g. "railway line between City A and City B", "highway from City X to City Y", "highway between Valencia and Malaga"). In this case, create a new entry for each town, city or region.
-# - Prioritize the most specific location that the TEXT explicitly mentions for each of the affected infrastructure assets (e.g., street names, neighborhoods, towns over cities, cities over regions, regions over countries).
-# - If a specific location lacks detailed background information (e.g., "Main Street" without a city), add the broader context (e.g., "Main Street, City A").
-# - Some locations may span multiple words.
-
-
-# **Exclude:**
-# * You should not consider adjectives (e.g. "German", "English", "Wallonian") as information about the location. Instead derive the correct location based on the TEXT (e.g., "Germany", "United Kingdom", "Belgium").
-# * **Future/Warning:** Locations listed as "at risk", "under warning", "may face", "could be affected," or "preparing for" a hazard event.
-# * **Historical/Contextual:** Locations mentioned only as background information or prior events (e.g., "This follows flooding in [Location X] last month," or "[Location Y] had **already** experienced flooding by this period").
-# * **Only extract locations that are part of the specific incident described in the document.**
-
-
-# Example:
-# [
-# {{
-# "location": ["Western Germany", "Western Germany", "NAN"]
-# }}
-# ]
-# infrastructure_type: ["roads","railway infrastructure", "bridge"]
-
-ci_loc_verify_prompt = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            """For each pair "infrastructure_type" - "location" in EXTRACTED_CASES you should evaluate and improve your answer based on the information mentioned in ENTITY_RECOGNITION.
-ENTITY_RECOGNITION returns two potential locations ("geo_entity", "geo_2_entity") of each affected critical infrastructure ("ci_entity").
-Keep in mind, that the location information returned from ENTITY_RECOGNITION are just for guidance. You still need to make sure to only identify the specific location of each affected infrastructure that the TEXT explicitly mentions that this infrastructure asset was affected at this specific location.
-
-If you do not find specific information about the location of an affected infrastructure, then return a "NAN" value for this field.
-
-
-**Important:**
-DO NOT consider the information from ENTITY_RECOGNITION when the "ci_entity" is mentioned in regard to warnings or in a historical context. In this case return "NAN" values for the fields "infrastructure_type" and "location":
-Exclude:
-* **Future/Warning:** Locations listed as "at risk," "under warning," "may face," "could be affected," or "preparing for" a hazard event.
-* **Historical/Contextual:** Locations mentioned only as background information or as prior events (e.g., "This follows flooding in [Location X] last month," or "[Location Y] had **already** experienced flooding by this period"). **Only extract locations that are part of the specific incident described in the document.**
-""",
-        ),
-        (
-            "human",
-            """
-TEXT: {text}
-
-EXTRACTED_CASES: {extracted_cases}
-
-ENTITY_RECOGNITION: {entity_recognition}
-""",
-        ),
-    ]
-)
-###########################################################################
-# Prompt 3
-# Extract damage type
-###########################################################################
-
-# LENGTH_ASSETS: {assets_length}
-# The list of damages must be as long as LENGTH_ASSETS.
-
-
-damage_prompt = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            """For every infrastructure asset or service returned by ASSETS determine the damage type.
-Use for guidance the keywords from the following list to describe the damage type, but also create a new one when you cannot find it in the list:
-[affected, damaged, severely damaged, highly damaged, disrupted, blocked, destroyed, largely destroyed, heavily destroyed, partly closed, closed, outage(s), blackout, contaminated, polluted, flooded, inundated, fallen tree(s), broken tree(s), overturned tree(s), uprooted tree(s), felled tree(s), debris, debris removal, debris on, water on, dam failure(s), dyke break(s), dike break(s), breached dike(s), broken embankment(s), closure(s), derailed, impassable, traffic jam(s), traffic disruption(s), traffic congestion(s), indirectly affected, flight delay(s), train delay(s), delay(s), train failure(s), failure(s), cancellation(s), canceled, re-established, reestablished, restored, reconnected, rebuild, repaired]
-
-If no information of a damage type is found, then return a "NAN" value.
-
-
-ITEM TO EXTRACT:
-- "damage": "List the damage type of each affected infrastructure."
-
-
-Return a JSON object.
-
-
-Example:
-
-infrastructure_type:["roads","railway infrastructure"]
-damage: ["blocked", "flooded"]
-
-""",
-        ),
-        (
-            "human",
-            """
-TEXT: {text}
-
-ASSETS: {assets}
-
-""",
-        ),
-    ]
-)
-
-# Example:
-# [
-# {{
-# infrastructure_type:["roads","railway infrastructure"],
-# location: ["Western Germany", "Western Germany"],
-# damage: ["blocked", "flooded"],
-# }}
-# ]
-# location: ["Western Germany", "Western Germany"]
-
-###########################################################################
-# Prompt 4
-# Merge
-###########################################################################
-# Nothing else.
-
-
-###########################################################################
-# Prompt 5
-# Check cascading effects
-###########################################################################
-
-verification_prompt = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            """
-You receive extracted infrastructure damage cases.
-
-For EACH case determine whether the text states that the damage affected another infrastructure asset or infrastructure service (field: "secondary_effects"), return <true>.
-If no return <false>.
-
-If yes, identify the affected infrastructure (field: "target_asset"), else return "NAN".
-
-
-Example Output:
-secondary_effects:[ false, false, true, false]
-target_asset:["NAN","NAN", "gas supply", "NAN"]
-
-Only use information explicitly stated.
-Do not infer.
-
-
-""",
-        ),
-        (
-            "human",
-            """
-TEXT: {text}
-
-CASES: {cases}
-""",
-        ),
-    ]
-)
-
-
-## GEOLLM prompt
-
-
-###########################################################################
-# Node GEOLLM
-###########################################################################
-
-
-enrich_locations_prompt = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            """
-You are a geographic metadata enrichment agent.
-
-The first extraction models have already identified the following infrastructure information:
-- TEXT: {text}
-- LOCATION: {locations}
-
-
-Your ONLY task is to obtain geographic coordinates and OSM metadata for the extracted LOCATION using "get_coordinates_and_meta_info" tool.
-Pass the TEXT information as input to "get_coordinates_and_meta_info" tool.
-Then use the entries returned from the tool and check which one corresponds to the passed LOCATION. The best matched entry is where the entry["loc_name"] name corresponds with the LOCATION name. Return this entry (loc_name, geometry, osm_key, osm_value ) as your response.
-
-""",
-        ),
-        (
-            "human",
-            """
-LOCATION: {locations}
-
-TEXT: {text}
-    """,
-        ),
-    ]
-)
-
-# state["secondary_effects"] = result.secondary_effect
-# state["affected_asset_or_services"] = result.secondary_effects
-# state["final_output"] = result
-# return state
-
-
-# ##### Cascading components (subagents)
 
 prompt_has_cascade = ChatPromptTemplate.from_messages(
     [
@@ -472,19 +174,6 @@ CI_DAMAGES: {ci_damages}
         ),
     ]
 )
-
-#
-# has_cascade_list = []
-# for case in ci_cases:
-# result = llm_structured.invoke([
-#     HumanMessage(content=prompt_has_cascade.format(
-#         text=state["text"],
-#         damaged_infrastructure=case,
-# ))])
-#     has_cascade_list.append(result)
-# print("has_cascading_impacts", has_cascade_list)
-
-# return {"has_cascading_impacts": has_cascade_list}
 
 
 economic_impact_prompt = ChatPromptTemplate.from_messages(
@@ -668,66 +357,6 @@ CI_DAMAGES: {ci_damages}
     ]
 )
 
-
-# infrastructure_impact_prompt = ChatPromptTemplate.from_messages([
-#     (
-#         "system",
-#         """
-# You are an infrastructure cascading-impact extraction agent.
-
-# Your task is ONLY to identify downstream impacts affecting OTHER infrastructure assets or infrastructure-related services.
-
-# The input contains:
-# - TEXT: the original text
-# - CI_DAMAGES: damage/disruption affecting an infrastructure asset or service, and its location
-# Do NOT verify, modify, or reinterpret the original infrastructure extraction.
-# If no infrastructure/service cascading impact is explicitly mentioned, return None.
-
-# A cascading infrastructure impact occurs when damage or disruption to one infrastructure asset causes a further impact on another infrastructure.
-
-# Examples:
-
-# TEXT: The flooding of railways caused train delays.
-# CI_DAMAGES: infrastructure_type="railways", location=None, damage="flooded"
-# source_asset: railways
-# source_location: None
-# target_damage: delays
-# target_asset: train delays
-
-# TEXT: The bridges were so much damaged that road closures were conducted in the Ahr valley.
-# CI_DAMAGES: infrastructure_type="bridges", location="Ahr valley", damage="damaged"
-# source_asset: bridges
-# source_location: Ahr valley
-# target_damage: closures
-# target_asset: road closures
-
-# TEXT: Also, the public transport was disrupted due the blocked roads.
-# CI_DAMAGES: infrastructure_type="roads", location=None, damage="blocked"
-# source_asset: roads
-# source_location: None
-# target_damage: disrupted
-# target_asset: public transport was disrupted
-
-
-# Now, its your task to extract secondary infrastructure impacts for each of the damaged infrastructure:
-# TEXT: {text}
-# CI_DAMAGES: {ci_damages}
-# source_asset: <your_response>
-# source_location  <your_response>
-# target_damage: <your_response>
-# target_asset: <your_response>
-
-# """
-#     ),
-#     (
-#         "human",
-#         """
-# TEXT: {text}
-# CI_DAMAGES: {ci_damages}
-# """
-#     )])
-
-
 infrastructure_impact_prompt = ChatPromptTemplate.from_messages(
     [
         (
@@ -895,8 +524,6 @@ CI_DAMAGES: {ci_damages}
     ]
 )
 
-#   Examples: "1,000 households", "10,000 people", "3 days", "up to 5 months"
-
 societal_impact_prompt = ChatPromptTemplate.from_messages(
     [
         (
@@ -1039,30 +666,6 @@ CI_DAMAGES: {ci_damages}
         ),
     ]
 )
-
-# assets_list = state["assets"]
-# damages_list = state["damages"]
-# sec_impacts_list = []
-
-# class SingleSocietalImpact(BaseModel):
-#     impact: Annotated[List[str], Len(min_length=1, max_length=1)] | str="NAN"
-# llm_structured = llm.with_structured_output(SingleSocietalImpact)
-
-# for asset, damage in zip(assets_list, damages_list):
-#     result = llm_structured.invoke([
-#             HumanMessage(
-#                 content=societal_impact_prompt.format(
-#                     text=state["text"],
-#                     assets=asset,
-#                     damages=damage
-#     ))])
-#     try:
-#         sec_impacts_list.append(result.impacts)
-#     except AttributeError:
-#         sec_impacts_list.append("NAN")
-# print("societal_impacts", sec_impacts_list)
-# return {"societal_impacts": sec_impacts_list}
-
 
 environmental_impact_prompt = ChatPromptTemplate.from_messages(
     [

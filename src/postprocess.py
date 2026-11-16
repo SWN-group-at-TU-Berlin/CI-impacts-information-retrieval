@@ -146,7 +146,7 @@ def keep_ci_types(ci_list: list, ci_patterns) -> list:
         for i in range(len(ci_patterns))
         if len(ci_patterns["pattern"][i]) == 2
     ]
-    regexes = regexes_1 + regexes_2  # + regexes_3
+    regexes = regexes_1 + regexes_2
     # TODO condense function - rmeove redundance to group_ci_types()
 
     patterns = [next(iter(r)) for r in regexes]
@@ -165,14 +165,6 @@ def group_ci_types(
     grouping_scheme: str = "subgroup_name",
 ) -> pd.DataFrame:
     # load regular expressions and subgroups from NER patterns as dict
-    # # for general cases
-    # try:
-    #     regexes_3 = [
-    #         {ci_patterns["pattern"][i][0]["TEXT"] : ci_patterns[grouping_scheme][i]}
-    #         for i in range(len(ci_patterns))
-    #             if len(ci_patterns["pattern"][i])==1
-    #     ]
-    # except Exception:
     regexes_1 = [{ci_patterns["pattern"][i][0]["TEXT"]["REGEX"]: ci_patterns[grouping_scheme][i]} for i in range(len(ci_patterns)) if len(ci_patterns["pattern"][i]) == 1]
     # for all special cases with "LOWER"-pattern
     regexes_2 = [
@@ -180,9 +172,7 @@ def group_ci_types(
         for i in range(len(ci_patterns))
         if len(ci_patterns["pattern"][i]) == 2
     ]
-    # for speial cases where regex not worked due to reducnandcy to other regex Ci word,eg access roads <-> roads
-
-    regexes = regexes_1 + regexes_2  # + regexes_3
+    regexes = regexes_1 + regexes_2
 
     # records which match no CI pattern keep an empty group (NaN)
     if col_grouped not in df.columns:
@@ -194,12 +184,7 @@ def group_ci_types(
         pattern = [*r][0]
         subgroup = r[pattern]
 
-        # remove words considered wrongly as Ci keywords
-        regex = re.compile(r"\b[Dd]amage\w*|\b[Tt]raining\w*|\b[Cc]ommunication\w*")
-        df[col_type].str.replace(regex, "", regex=True).str.replace("  ", " ")
-
         # assign subgroups to CI records, na=False to remove all records which not match patterns
-        # mask = df[col_type].str.match(pattern)
         df[[col_type, col_grouped]] = df[[col_type, col_grouped]].astype(str)
         mask = is_ci_entity(df[col_type], pattern)
         df.loc[mask, col_grouped] = subgroup
@@ -209,7 +194,6 @@ def group_ci_types(
 
 def is_ci_entity(ci_entity: pd.Series, regex_pattern: str) -> pd.Series:
     """Returns boolean mask where records in pd.Series are a certain CI type based on regex pattern"""
-    # return ci_entity.str.contains(regex_pattern, regex=True, na=False)
     return ci_entity.str.match(regex_pattern)
 
 
@@ -219,8 +203,6 @@ def postprocess_response(df: pd.DataFrame, ci_patterns: pd.DataFrame) -> tuple[p
     """
     df = df.copy()
     df["infrastructure_type"] = df["infrastructure_type"].replace(r"[\(\),]", "", regex=True)  # clean up CI from brackets and commas
-    # split multiple CI entries ("road and rail network" -> road network, rail network)
-    # df = split_ci_entities(df, columns=["infrastructure_type"])
     df["infrastructure_group"] = None
     df = group_ci_types(df, "infrastructure_type", "infrastructure_group", ci_patterns)
 

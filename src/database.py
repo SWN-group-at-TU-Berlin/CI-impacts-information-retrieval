@@ -76,7 +76,5 @@ def fill_db(entry: TextSource, schema_name: str = "public", table_name: str = "t
     )
     conn.commit()
 
-    # logger.info(f"Inserted entry '{entry.title}' into database.")
-
     curs.close()
     conn.close()

@@ -4,11 +4,9 @@
 __author__ = "Anna Buch, TU Berlin"
 __email__ = "anna.buch@tu-berlin.de"
 
-import functools
 import logging
 import os
 import subprocess
-from datetime import datetime
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,43 +26,29 @@ class Settings(BaseSettings):
         print("Running on TUB cluster")
         PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
 
-    PATH_SRC: Path = Path("./src")
     PATH_LOGS: Path = Path("../logs/")
     DOCLING_ARTIFACTS: Path = Path("../docling_artifacts")
 
-    PATH_PROMPTS: Path = Path("./prompt_templates/")
-    PROMPT_DIRECT_FILENAME: str = "ci_loc_direct_impacts.txt"
     NER_PATTERNS_FILEPATH: Path = Path("./ner_patterns.jsonl")
     CI_GEO_PAIRS_FILENAME: str = "extracted_ci_geo_entities.csv"
 
     PATH_LLM_DATA: Path = Path(PATH_DATA / "llm_outputs/")
     LLM_DATA_FILENAME: str = "llm_1_dNER_fixNER.csv"  # "llm_1_half_validDS.csv"
-    # LLM_DATA_FILENAME: str = f'llm1_{datetime.now().strftime("%Y-%m-%d")}.csv'
-
-    PATH_LX_DATA: Path = Path(PATH_DATA / "langextract_output/")
-    LX_DATA_FILENAME: str = f"lx1_mix_cigeo_{datetime.now().strftime('%Y-%m-%d')}.csv"
-    # LX_DATA_FILENAME: str = 'llama3_48_documents_2026-01-28.csv'   #  replace with lx_modelname_xxx
 
     PATH_VALID_DATA: Path = Path(PATH_DATA / "evaluation/manual_extracted")
     VALID_DATA_FILENAME: str = "table_ci_impacts_sm.csv"
     PATH_EVAL_RESULT: Path = Path(PATH_DATA / "evaluation_results")
 
-    # NOTE SIMILARITY_[LX]_FILENAME is set based on LLM_DATA_FILENAME or LX_DATA_FILENAME
     SIMILARITY_LLM_FILENAME: str = f"smlrty_{LLM_DATA_FILENAME.replace('.csv', '.parquet')}"
-    SIMILARITY_LX_FILENAME: str = f"smlrty_{LX_DATA_FILENAME.replace('.csv', '.parquet')}"
-    # SIMILARITY_FILENAME: str = 'llama3_ci_impact_evaluation.parquet' # replace with lx_modelname_xxx
 
     # self-hosted LLMs served by vLLM (OpenAI-compatible API), see scripts/serve_vllm_*.sbatch
     # NOTE: from the local machine reach the HPC servers via ssh tunnel, e.g. ssh -N -L 8000:<node>:8000 -L 8001:<node>:8001 <hpc-login>
-    # LLM1_BASE_URL: str = "http://localhost:8000/v1"     # LLM 1 (extraction)
-    # JUDGE_BASE_URL: str = "http://localhost:8001/v1"    # LLM-as-a-judge
     LLM1_BASE_URL: str = os.getenv("LLM1_BASE_URL", "http://localhost:8000/v1")  # use env var if set otherwise default
     JUDGE_BASE_URL: str = os.getenv("JUDGE_BASE_URL", "http://localhost:8001/v1")
     LLM1_MODEL: str = "openai/gpt-oss-20b"  # served model name, see `vllm serve --served-model-name`
     JUDGE_MODEL: str = "google/gemma-4-31B-it"  # served model name, see `vllm serve --served-model-name`
     VLLM_API_KEY: str = os.getenv("VLLM_API_KEY", "youshallnotpass-lotr")  # TODO remove default  # same key as `vllm serve --api-key`
 
-    CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 50
     BATCH_SIZE: int = 5  # max for my local GPU (as max. is 6GB)
 
@@ -72,18 +56,10 @@ class Settings(BaseSettings):
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"  #  nvidia gpu
     os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"  ## improve memory allocation
-    # # %env TORCH_CUDA_ARCH_LIST=8.6
 
     # settings for debugging CUDA errors (pinpoint exact line of error)
     os.environ["TORCH_USE_CUDA_DSA"] = "1"
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-
-    # # settings for distributed computing
-    # os.environ["WORLD_SIZE"]="1"
-    # os.environ["RANK"]="0"
-    # os.environ["LOCAL_RANK"]="0"
-    # NOTE: # WORLD_SIZE: each GPU corresponds to one process (world = no. of processes within a group), processes communicate with each other enabling eg., distributed training
-    # NOTE: # RANK: IDs of the processes, ranging from 0 up to WORLD_SIZE - 1
 
     # Use transformer model (roberta) for fast and precise NER recognition for english language [only with GPU]
     # performance: https://spacy.io/models/en#en_core_web_trf
@@ -106,22 +82,15 @@ class Settings(BaseSettings):
         # HF directory
         HF_HOME_DIR: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/hub"
         HF_TOKEN_PATH: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/token"
-    # elif re.findall("node*|gpu*", hostname) ==TRUE:  # TODO adapt pattern search
     else:
         print("Running on TUB Cluster")
         HF_HOME_DIR: str = "/beegfs/home/users/a/a-buch/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror"
         HF_TOKEN_PATH: str = "/beegfs/home/users/a/a-buch/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/token"
-        # model_config = SettingsConfigDict(env_file=".env")  # load HUGGINGFACE_TOKEN
-
-        # DATA DIR
-        PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
 
 
 settings = Settings()
 
 
-## decorated/wrapped func
-# @decorate_init_logger # uncomment when to make decorator permanent
 def init_logger(name):
     """
     Set up a logger instance
@@ -155,25 +124,3 @@ def init_logger(name):
     logger.addHandler(file_handler)
 
     return logger
-
-
-## decorator for logger
-def decorate_init_logger(func):
-    """
-    Decorator for logger
-    """
-
-    @functools.wraps(func)  # preserve original func information from magic methods such as __repr__
-    def wrapper(*args):
-        # Call the wrapped function
-        logger = func(*args)
-
-        # Log file handler
-        log_file = f"{settings.PATH_LOGS}/warning_check_regression_coeffcients.log"
-        print(f"Creating log file {log_file} due to warning that regression coefficients are all non significant")
-        if not os.path.exists(log_file):
-            open(log_file, "w+").close()
-
-        return logger
-
-    return wrapper

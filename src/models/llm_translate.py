@@ -38,9 +38,6 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
     For the 3-character language codes, you can google for the code!
     """
 
-    # print("Login with HF TOKEN ...")
-    # login(token=os.environ["HUGGINGFACE_TOKEN"])
-
     gc.collect()
     torch.cuda.empty_cache()
     torch.no_grad()
@@ -59,7 +56,6 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
         bnb_4bit_compute_dtype=torch.float16,
     )
 
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device = transformers.infer_device()
     if device != "cuda":
         logger.info(f"Using device: {device}")
@@ -83,13 +79,10 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
         tokenizer.save_pretrained(model_dir)
 
     else:
-        # print(f"Using locally saved model from {model_dir}")
-
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_name,
             cache_dir=model_dir,
             local_files_only=False,  # set to False to enable downloading if model is not found locally, even when it exists
-            # tp_plan="auto" # set tensor parallel model (ie. splits model on multiple GPU)
             dtype="auto",
             quantization_config=bnb_config,
         )
@@ -131,7 +124,6 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
             except langdetect.lang_detect_exception.LangDetectException:
                 logger.warning(f"Language detection failed for chunk {j} with text: {src_text[:30]}... Skipping translation for this chunk.")
                 continue
-            # print(f"Detected language for chunk {j}: {src_language}")
 
             supported_languages = [
                 "fr",
@@ -142,7 +134,6 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
             ]  # TODO make as global var in config file
 
             if (src_language == dst_language) or (src_language not in supported_languages):
-                # print(f"Source and destination language in chunk {j} are identical or unsupported. No translation needed.")
                 # write back to document  # TODO condense try except blocks when handling string input
                 try:
                     doc[j].page_content = src_text
@@ -160,10 +151,6 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
             # decode the output and ignore special tokens
             dst_text = tokenizer.decode(beam_outputs[0], skip_special_tokens=True)
 
-            # # decode the output and ignore special tokens
-            # print(" Source text: ", src_text)
-            # print(" Translated text: ", tokenizer.decode(beam_outputs[0], skip_special_tokens=True))
-
             # write back to document
             try:
                 doc[j].page_content = dst_text
@@ -171,9 +158,6 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
                 doc[j].text = dst_text
 
     if isinstance(doc, str):
-        # print("Input document is a string (not DoclingObject). Wrapping it in a list for processing.")
-        # print("Continue with translation of text string")
-
         src_text = doc
 
         # detect language type for each chunk if text is not empty or too short
@@ -188,8 +172,6 @@ def translate_2_english(src_language_doc: str, doc: list[str] | str) -> list[str
         ]  # TODO make as global var in config file
         if (src_language == dst_language) or (src_language not in supported_languages):
             logger.info("Source and destination language for text are identical or unsupported. Skipping translation.")
-            # write back to document
-            # doc = src_text.replace("\n", " ")
 
         ## NOTE workaround
         # keeps sentences which would be missed by Helsinki models in longer paragraphs
