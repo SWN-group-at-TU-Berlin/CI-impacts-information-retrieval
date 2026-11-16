@@ -63,7 +63,7 @@ GEMMA_MAX_LEN=${GEMMA_MAX_LEN:-16384}   # context length; lower (e.g. 8192) if t
 # extra flags to save memory on GPU 1, e.g. "--enforce-eager --max-num-seqs 4" (no CUDA graphs, fewer parallel requests)
 GEMMA_EXTRA_ARGS=${GEMMA_EXTRA_ARGS:-}
 
-export HF_HOME=${HF_HOME:-/beegfs/home/users/a/a-buch/_PROJECTS/huggingface_mirror}
+export HF_HOME=${HF_HOME:-$HOME/.cache/huggingface}   # set HF_HOME in .env to use another cache
 : "${VLLM_API_KEY:?set VLLM_API_KEY, same value as in the .env of the project}"
 [[ -f "$PROJECTROOT/$SCRIPT" ]] || { echo "ERROR: workflow script $PROJECTROOT/$SCRIPT not found"; exit 1; }
 

@@ -44,7 +44,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 DOCS_DIR = Path(s.PATH_DATA / "text_sources")
 PARSED_TEXT_DIR = Path(s.PATH_DATA / "parsed_documents")
-OUTPUT_DIR = Path("../interim_results_example")
+OUTPUT_DIR = s.PATH_RESULTS
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 

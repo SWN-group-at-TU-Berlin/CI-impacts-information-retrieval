@@ -1,91 +1,76 @@
 #!/usr/bin/env python
-"""Global variables and logger functions"""
+"""Settings of the project and logger function.
+
+The settings are read (highest priority first) from
+1. environment variables,
+2. the .env file in the project root (secrets, e.g. VLLM_API_KEY),
+3. the config file configs/config.yaml (paths, LLM servers), or the file given by the env variable CI_IMPACTS_CONFIG.
+"""
 
 __author__ = "Anna Buch, TU Berlin"
 __email__ = "anna.buch@tu-berlin.de"
 
 import logging
 import os
-import subprocess
 from pathlib import Path
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, YamlConfigSettingsSource
 
-# local or remote machine
-hostname = subprocess.run(["hostname"], stdout=subprocess.PIPE).stdout.decode("utf-8").strip()
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CONFIG_FILE = Path(os.getenv("CI_IMPACTS_CONFIG", PROJECT_ROOT / "configs" / "config.yaml"))
+
+# settings for CUDA and PyTorch, can be overwritten by environment variables
+os.environ.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")
+os.environ.setdefault("PYTORCH_ALLOC_CONF", "expandable_segments:True")  # improve memory allocation
+# debugging of CUDA errors (pinpoint exact line of error)
+os.environ.setdefault("TORCH_USE_CUDA_DSA", "1")
+os.environ.setdefault("CUDA_LAUNCH_BLOCKING", "1")
 
 
 class Settings(BaseSettings):
-    # fields can be overwritten by environment variables or by the .env file in the project root (e.g. LLM1_BASE_URL)
-    model_config = SettingsConfigDict(env_file=Path(__file__).resolve().parents[1] / ".env", extra="ignore")
+    """Defaults of the settings, overwritten by configs/config.yaml, .env and environment variables (see module docstring)"""
 
-    if hostname == "abuch-ThinkPad-X1-Extreme-Gen-4i":
-        print("Running on local machine")
-        PATH_DATA: Path = Path("../data/")
-    else:
-        print("Running on TUB cluster")
-        PATH_DATA: Path = Path("/beegfs/scratch/a-buch/_PROJECTS/data/")
+    model_config = SettingsConfigDict(env_file=PROJECT_ROOT / ".env", yaml_file=CONFIG_FILE, extra="ignore")
 
-    PATH_LOGS: Path = Path("../logs/")
+    # data, results and logs
+    PATH_DATA: Path = Path("../data")
+    PATH_RESULTS: Path = Path("../results")
+    PATH_LOGS: Path = Path("../logs")
+
+    # models stored on disk
     DOCLING_ARTIFACTS: Path = Path("../docling_artifacts")
+    SPACY_MODEL_PIPELINE: Path = Path("spacy_model_pipeline")  # TODO move outside project folder, see related git issue
+    HF_CACHE_DIR: Path | None = None  # None: default cache of Hugging Face
 
-    NER_PATTERNS_FILEPATH: Path = Path("./ner_patterns.jsonl")
-    CI_GEO_PAIRS_FILENAME: str = "extracted_ci_geo_entities.csv"
-
-    PATH_LLM_DATA: Path = Path(PATH_DATA / "llm_outputs/")
-    LLM_DATA_FILENAME: str = "llm_1_dNER_fixNER.csv"  # "llm_1_half_validDS.csv"
-
-    PATH_VALID_DATA: Path = Path(PATH_DATA / "evaluation/manual_extracted")
-    VALID_DATA_FILENAME: str = "table_ci_impacts_sm.csv"
-    PATH_EVAL_RESULT: Path = Path(PATH_DATA / "evaluation_results")
-
-    SIMILARITY_LLM_FILENAME: str = f"smlrty_{LLM_DATA_FILENAME.replace('.csv', '.parquet')}"
-
-    # self-hosted LLMs served by vLLM (OpenAI-compatible API), see scripts/serve_vllm_*.sbatch
-    # NOTE: from the local machine reach the HPC servers via ssh tunnel, e.g. ssh -N -L 8000:<node>:8000 -L 8001:<node>:8001 <hpc-login>
-    LLM1_BASE_URL: str = os.getenv("LLM1_BASE_URL", "http://localhost:8000/v1")  # use env var if set otherwise default
-    JUDGE_BASE_URL: str = os.getenv("JUDGE_BASE_URL", "http://localhost:8001/v1")
+    # self-hosted LLMs served by vLLM (OpenAI-compatible API), see run_scripts/serve_vllm_*.sbatch
+    LLM1_BASE_URL: str = "http://localhost:8000/v1"
+    JUDGE_BASE_URL: str = "http://localhost:8001/v1"
     LLM1_MODEL: str = "openai/gpt-oss-20b"  # served model name, see `vllm serve --served-model-name`
-    JUDGE_MODEL: str = "google/gemma-4-31B-it"  # served model name, see `vllm serve --served-model-name`
-    VLLM_API_KEY: str | None = None  # set in .env or as env variable, same key as `vllm serve --api-key`
+    JUDGE_MODEL: str = "google/gemma-4-31B-it"
+    VLLM_API_KEY: str | None = None  # secret: set in .env, same key as `vllm serve --api-key`
 
-    CHUNK_OVERLAP: int = 50
-    BATCH_SIZE: int = 5  # max for my local GPU (as max. is 6GB)
+    @field_validator("PATH_DATA", "PATH_RESULTS", "PATH_LOGS", "DOCLING_ARTIFACTS", "SPACY_MODEL_PIPELINE", "HF_CACHE_DIR")
+    @classmethod
+    def resolve_path(cls, path: Path | None) -> Path | None:
+        """Relative paths are resolved from the project root, so that the settings do not depend on the working directory"""
+        if path is None:
+            return None
+        path = Path(path).expanduser()
+        return path if path.is_absolute() else (PROJECT_ROOT / path).resolve()
 
-    # settings for CUDA and PYTORCH
-    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"  #  nvidia gpu
-    os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"  ## improve memory allocation
-
-    # settings for debugging CUDA errors (pinpoint exact line of error)
-    os.environ["TORCH_USE_CUDA_DSA"] = "1"
-    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-
-    # Use transformer model (roberta) for fast and precise NER recognition for english language [only with GPU]
-    # performance: https://spacy.io/models/en#en_core_web_trf
-    try:
-        subprocess.check_output("nvidia-smi")
-        # FIXME workaround to not update torch which causes issues with flash-attn
-        # "solution: en_core_web_trf should be used as it is faster and maybe more precise"
-        SPACY_MODEL: str = "en_core_web_trf"
-    except Exception:
-        print("couldnt load large spacy model")
-        SPACY_MODEL: str = "en_core_web_lg "
-
-    # HF directory
-    if hostname == "abuch-ThinkPad-X1-Extreme-Gen-4i":
-        print("Running on local machine")
-
-        # set working dir
-        os.chdir("/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/")
-
-        # HF directory
-        HF_HOME_DIR: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/hub"
-        HF_TOKEN_PATH: str = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/token"
-    else:
-        print("Running on TUB Cluster")
-        HF_HOME_DIR: str = "/beegfs/home/users/a/a-buch/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror"
-        HF_TOKEN_PATH: str = "/beegfs/home/users/a/a-buch/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/token"
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # priority: arguments > environment variables > .env > config.yaml
+        return init_settings, env_settings, dotenv_settings, YamlConfigSettingsSource(settings_cls), file_secret_settings
 
 
 settings = Settings()

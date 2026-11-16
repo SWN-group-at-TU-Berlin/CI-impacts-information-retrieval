@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
- PROJECTROOT=${PROJECTROOT:-$HOME/_PROJECTS/ci-impacts-vllm}
+ PROJECTROOT=${PROJECTROOT:-$HOME/_PROJECTS/CI-impacts-information-retrieval}
  VLLM_ENV=${VLLM_ENV:-$HOME/_PROJECTS/vllm/.venv}
  PYTHON_ENV=${PYTHON_ENV:-$PROJECTROOT/.venv}
  LOG_DIR=$(realpath -m "${LOG_DIR:-../logs}")
@@ -28,7 +28,7 @@ set -euo pipefail
 
  GPTOSS_PORT=${GPTOSS_PORT:-8000}
  GPTOSS_MEM=${GPTOSS_MEM:-0.85}   # gpt-oss alone on the GPU
- export HF_HOME=${HF_HOME:-/beegfs/home/users/a/a-buch/_PROJECTS/huggingface_mirror}
+ export HF_HOME=${HF_HOME:-$HOME/.cache/huggingface}   # set HF_HOME in .env to use another cache
  : "${VLLM_API_KEY:?set VLLM_API_KEY, same value as in the .env of the project}"
 
  source "$VLLM_ENV/bin/activate"

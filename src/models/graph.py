@@ -9,7 +9,6 @@ __email__ = "anna.buch@tu-berlin.de"
 import ast
 from typing import Literal
 
-import pandas as pd
 from langchain_core.messages import HumanMessage
 from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
@@ -18,6 +17,7 @@ from pydantic import BaseModel
 
 from src.models.prompts import *  # noqa: F403  prompts of the graph nodes
 from src.models.schemas import *  # noqa: F403  output schemas and GraphState
+from src.tools.ner import load_ci_patterns
 
 # LLM 1 used by the graph nodes, set by build_graph()
 _llm_extract = None
@@ -73,7 +73,7 @@ def extract_asset_information(state: GraphState) -> GraphState:
     assets_list = ast.literal_eval(tool_message.content)  # str -> list
 
     # remove non-CI types
-    ci_patterns = pd.read_json("./ner_patterns.jsonl/patterns", lines=True)
+    ci_patterns = load_ci_patterns()
     assets_list = pp.keep_ci_types(assets_list, ci_patterns)  # (e.g. "24Rhein")
     print("tool_message.content", assets_list)
 

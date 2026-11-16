@@ -7,15 +7,15 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from src.settings import init_logger
-from src.settings import settings as s
 
 logger = init_logger(__name__)
 
 
 class DataHandler:
-    def __init__(self):
-        self.PATH_EVAL_RESULT = s.PATH_EVAL_RESULT
-        self.SIMILARITY_LLM_FILENAME = s.SIMILARITY_LLM_FILENAME
+    def __init__(self, eval_result_dir: str | Path, similarity_filename: str):
+        """eval_result_dir: folder of the evaluation results, similarity_filename: e.g. smlrty_<llm output file>.parquet"""
+        self.PATH_EVAL_RESULT = Path(eval_result_dir)
+        self.SIMILARITY_LLM_FILENAME = similarity_filename
 
     def save_evaluation_results(self, entity_pred, df_smltry_selmax, recall_score, precision_score, f1_score):
         similarity_filename = f"{entity_pred.replace('_pred', '')}_{self.SIMILARITY_LLM_FILENAME}"
