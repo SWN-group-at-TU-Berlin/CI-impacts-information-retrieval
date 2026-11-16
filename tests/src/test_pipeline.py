@@ -1,8 +1,23 @@
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
+import spacy
 
 import src.pipeline as pl
+from src.tools import ner
+
+
+@pytest.fixture
+def fake_nlp_model(monkeypatch):
+    """Mock of the spaCy model pipeline (spacy_model_pipeline/, not available e.g. on GitHub Actions):
+    blank English model + the CI patterns of the project, used by the NER tool get_infrastructure_entities
+    """
+    nlp = spacy.blank("en")
+    ruler = nlp.add_pipe("span_ruler", config={"spans_key": None, "annotate_ents": True, "overwrite": False})
+    ruler.from_disk(ner.NER_PATTERNS_DIR)
+    monkeypatch.setattr(ner, "get_nlp_model", lambda: nlp)
+    return nlp
 
 
 def test_prepare_chunk_text_restores_abbreviations_only_as_words():
@@ -69,7 +84,7 @@ def make_pipeline(monkeypatch, result, texts, tmp_path=None):
     )
 
 
-def test_pipeline_runs_ner_filter_llm1_and_judge(monkeypatch, tmp_path):
+def test_pipeline_runs_ner_filter_llm1_and_judge(monkeypatch, tmp_path, fake_nlp_model):
     pipeline = make_pipeline(
         monkeypatch,
         {"is_infrastructure_case": True},
@@ -82,7 +97,7 @@ def test_pipeline_runs_ner_filter_llm1_and_judge(monkeypatch, tmp_path):
     assert (tmp_path / "llm_chain_judge_Koks 2022.csv").exists()
 
 
-def test_pipeline_records_llm_errors(monkeypatch):
+def test_pipeline_records_llm_errors(monkeypatch, fake_nlp_model):
     pipeline = make_pipeline(monkeypatch, RuntimeError("server down"), ["The roads in Berlin were flooded."])
     df = pipeline.extract_document("Koks 2022 - Brief communication", object())
     assert df.empty
