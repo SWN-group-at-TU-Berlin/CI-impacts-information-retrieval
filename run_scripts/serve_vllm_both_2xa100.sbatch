@@ -29,7 +29,7 @@
 #SBATCH --error=../logs/a100-%j.%N.err
 
 ## #RUN
-# > VLLM_API_KEY=youshallnotpass-lotr GEMMA_MEM=0.96 GEMMA_MAX_LEN=12288 GEMMA_EXTRA_ARGS='--enforce-eager --limit-mm-per-prompt {"image":0,"video":0}' sbatch run_scripts/serve_vllm_both_2xa100.sbatch
+# > VLLM_API_KEY=<key> GEMMA_MEM=0.96 GEMMA_MAX_LEN=12288 GEMMA_EXTRA_ARGS='--enforce-eager --limit-mm-per-prompt {"image":0,"video":0}' sbatch run_scripts/serve_vllm_both_2xa100.sbatch
 #     max_tokens=16384,  # the judge (reasoning model) needs tokens for reasoning + JSON answer; vLLM --max-model-len must be >= prompt + max_tokens
 # +    max_tokens=8000 # adapt in respect to GEMMA_MAX_LEN=12288, TODO try out to increase with lower batch size, for h200: 16384,  # the judge (reasoning model) needs tokens for reasoning + JSON answer; vLLM --max-model-len must be >= prompt + max_tokens
 #  +judge_batch_size = 5 # for a100: less request in parallel processed, default: 10

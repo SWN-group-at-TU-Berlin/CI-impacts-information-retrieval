@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     JUDGE_BASE_URL: str = os.getenv("JUDGE_BASE_URL", "http://localhost:8001/v1")
     LLM1_MODEL: str = "openai/gpt-oss-20b"  # served model name, see `vllm serve --served-model-name`
     JUDGE_MODEL: str = "google/gemma-4-31B-it"  # served model name, see `vllm serve --served-model-name`
-    VLLM_API_KEY: str = os.getenv("VLLM_API_KEY", "youshallnotpass-lotr")  # TODO remove default  # same key as `vllm serve --api-key`
+    VLLM_API_KEY: str | None = None  # set in .env or as env variable, same key as `vllm serve --api-key`
 
     CHUNK_OVERLAP: int = 50
     BATCH_SIZE: int = 5  # max for my local GPU (as max. is 6GB)
