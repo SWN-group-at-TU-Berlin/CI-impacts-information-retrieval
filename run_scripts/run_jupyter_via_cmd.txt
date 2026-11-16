@@ -1,0 +1,1 @@
+uv run jupyter-notebook --no-browser --port=9886 --IdentityProvider.token=letmepass --notebook-dir="./notebooks/"

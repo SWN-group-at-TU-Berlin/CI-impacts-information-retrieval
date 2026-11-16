@@ -1,0 +1,70 @@
+name: Build and Testing
+
+on:
+  # Run CI on pushes to the develop branch and on pull requests to the main branch
+  push:
+    branches:
+    - dev
+    # Alternatives:
+    #  - "**" # matches every branch
+    #  - "!fix-**"  #  except main and branches for fixing bugs
+    #  - "!main"
+  pull_request:
+    branches:
+    - main
+
+# 3 jobs defined [actionlint [ie. debug ci.yml], build env, test coverage]
+jobs:
+  # 1. JOB: checks if workflow file is correctly formatted
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Download actionlint
+        id: get_actionlint
+        run: bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+        shell: bash  # process substitution <(...) requires bash
+      - name: Check workflow files
+        run: ${{ steps.get_actionlint.outputs.executable }} -color
+        shell: bash
+
+  # 2. JOB: install packages from pyproject.toml
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]  # only build for HPC env at the moment
+    runs-on: ${{ matrix.os }}
+    name: Runs on "${{ matrix.os }}"
+    # define steps of job "build"
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+    - name: Set up uv
+      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+      with:
+        enable-cache: true
+        cache-dependency-glob: "pyproject.toml"
+    - name: Set up Python, using version defined in pyproject.toml
+      uses: actions/setup-python@v7
+      with:
+        python-version-file: "pyproject.toml"
+    # test to install packages using uv
+    - name: Install packages via uv
+      run: uv sync
+
+  # 3. JOB: automated execution of tests
+  coverage:
+    name: Coverage Testing
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+    - name: Set up uv
+      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+      with:
+        enable-cache: true
+        cache-dependency-glob: "pyproject.toml"
+    - name: Run Python tests [pytest]
+      run: uv run pytest tests/

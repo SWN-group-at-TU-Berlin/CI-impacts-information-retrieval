@@ -1,0 +1,132 @@
+from unittest import TestCase
+from unittest.mock import patch
+
+import pandas as pd
+import pytest
+
+from src import document_cleaning as dc
+from src import postprocess as pp
+from src import utils
+from src.models import llm_translate as lm
+
+
+def test_extract_citation_info():
+    assert dc.extract_citation_info("Koks et al 2022 - Flood impacts") == (
+        "Koks ",
+        "2022",
+        " - Flood impacts",
+    )
+
+
+def test_remove_urls():
+    text = "Read https://example.com and www.example.org now."
+    assert dc.remove_urls(text) == "Read  and  now."
+
+
+def test_remove_references():
+    text = "Body text.\nReferences\nKoks et al. 2022"
+    assert dc.remove_references(text) == "Body text.\nReferences"
+
+
+def test_remove_figure_references():
+    assert dc.remove_figure_references("Roads were damaged (A1).") == ("Roads were damaged.")
+
+
+def test_clean_text_normalizes_whitespace_and_punctuation():
+    text = '  Some   text  , with spaces  .  " '
+    assert dc.clean_text(text) == 'Some text, with spaces."'
+
+
+def test_sentence_end():
+    assert dc.is_sentence_end("Finished.")
+    assert dc.is_sentence_end('Finished."')
+    assert not dc.is_sentence_end("Still ongoing")
+
+
+def test_combine_paragraphs():
+    assert dc.combine_paragraphs("First paragraph", "second paragraph") == ("First paragraph second paragraph")
+    assert dc.combine_paragraphs("First paragraph.", "Second paragraph") == ("First paragraph.\nSecond paragraph")
+
+
+def test_split_long_paragraph_returns_two_parts():
+    text = "First sentence. Second sentence. Third sentence. Fourth sentence."
+    first, second = lm.split_long_paragraph(text)
+
+    assert first == ["First sentence.", " Second sentence."]
+    assert second == [" Third sentence.", " Fourth sentence."]
+
+
+def test_group_ci_types_assigns_matching_subgroup():
+    patterns = pd.DataFrame(
+        [
+            {
+                "pattern": [{"TEXT": {"REGEX": r"road.*"}}],
+                "subgroup_name": "roads",
+            }
+        ]
+    )
+    data = pd.DataFrame({"asset": ["roads", "railway"]})
+    result = pp.group_ci_types(data, "asset", "group", patterns)
+    assert result["group"].iloc[0] == "roads"
+    assert pd.isna(result["group"].iloc[1])  # no matching CI pattern
+
+
+def test_metrics():
+    assert utils.calc_recall(8, 2) == pytest.approx(0.8)
+    assert utils.calc_precision(8, 2) == pytest.approx(0.8)
+    assert utils.calc_f1(0.8, 0.8) == pytest.approx(0.8)  # floating point: 2 * 0.64 / 1.6 = 0.8000000000000002
+
+
+## Unit test with a mock
+## NOTE: "Mocking is the solution when your unit test would call a service that’s outside of your domain." [Source: https://www.signadot.com/blog/why-developers-shouldnt-write-mocks-a-guide-to-modern-testing/]
+# Your mocked function (or mocked code in general) acts in a way that it simulates another service (e.g., an API) or some data, etc.
+# In other words, we use mocking when we want to replace a function/data etc. with a dummy representation of it.
+# For example, if we need an API call for a test function, then we dont want to call the API each time when we run the test.
+# For such a case, we mock the API call and provide a Dummy version of the API call
+
+
+def test_supports_flash_attention():
+    with patch(
+        "src.utils.torch.cuda.get_device_capability",
+        return_value=(8, 6),
+    ):
+        assert utils.supports_flash_attention(0)
+
+    with patch(
+        "src.utils.torch.cuda.get_device_capability",
+        return_value=(7, 5),
+    ):
+        assert not utils.supports_flash_attention(0)
+
+
+def test_doc_processing_html_cleans_and_saves(tmp_path):
+    meta_filepath = tmp_path / "text_sources_html.csv"
+    pd.DataFrame(
+        {
+            "Authors": ["Zeit"],
+            "Year": [2026],
+            "Title": ["Flood closes roads"],
+            "URL": ["https://example.com"],
+        }
+    ).to_csv(meta_filepath, index=False)
+    paragraphs = [
+        "The flood closed several roads",  # no sentence end -> merged with next piece
+        "near Berlin, e.g. the A1 highway https://example.com and the B5.",
+        "Short.",
+    ]
+    processor = dc.HtmlProcess(meta_filepath, output_dir=tmp_path / "html_parsed")
+    with patch.object(dc.HtmlProcess, "fetch_paragraphs", return_value=paragraphs):
+        docs = processor.process_all()
+
+    assert list(docs) == ["Zeit 2026 - Flood closes roads"]
+    assert (tmp_path / "html_parsed" / "Zeit 2026 - Flood closes roads_cleaned.md").exists()
+    texts = [item.text for item in docs["Zeit 2026 - Flood closes roads"].texts]
+    assert any(t.strip().startswith("The flood closed several roads near Berlin") and "eg the A1 highway" in t for t in texts)
+    assert not any("https" in t for t in texts)
+
+
+def test_doc_processing_html_requires_meta_columns(tmp_path):
+    meta_filepath = tmp_path / "meta.csv"
+    pd.DataFrame({"Title": ["x"]}).to_csv(meta_filepath, index=False)
+    with TestCase().assertRaises(AssertionError):
+        dc.HtmlProcess(meta_filepath, output_dir=tmp_path)

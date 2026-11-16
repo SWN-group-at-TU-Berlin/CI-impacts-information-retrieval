@@ -1,0 +1,3 @@
+[submodule "submodules/geollama"]
+	path = submodules/geollama
+	url = https://github.com/jshng-glasgow/geo-llama.git
