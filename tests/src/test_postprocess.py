@@ -109,7 +109,7 @@ def test_postprocess_locations_removes_the_in_and_passing_only_at_the_beginning(
                 "Sinzig (in North Rhine-Westphalia)",
                 "roads in Berlin",
                 "Bridge passing the Elbe",
-                "railway tracks between the A1 and B2",
+                "between the A1 and B2",
                 "Theale",
                 "Berlin",
             ]
