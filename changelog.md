@@ -41,15 +41,12 @@ First public release: a software project for extracting damage on critical infra
         * LLM-as-a-judge to recheck LLM1 response -->
 
 ### Changed
-- LLMs are severed by vLLM instead of being called through the Nvidia NIM API. The latter caused increasingly TimeOutErrors due to heavy API-usage. Running them requires
-- License changed from CC-BY-NC-ND to a stricter version AGPL v3 (i.e. commercial usage is only possible when modified version of this software is made open-source)
+- LLMs are severed by vLLM instead of being called through the Nvidia NIM API. The latter caused increasingly TimeOutErrors due to heavy API-usage. Running them requires GPU node (s) with at least 80 GB of memory
+- License changed from CC-BY-NC-ND to a stricter version AGPL v3 (i.e. modified versions, including those offered as a network service, must be published under the AGPL or GPL license)
 
 ### Removed
-- Standalone location-enrichment LLM (GeoLLM): it hallucinated coordinates taken from other entries and
-  could not geolocate areal features such as rivers or valleys
+- Standalone location-enrichment LLM (GeoLLM): it hallucinated coordinates taken from other entries and could not geolocate areal features such as rivers or valleys
 
-
-### Fixed
 
 
 [Unreleased]: https://github.com/SWN-group-at-TU-Berlin/CI-impacts-information-retrieval/compare/v0.1.0...HEAD
