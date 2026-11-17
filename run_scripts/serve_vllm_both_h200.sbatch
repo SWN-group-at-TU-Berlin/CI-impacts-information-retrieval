@@ -2,29 +2,22 @@
 # both vLLM servers + the Python workflow in ONE job on ONE H200 NVL 141 GB (everything runs on the compute node):
 #   LLM 1 (extraction): openai/gpt-oss-20b              on port 8000
 #   judge:              google/gemma-4-31B-it (FP8)     on port 8001
-#   workflow:           $SCRIPT (default notebooks/extract_ciimpacts.py), started once both servers are ready,
-#                       talks to the servers via http://localhost:<port>/v1 (no ssh tunnel needed)
-# usage (from the project root):
-#   VLLM_API_KEY=<key> sbatch run_scripts/serve_vllm_both_h200.sbatch
-#   VLLM_API_KEY=<key> SCRIPT=src/other_script.py sbatch run_scripts/serve_vllm_both_h200.sbatch
+#   workflow:           $SCRIPT (default examples/extract_ci_impacts.py), started once both servers are ready,
+#                       talks to the servers via http://localhost:<port>/v1
+# usage (from the project root, VLLM_API_KEY is read from .env):
+#   sbatch run_scripts/serve_vllm_both_h200.sbatch
+#   SCRIPT=<other_script.py> sbatch run_scripts/serve_vllm_both_h200.sbatch
 # NOTE memory split of the 141 GB (--gpu-memory-utilization = share of the total GPU memory per server):
-#      gpt-oss-20b  0.20 -> ~28 GB (MXFP4 weights ~14 GB + KV cache)
-#      gemma FP8    0.70 -> ~99 GB (FP8 weights ~32 GB + KV cache), ~14 GB stays free for CUDA contexts
-#      sum must stay < ~0.92, both servers share the same GPU
-# NOTE the servers start one after the other: vLLM checks the free GPU memory at startup,
-#      parallel startups on the same GPU can both fail
-# NOTE H200 (Hopper, sm_90) has native FP8 compute -> gemma FP8 checkpoint runs with FP8 kernels (no Marlin fallback)
-# NOTE no cuda module needed: vLLM/torch wheels bundle their own CUDA runtime (a module can even break the import)
-# NOTE needs vLLM >= 0.19.1 (Gemma 4)
+#      gpt-oss-20b  0.20 -> ~28 GB, gemma FP8 0.70 -> ~99 GB; the sum must stay < ~0.92 (shared GPU)
+# NOTE the servers start one after the other: parallel startups on the same GPU can both fail
 #SBATCH --job-name=ci-impacts-h200
-#SBATCH --partition=h200_short  #TestAndBuild  # check which partition hosts the H200 node: sinfo -o "%P %N %G"
+#SBATCH --partition=h200_short
 #SBATCH --account=swn
 #SBATCH --mail-user=anna.buch@tu-berlin.de
 #SBATCH --mail-type=END,FAIL
 #SBATCH --gres=gpu:h200:1
 #SBATCH --cpus-per-task=2
-# #SBATCH --mem=96G
-#SBATCH --time=00:30:00        # server startups (up to 2 x 30 min worst case) + the workflow; check the partition's max time
+#SBATCH --time=00:30:00
 #SBATCH --output=../logs/h200-%j.out
 #SBATCH --error=../logs/h200-%j.%N.err
 
@@ -54,7 +47,7 @@ GEMMA_REPO=${GEMMA_REPO:-RedHatAI/gemma-4-31B-it-FP8-dynamic}
 GEMMA_SERVED_NAME=${GEMMA_SERVED_NAME:-google/gemma-4-31B-it}   # = JUDGE_MODEL in src/settings.py
 GEMMA_MAX_LEN=${GEMMA_MAX_LEN:-16384}   # context length; lower if kv cache too small, then also decrease max_tokens in llm_judge
 
-export HF_HOME=${HF_HOME:-/beegfs/home/users/a/a-buch/_PROJECTS/huggingface_mirror}
+export HF_HOME=${HF_HOME:-$HOME/.cache/huggingface}   # set HF_HOME in .env to use another cache
 : "${VLLM_API_KEY:?set VLLM_API_KEY, same value as in the .env of the project}"
 [[ -f "$PROJECTROOT/$SCRIPT" ]] || { echo "ERROR: workflow script $PROJECTROOT/$SCRIPT not found"; exit 1; }
 

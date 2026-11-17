@@ -2,23 +2,16 @@
 # both vLLM servers + the Python workflow in ONE job on TWO A100 40 GB (one server per GPU, everything on the compute node):
 #   LLM 1 (extraction): openai/gpt-oss-20b              on port 8000, GPU 0
 #   judge:              google/gemma-4-31B-it (FP8)     on port 8001, GPU 1
-#   workflow:           $SCRIPT (default notebooks/extract_ciimpacts.py), started once both servers are ready,
-#                       talks to the servers via http://localhost:<port>/v1 (no ssh tunnel needed)
-# usage (from the project root):
-#   VLLM_API_KEY=<key> sbatch run_scripts/serve_vllm_both_2xa100.sbatch
-#   VLLM_API_KEY=<key> GEMMA_MAX_LEN=8192 sbatch run_scripts/serve_vllm_both_2xa100.sbatch          # less KV cache needed
-#   VLLM_API_KEY=<key> GEMMA_REPO=<4-bit repo> sbatch run_scripts/serve_vllm_both_2xa100.sbatch     # 4-bit judge
-#   VLLM_API_KEY=<key> SCRIPT=run_scripts/smoke_test_gptoss.py sbatch run_scripts/serve_vllm_both_2xa100.sbatch
-# NOTE memory per 40 GB GPU (--gpu-memory-utilization = share of the GPU memory for the server):
-#      gpt-oss-20b  0.85 -> ~34 GB (MXFP4 weights ~14 GB + KV cache), plenty
-#      gemma FP8    0.94 -> ~37.6 GB (FP8 weights ~32 GB) -> only a few GB KV cache left, check the
-#                   "GPU KV cache size" line printed below; if gemma does not start, lower GEMMA_MAX_LEN or use a 4-bit checkpoint
-# NOTE llm_judge max_tokens in extract_ciimpacts.py: prompt + max_tokens must be <= GEMMA_MAX_LEN, otherwise vLLM rejects the request
-# NOTE A100 (Ampere, sm_80) has no native FP8 compute -> FP8 and MXFP4 checkpoints run weight-only (Marlin kernels), slower than on H200
-# NOTE no cuda module needed: vLLM/torch wheels bundle their own CUDA runtime (a module can even break the import)
-# NOTE needs vLLM >= 0.19.1 (Gemma 4)
+#   workflow:           $SCRIPT (default examples/extract_ci_impacts.py), started once both servers are ready,
+#                       talks to the servers via http://localhost:<port>/v1
+# usage (from the project root, VLLM_API_KEY is read from .env):
+#   sbatch run_scripts/serve_vllm_both_2xa100.sbatch
+#   GEMMA_MEM=0.96 GEMMA_MAX_LEN=12288 GEMMA_EXTRA_ARGS='--enforce-eager --limit-mm-per-prompt {"image":0,"video":0}' sbatch run_scripts/serve_vllm_both_2xa100.sbatch
+# NOTE gemma FP8 weights (~32 GB) leave only a few GB KV cache on a 40 GB GPU, check the "GPU KV cache size" line in the log;
+#      if gemma does not start, lower GEMMA_MAX_LEN or use a 4-bit checkpoint (GEMMA_REPO=<4-bit repo>)
+# NOTE llm_judge max_tokens: prompt + max_tokens must be <= GEMMA_MAX_LEN, otherwise vLLM rejects the request
 #SBATCH --job-name=ci-impacts-a100
-#SBATCH --partition=gpu_short  # pick a partition with 2 A100 on one node: sinfo -o "%P %N %G"; check its max time
+#SBATCH --partition=gpu_short
 #SBATCH --account=swn
 #SBATCH --mail-user=anna.buch@tu-berlin.de
 #SBATCH --mail-type=END,FAIL
@@ -27,13 +20,6 @@
 #SBATCH --time=00:30:00        # server startups + the workflow
 #SBATCH --output=../logs/a100-%j.out
 #SBATCH --error=../logs/a100-%j.%N.err
-
-## #RUN
-# > VLLM_API_KEY=<key> GEMMA_MEM=0.96 GEMMA_MAX_LEN=12288 GEMMA_EXTRA_ARGS='--enforce-eager --limit-mm-per-prompt {"image":0,"video":0}' sbatch run_scripts/serve_vllm_both_2xa100.sbatch
-#     max_tokens=16384,  # the judge (reasoning model) needs tokens for reasoning + JSON answer; vLLM --max-model-len must be >= prompt + max_tokens
-# +    max_tokens=8000 # adapt in respect to GEMMA_MAX_LEN=12288, TODO try out to increase with lower batch size, for h200: 16384,  # the judge (reasoning model) needs tokens for reasoning + JSON answer; vLLM --max-model-len must be >= prompt + max_tokens
-#  +judge_batch_size = 5 # for a100: less request in parallel processed, default: 10
-
 
 set -euo pipefail
 
@@ -63,7 +49,7 @@ GEMMA_MAX_LEN=${GEMMA_MAX_LEN:-16384}   # context length; lower (e.g. 8192) if t
 # extra flags to save memory on GPU 1, e.g. "--enforce-eager --max-num-seqs 4" (no CUDA graphs, fewer parallel requests)
 GEMMA_EXTRA_ARGS=${GEMMA_EXTRA_ARGS:-}
 
-export HF_HOME=${HF_HOME:-/beegfs/home/users/a/a-buch/_PROJECTS/huggingface_mirror}
+export HF_HOME=${HF_HOME:-$HOME/.cache/huggingface}   # set HF_HOME in .env to use another cache
 : "${VLLM_API_KEY:?set VLLM_API_KEY, same value as in the .env of the project}"
 [[ -f "$PROJECTROOT/$SCRIPT" ]] || { echo "ERROR: workflow script $PROJECTROOT/$SCRIPT not found"; exit 1; }
 
