@@ -17,7 +17,7 @@
 #SBATCH --mail-type=END,FAIL
 #SBATCH --gres=gpu:a100:2
 #SBATCH --cpus-per-task=4    # 2 per GPU
-#SBATCH --time=00:30:00        # server startups + the workflow
+#SBATCH --time=01:00:00        # server startups + the workflow
 #SBATCH --output=../logs/a100-%j.out
 #SBATCH --error=../logs/a100-%j.%N.err
 

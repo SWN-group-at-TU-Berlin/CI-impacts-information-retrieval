@@ -13,14 +13,14 @@
 # NOTE the compute node needs internet access (PyPI, download.pytorch.org). If it has none, run the commands
 #      of the "install" section below on the login node instead (without the GPU check)
 #SBATCH --job-name=install-vllm
-#SBATCH --partition=h200_short   # any partition with a GPU of the type used for serving: sinfo -o "%P %N %G"
+#SBATCH --partition=gpu_short   # any partition with a GPU of the type used for serving: sinfo -o "%P %N %G"
 #SBATCH --account=swn
-#SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
-#SBATCH --time=00:45:00
-#SBATCH --output=../logs/%x-%j.out
-#SBATCH --error=../logs/%x-%j.%N.err
+#SBATCH --gres=gpu:a100:1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=32G         # for cpus
+#SBATCH --time=01:00:00
+#SBATCH --output=../logs/install-vllm-%x-%j.out
+#SBATCH --error=../logs/install-vllm-%x-%j.%N.err
 
 set -euo pipefail
 
@@ -42,27 +42,21 @@ command -v uv >/dev/null || { echo "ERROR: uv not found, install it first: curl 
 echo "uv: $(uv --version)"
 
 
-## install
-if [[ -d "$VLLM_ENV" ]]; then
-    if [[ "$REINSTALL" == 1 ]]; then
-        echo "removing existing venv $VLLM_ENV (REINSTALL=1)"
-        rm -rf "$VLLM_ENV"
-    else
-        echo "venv $VLLM_ENV exists, installing into it (set REINSTALL=1 for a clean venv)"
-    fi
-fi
-mkdir -p "$(dirname "$VLLM_ENV")"
-[[ -d "$VLLM_ENV" ]] || uv venv --python "$PYTHON_VERSION" --seed "$VLLM_ENV"
-
 # --torch-backend=auto: torch wheel matching the installed CUDA driver (see vLLM installation guide)
-uv pip install --python "$VLLM_ENV/bin/python" "vllm==$VLLM_VERSION" --torch-backend=auto
 
+# create empty venv and install vllm alongside suitable torch version
+uv venv --clear --python "$PYTHON_VERSION" --seed "$VLLM_ENV" # span empty venv, clear: remove potentially existing venv
 
-## check: same import check as in the serve scripts
 source "$VLLM_ENV/bin/activate"
-echo "vllm binary: $(command -v vllm)"
+uv pip install --python "$VLLM_ENV/bin/python" "vllm==$VLLM_VERSION" --torch-backend=auto
+echo "installed vllm with torch"
+
+
+## check: imported packages and dependencies - should match the GPU requirements for the extraction-pipeline
+# echo "vllm binary: $(command -v vllm)"
 rc=0
-timeout 300 python -c "import faulthandler, time; faulthandler.dump_traceback_later(240, exit=True); t=time.time(); import torch; print('torch', torch.__version__, 'cuda', torch.version.cuda, f'({time.time()-t:.0f}s)', flush=True); print('gpu:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '-', flush=True); import vllm; print('vllm', vllm.__version__, f'({time.time()-t:.0f}s)', flush=True)" || rc=$?
+timeout 300 python -c "import time; import vllm; print('vllm', vllm.__version__, f'({time.time()-t:.0f}s)', flush=True)" || rc=$?
+timeout 300 python -c "import time; import torch; print('torch', torch.__version__, 'cuda', torch.version.cuda, f'({time.time()-t:.0f}s)', flush=True); print('gpu:', torch.cuda.is_available(), torch.cuda.get_device_name(0), flush=True)" || rc=$?
 [[ $rc -eq 0 ]] || { echo "ERROR: import check failed, exit code $rc (124 = timeout)"; exit 1; }
 
-echo "done. Use it in the serve scripts with VLLM_ENV=$VLLM_ENV (default if unchanged)"
+echo "Done. Use it in the serve scripts with VLLM_ENV=$VLLM_ENV (default if unchanged)"
