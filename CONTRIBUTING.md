@@ -79,7 +79,35 @@ Development setup with docker
 Running the unit test suite
 ---------------------------
 
-<< ------- under development ------- >>
+```bash
+uv run pytest tests/
+```
+The tests use mocked LLMs and a mocked spaCy model, so they run without GPUs and model downloads (also in the GitHub Actions CI).
+
+
+Pre-commit hooks
+---------------------------
+
+In case you have not used `pre-commit` hooks before, please run following lines just once when you set up the project locally
+```bash
+uv run pre-commit install
+uv run pre-commit run --all-files
+```
+Every time you commit, the hooks are applied and help to maintain the quality of your code, e.g. by formatting and linting the code with `ruff` (remove whitespaces, consistent usage of quotes, sorted imports etc.).
+You can run these hooks also manually by executing `uv run pre-commit run --all-files`. Note: the first run will take a while as the hooks are installed and cached.
+
+The hook `extracted-features-doc` regenerates the tables in [docs/extracted_features.md](docs/extracted_features.md) when `src/models/schemas.py`, `src/postprocess.py` or the CI patterns change. If the doc was updated, the commit stops once: add the updated doc and commit again.
+
+
+<!-- Experimental: vector database (not part of the pipeline in this release)
+---------------------------
+
+We aim to test different multilingual embedding models based on the suggestions from [HuggingFace Embedding Leaderboard](https://huggingface.co/spaces/mteb/leaderboard). However, we apply first open-source, lightweight models, such as from Ollama, to setup the pipeline and for creating a benchmark.\
+To facilitate the generation and management of the embedding vectors stored in the postgres DB, along with the original text sources, we are making use of the [`pgai` package](https://github.com/timescale/pgai/tree/main/docs). Its implementation enables to use a postgres DB efficiently for Retrieval-Augmented Generation (RAG). However, `pgai` should be executed within a docker container. We create the database in the container by making use of the [timescale DB](https://hub.docker.com/r/timescale/timescaledb), an open-source database designed to make SQL scalable for large, (time-series) data and complex queries. \
+The creation of the database within the container and the creation of the embeddings by using a vectorizer (i.e., embedding model), is done by following the steps described [here](https://github.com/timescale/pgai/blob/main/docs/vectorizer/quick-start.md). Make sure to have at least 15GB of free disk space and of course you need to have Docker installed.\
+**Note**: Download the [pgai extension](https://github.com/timescale/pgai/tree/main/projects/extension) via `git clone` in your project folder, before you connect to the DB located in the docker container (see, step `docker compose exec -it db psql` mentioned [here](https://github.com/timescale/pgai/blob/main/docs/vectorizer/quick-start.md))
+-->
+
 
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""LangGraph workflow of LLM 1: nodes, routing and graph structure for the extraction of CI impacts.
+"""LangGraph workflow of LLM-extractor: nodes, routing and graph structure for the extraction of CI impacts.
 The graph is built for a LlmExtract (src/models/llm_extract.py) with build_graph(llm_extract).
 """
 
@@ -19,17 +19,17 @@ from src.models.prompts import *  # noqa: F403  prompts of the graph nodes
 from src.models.schemas import *  # noqa: F403  output schemas and GraphState
 from src.tools.ner import load_ci_patterns
 
-# LLM 1 used by the graph nodes, set by build_graph()
+# LLM-extractor used by the graph nodes, set by build_graph()
 _llm_extract = None
 
 
 def structured_llm(schema):
-    """LLM 1 with structured output (see LlmExtract.structured)"""
+    """LLM-extractor with structured output (see LlmExtract.structured)"""
     return _llm_extract.structured(schema)
 
 
 def llm_tool():
-    """LLM 1 with the bound NER tool (see LlmExtract.llm_tool)"""
+    """LLM-extractor with the bound NER tool (see LlmExtract.llm_tool)"""
     return _llm_extract.llm_tool
 
 
@@ -313,7 +313,7 @@ def route_cascading_impacts(state: GraphState):
 
 
 def build_graph(llm_extract):
-    """Build and compile the LangGraph workflow of LLM 1 for the given LlmExtract (src/models/llm_extract.py).
+    """Build and compile the LangGraph workflow of LLM-extractor for the given LlmExtract (src/models/llm_extract.py).
     The graph is also stored as llm_extract.graph, run it with llm_extract.extract(text).
 
     NOTE NIviDiA API LIMIT: dont do parallel specialist calls, or parallel nodes

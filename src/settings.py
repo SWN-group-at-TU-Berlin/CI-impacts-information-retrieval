@@ -45,9 +45,9 @@ class Settings(BaseSettings):
     HF_CACHE_DIR: Path | None = None  # None: default cache of Hugging Face
 
     # self-hosted LLMs served by vLLM (OpenAI-compatible API), see run_scripts/serve_vllm_*.sbatch
-    LLM1_BASE_URL: str = "http://localhost:8000/v1"
+    LLM_EXTRACTOR_BASE_URL: str = "http://localhost:8000/v1"
     JUDGE_BASE_URL: str = "http://localhost:8001/v1"
-    LLM1_MODEL: str = "openai/gpt-oss-20b"  # served model name, see `vllm serve --served-model-name`
+    LLM_EXTRACTOR_MODEL: str = "openai/gpt-oss-20b"  # served model name, see `vllm serve --served-model-name`
     JUDGE_MODEL: str = "google/gemma-4-31B-it"
     VLLM_API_KEY: str | None = None  # secret: set in .env, same key as `vllm serve --api-key`
 

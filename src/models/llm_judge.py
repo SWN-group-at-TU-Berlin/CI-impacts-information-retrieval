@@ -240,7 +240,7 @@ def format_judge_report(df_judged: pd.DataFrame, verdicts: str | tuple[str, ...]
 class LlmJudge:
     """LLM-as-a-judge (step 3): check each extracted record of a chunk on its plausibility, based ONLY on the chunk text.
     The judge can accept ("correct") or adapt ("adapted") a record, or mark it as "false" - records are never removed.
-    It uses the same field definitions (pydantic schemas of LLM 1), keyword lists (Literal) and NER entities as LLM 1.
+    It uses the same field definitions (pydantic schemas of LLM-extractor), keyword lists (Literal) and NER entities as LLM-extractor.
 
     field_schema: record column -> (pydantic model, field name) whose definition is given to the judge
     extra_rules: record column -> additional rules on top of the field definition
@@ -383,7 +383,7 @@ class LlmJudge:
         """Let the LLM judge each record of df_records against chunk_text (in batches of batch_size records).
         Returns df_records (same rows) with adapted values and the judge columns, see JUDGE_COLUMNS.
         """
-        # same NER tool as for LLM 1, as guidance for infrastructure_type and secondary_infrastructure_asset
+        # same NER tool as for LLM-extractor, as guidance for infrastructure_type and secondary_infrastructure_asset
         ner_entities = self.ner_fn(chunk_text) or []
 
         df_batches_judged = []
