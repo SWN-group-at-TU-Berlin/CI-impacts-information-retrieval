@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""NER model (spaCy pipeline + CI patterns) and the NER tools of LLM 1 and the LLM-as-a-judge"""
+"""NER model (spaCy pipeline + CI patterns) and the NER tools of LLM-extractor and the LLM-as-a-judge"""
 
 __author__ = "Anna Buch, TU Berlin"
 __email__ = "anna.buch@tu-berlin.de"

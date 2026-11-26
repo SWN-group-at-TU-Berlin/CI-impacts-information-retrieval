@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Prompts of LLM 1 (CI impact extraction, LangGraph nodes in src/models/graph.py) and of the LLM-as-a-judge (judge_prompt, JUDGE_EXTRA_RULES).
+"""Prompts of LLM-extractor (CI impact extraction, LangGraph nodes in src/models/graph.py) and of the LLM-as-a-judge (judge_prompt, JUDGE_EXTRA_RULES).
 The prompts are ChatPromptTemplates (not e.g. json) as parts of them are generated, e.g. the damage categories (pp.describe_damage_categories())
 """
 
@@ -781,7 +781,7 @@ CI_DAMAGES: {ci_damages}
     ]
 )
 
-# location rules: the same "IMPORTANT" points about locations as in the prompt of LLM 1 (asset_information_prompt)
+# location rules: the same "IMPORTANT" points about locations as in the prompt of LLM-extractor (asset_information_prompt)
 location_rules = [
     line.strip()
     for line in asset_information_prompt.messages[0].prompt.template.split("Example Input")[0].split("\n")
@@ -792,7 +792,7 @@ assert location_rules, "no location rules found in asset_information_prompt"
 # additional rules per field, on top of the field definition of the schema
 JUDGE_EXTRA_RULES = {
     "infrastructure_type": [
-        "Use the INFRASTRUCTURE ENTITIES DETECTED BY NER as guidance and keep their phrasing, as LLM 1 had to.",
+        "Use the INFRASTRUCTURE ENTITIES DETECTED BY NER as guidance and keep their phrasing, as LLM-extractor had to.",
         "Adapt it only if the TEXT does not support it; then use the phrasing of the matching NER entity or of the TEXT. Never invent infrastructure.",
         "Do not add articles, quantifiers or numbers (e.g. 'the', 'several', 'two') from the NER entities; numbers belong to infrastructure_amount.",
     ],
@@ -824,7 +824,7 @@ JUDGE_EXTRA_RULES = {
     "environmental_impact_amount": ["Preserve the original wording of the TEXT. Do not calculate or infer values."],
     "secondary_infrastructure_asset": [
         "Must be a different infrastructure than infrastructure_type, affected as a consequence of the damage of infrastructure_type.",
-        "Use the INFRASTRUCTURE ENTITIES DETECTED BY NER as guidance and keep their phrasing, as LLM 1 had to. Never invent infrastructure.",
+        "Use the INFRASTRUCTURE ENTITIES DETECTED BY NER as guidance and keep their phrasing, as LLM-extractor had to. Never invent infrastructure.",
     ],
 }
 
@@ -835,8 +835,8 @@ judge_prompt = ChatPromptTemplate.from_messages(
             "system",
             """You are a strict fact-checker (LLM-as-a-judge) for information about impacts of natural hazards on critical infrastructure.
 
-You get a TEXT, the INFRASTRUCTURE ENTITIES DETECTED BY NER in this TEXT, and a list of RECORDS that another model (LLM 1) extracted from this TEXT.
-Check each record against the TEXT and the FIELD RULES below. LLM 1 had to follow the same FIELD RULES.
+You get a TEXT, the INFRASTRUCTURE ENTITIES DETECTED BY NER in this TEXT, and a list of RECORDS that another model (LLM-extractor) extracted from this TEXT.
+Check each record against the TEXT and the FIELD RULES below. LLM-extractor had to follow the same FIELD RULES.
 
 Rules:
 - Use ONLY the TEXT. Do not use background knowledge, do not infer, do not guess, and do not add information that is not explicitly stated in the TEXT.

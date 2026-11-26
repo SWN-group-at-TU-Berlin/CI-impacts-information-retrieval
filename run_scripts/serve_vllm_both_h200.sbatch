@@ -1,6 +1,6 @@
 #!/bin/bash
 # both vLLM servers + the Python workflow in ONE job on ONE H200 NVL 141 GB (everything runs on the compute node):
-#   LLM 1 (extraction): openai/gpt-oss-20b              on port 8000
+#   LLM-extractor (extraction): openai/gpt-oss-20b              on port 8000
 #   judge:              google/gemma-4-31B-it (FP8)     on port 8001
 #   workflow:           $SCRIPT (default examples/extract_ci_impacts.py), started once both servers are ready,
 #                       talks to the servers via http://localhost:<port>/v1
@@ -141,11 +141,11 @@ cd "$PROJECTROOT"
 
 # the workflow runs on this node -> reach the servers via localhost
 # (exported after sourcing .env, so these values win; settings.py must read them from the environment)
-export LLM1_BASE_URL="http://localhost:$GPTOSS_PORT/v1"
+export LLM_EXTRACTOR_BASE_URL="http://localhost:$GPTOSS_PORT/v1"
 export JUDGE_BASE_URL="http://localhost:$GEMMA_PORT/v1"
-echo "LLM1_BASE_URL=$LLM1_BASE_URL  JUDGE_BASE_URL=$JUDGE_BASE_URL"
+echo "LLM_EXTRACTOR_BASE_URL=$LLM_EXTRACTOR_BASE_URL  JUDGE_BASE_URL=$JUDGE_BASE_URL"
 
-# export LLM1_BASE_URL="http://$NODE:$GPTOSS_PORT/v1"
+# export LLM_EXTRACTOR_BASE_URL="http://$NODE:$GPTOSS_PORT/v1"
 # export JUDGE_BASE_URL="http://$NODE:$GEMMA_PORT/v1"
 rc=0
 # "$PYTHON_ENV/bin/python" "$SCRIPT" || rc=$?   # alternative: uv run --no-sync python "$SCRIPT"

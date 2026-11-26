@@ -3,7 +3,7 @@
 # - Relative paths are resolved from the project root (the folder with pyproject.toml), absolute paths are used as they are.
 #   "~" is expanded to the home directory.
 # - Every entry can be overwritten by an environment variable or an entry in the .env file of the project root
-#   with the same name, e.g. `LLM1_BASE_URL=http://gpu-node-07:8000/v1`.
+#   with the same name, e.g. `LLM_EXTRACTOR_BASE_URL=http://gpu-node-07:8000/v1`.
 # - Secrets (VLLM_API_KEY, HUGGINGFACE_TOKEN) do not belong here, set them in .env (see .env_example).
 # - To use another config file, set the environment variable CI_IMPACTS_CONFIG=<path to yaml file>.
 
@@ -28,7 +28,7 @@ HF_CACHE_DIR: null
 
 # --- LLMs served by vLLM (OpenAI-compatible API), see run_scripts/serve_vllm_*.sbatch ------------------------------
 # the pipeline runs on the same GPU node as the servers (localhost)
-LLM1_BASE_URL: http://localhost:8000/v1   # LLM 1 (extraction)
+LLM_EXTRACTOR_BASE_URL: http://localhost:8000/v1   # LLM-extractor (extraction)
 JUDGE_BASE_URL: http://localhost:8001/v1  # LLM-as-a-judge
-LLM1_MODEL: openai/gpt-oss-20b            # served model name, see `vllm serve --served-model-name`
+LLM_EXTRACTOR_MODEL: openai/gpt-oss-20b            # served model name, see `vllm serve --served-model-name`
 JUDGE_MODEL: google/gemma-4-31B-it        # served model name, see `vllm serve --served-model-name`

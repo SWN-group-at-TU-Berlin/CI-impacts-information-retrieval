@@ -198,7 +198,7 @@ def is_ci_entity(ci_entity: pd.Series, regex_pattern: str) -> pd.Series:
 
 
 def postprocess_response(df: pd.DataFrame, ci_patterns: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Postprocess the records of LLM 1 (one row per infrastructure case): group the CI types into subgroups and clean the locations.
+    """Postprocess the records of LLM-extractor (one row per infrastructure case): group the CI types into subgroups and clean the locations.
     Returns the records about CI and the records whose infrastructure type matches no CI type (e.g. theatres, stadiums).
     """
     df = df.copy()
