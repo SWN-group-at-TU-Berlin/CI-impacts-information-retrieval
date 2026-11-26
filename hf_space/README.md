@@ -38,5 +38,8 @@ next month (no bill).
 | `HF_TOKEN` | secret | – | token of the owner, only used with `ALLOW_SPACE_TOKEN=1` |
 | `LLM_EXTRACTOR_BASE_URL`, `JUDGE_BASE_URL`, `VLLM_API_KEY` | secrets | HF router | use your own vLLM servers instead of Inference Providers |
 | `MAX_PDF_PAGES`, `MAX_CHUNKS` | variables | `15`, `30` | limits per run |
+| `GPU_DURATION` | variable | `120` | ZeroGPU: max. seconds of GPU time per run for document cleaning, translation and NER |
 
-Hardware: the free *CPU basic* hardware is enough. The LLMs run elsewhere; the Space only runs OCR, NER and translation.
+Hardware: **ZeroGPU** or *CPU basic*. The LLMs run elsewhere, so the Space only runs OCR, translation and NER. On ZeroGPU
+these run in `prepare_chunks()` (decorated with `@spaces.GPU`) on a GPU, which counts against the visitor's daily ZeroGPU quota.
+The LLM calls run outside it, so waiting for the API uses no GPU time.

@@ -27,6 +27,19 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 os.environ.setdefault("CI_IMPACTS_CONFIG", str(PROJECT_ROOT / "configs" / "config_space.yaml"))
 
+# ZeroGPU: `spaces` must be imported before torch / CUDA are initialized. Only the functions decorated with
+# @spaces.GPU get a GPU (for a limited time per call); everything else, incl. the LLM API calls, runs on CPU.
+# On CPU hardware and locally the decorator does nothing.
+try:
+    import spaces
+except ImportError:  # local run without the `spaces` package
+    spaces = None
+
+
+def gpu(duration: int):
+    return spaces.GPU(duration=duration) if spaces is not None else (lambda fn: fn)
+
+
 import gradio as gr  # noqa: E402
 import pandas as pd  # noqa: E402
 
@@ -40,6 +53,7 @@ HF_ROUTER = "router.huggingface.co"
 
 MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "15"))
 MAX_CHUNKS = int(os.getenv("MAX_CHUNKS", "30"))  # upper limit of the slider: chunks sent to the LLMs per run
+GPU_DURATION = int(os.getenv("GPU_DURATION", "120"))  # ZeroGPU: max. seconds of GPU time for document cleaning + NER per run
 # True: anonymous visitors use the Space secret HF_TOKEN (billed to the Space owner). Always True when run locally.
 ALLOW_SPACE_TOKEN = os.getenv("ALLOW_SPACE_TOKEN", "0") == "1" or "SPACE_ID" not in os.environ
 
@@ -168,25 +182,52 @@ def text_to_document(text: str, name: str, output_dir: Path):
     return processor.save(name, paragraphs, ["Text"] * len(paragraphs)), language
 
 
-def pdf_to_document(pdf_path: str, output_dir: Path):
-    """Cleaned DoclingDocument of an uploaded PDF (OCR with Docling), its name '<authors> <year> - <title>' and language"""
+def check_pdf(pdf_path: str) -> None:
     import pypdfium2
-
-    import src.document_cleaning as dc
 
     n_pages = len(pypdfium2.PdfDocument(pdf_path))
     if n_pages > MAX_PDF_PAGES:
         raise gr.Error(f"The PDF has {n_pages} pages, the demo processes at most {MAX_PDF_PAGES}.")
+
+
+def pdf_to_document(pdf_path: str, output_dir: Path):
+    """Cleaned DoclingDocument of an uploaded PDF (OCR with Docling), its name '<authors> <year> - <title>' and language"""
+    import src.document_cleaning as dc
+
     stem = Path(pdf_path).stem
     # the citation is taken from the file name "<authors> <year> - <title>", see dc.extract_citation_info
     if not re.search(r"\d{4}", stem):
         stem = f"Upload {date.today().year} - {stem}"
     filepath = output_dir / f"{stem}.pdf"
     shutil.copy(pdf_path, filepath)
-    ensure_docling_models()
     processor = dc.PdfProcess(output_dir=output_dir, overwrite=True)
     _, _, title = dc.extract_citation_info(stem)
     return processor.process(filepath), stem, processor.detect_language(title)
+
+
+@gpu(duration=GPU_DURATION)
+def prepare_chunks(text: str, pdf_file: str | None, workdir: str) -> dict:
+    """Document cleaning (OCR, translation) -> chunking -> NER pre-filter. On ZeroGPU this step runs on a GPU.
+    Returns only plain data (no DoclingDocument), as ZeroGPU passes the result from the GPU worker back to the app.
+    """
+    import src.pipeline as pl
+    from src.tools.ner import get_infrastructure_entities
+
+    if pdf_file is not None:
+        doclingdoc, name, language = pdf_to_document(pdf_file, Path(workdir))
+        source_type = "pdf"
+    else:
+        name = f"Text {date.today().year} - pasted text"
+        doclingdoc, language = text_to_document(text, name, Path(workdir))
+        source_type = "text"
+    citation = pl.get_citation(name)
+
+    chunk_meta = []
+    for chunk_no, chunk in enumerate(get_chunker().chunk(dl_doc=doclingdoc)):
+        chunk_text = pl.prepare_chunk_text(chunk.text)
+        entities = get_infrastructure_entities.invoke({"text": chunk_text}) or []
+        chunk_meta.append({"citation_id": citation, "chunk_id": chunk_no, "text": chunk_text, "ner_entities": entities, "passed_ner": bool(entities)})
+    return {"name": name, "citation": citation, "language": language, "source_type": source_type, "chunks": chunk_meta}
 
 
 # --- Pipeline run --------------------------------------------------------------------------------------------------
@@ -195,7 +236,6 @@ def pdf_to_document(pdf_path: str, output_dir: Path):
 def run_pipeline(text: str, pdf_file, use_judge: bool, max_chunks: int, oauth_token: gr.OAuthToken | None = None):
     """Generator for the UI: yields (log, records table, db file, csv file, table names)"""
     import src.pipeline as pl
-    from src.tools.ner import get_infrastructure_entities
 
     log = []
 
@@ -212,27 +252,18 @@ def run_pipeline(text: str, pdf_file, use_judge: bool, max_chunks: int, oauth_to
     workdir = Path(tempfile.mkdtemp(prefix="ci_impacts_"))
     started_at, time0 = time.strftime("%Y-%m-%dT%H:%M:%S"), time.time()
 
-    # 1. document cleaning
+    # 1. document cleaning, 2. chunking, 3. NER pre-filter (on the GPU on ZeroGPU)
     if pdf_file is not None:
-        log.append(f"- Processing PDF `{Path(pdf_file).name}` (OCR, can take a few minutes) …")
-        yield update()
-        doclingdoc, name, language = pdf_to_document(pdf_file, workdir)
-        source_type = "pdf"
+        check_pdf(pdf_file)
+        ensure_docling_models()  # download on CPU, before the GPU time starts
+        log.append(f"- Processing PDF `{Path(pdf_file).name}` (OCR, translation, NER; can take a few minutes) …")
     else:
-        name = f"Text {date.today().year} - pasted text"
-        log.append("- Cleaning the text …")
-        yield update()
-        doclingdoc, language = text_to_document(text, name, workdir)
-        source_type = "text"
-    citation = pl.get_citation(name)
+        log.append("- Cleaning the text (translation, NER) …")
+    yield update()
+    prepared = prepare_chunks(text, pdf_file, str(workdir))
+    name, citation, language, source_type = prepared["name"], prepared["citation"], prepared["language"], prepared["source_type"]
+    chunks, chunk_meta = [c["text"] for c in prepared["chunks"]], prepared["chunks"]
     log.append(f"- Document `{citation}`, language `{language}`" + (" (translated to English)" if language != "en" else ""))
-
-    # 2. chunking + 3. NER pre-filter
-    chunks = [pl.prepare_chunk_text(c.text) for c in get_chunker().chunk(dl_doc=doclingdoc)]
-    chunk_meta = []
-    for chunk_no, chunk_text in enumerate(chunks):
-        entities = get_infrastructure_entities.invoke({"text": chunk_text}) or []
-        chunk_meta.append({"citation_id": citation, "chunk_id": chunk_no, "text": chunk_text, "ner_entities": entities, "passed_ner": bool(entities)})
     to_llm = [c for c in chunk_meta if c["passed_ner"]][: int(max_chunks)]
     log.append(f"- {len(chunks)} chunks, {sum(c['passed_ner'] for c in chunk_meta)} mention infrastructure, {len(to_llm)} are sent to the LLMs")
     yield update()

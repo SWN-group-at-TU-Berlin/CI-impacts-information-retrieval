@@ -1,8 +1,8 @@
-# CPU-only dependencies of the web demo (hf_space/app.py) on a Hugging Face Space.
+# Dependencies of the web demo (hf_space/app.py) on a Hugging Face Space (ZeroGPU or CPU hardware).
 #
-# Not the project's pyproject.toml: the LLMs are not served on the Space, so vLLM, flash-attn, deepspeed, CUDA torch etc.
-# are not needed. A Gradio Space installs only a requirements.txt, which .github/workflows/deploy_space.yml generates
-# from this file:
+# Not the project's pyproject.toml: the LLMs are not served on the Space, so vLLM, flash-attn, deepspeed etc. are not needed.
+# torch comes from PyPI (not the +cpu build): ZeroGPU only accepts its supported torch versions (2.8.0 is one of them).
+# A Gradio Space installs only a requirements.txt, which .github/workflows/deploy_space.yml generates from this file:
 #   uv pip compile hf_space/pyproject.toml -o requirements.txt
 #
 # local test environment of the Space:
@@ -17,6 +17,7 @@ license = "AGPL-3.0-or-later"
 dependencies = [
     # web app
     "gradio[oauth]==6.17.3",
+    "spaces",  # ZeroGPU decorator @spaces.GPU, does nothing on CPU hardware
     "huggingface-hub>=0.36",
     # document cleaning (PDF OCR, language detection, translation to English)
     "docling>=2.34.0",
@@ -48,12 +49,3 @@ dependencies = [
     "pydantic-settings[yaml]>=2.11.0",
     "python-dotenv>=1.2.3",
 ]
-
-# CPU wheels of torch (the CUDA wheels of PyPI are ~2 GB larger and useless on a CPU Space)
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
-
-[tool.uv.sources]
-torch = { index = "pytorch-cpu" }
