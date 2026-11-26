@@ -2,8 +2,9 @@
 #
 # Not the project's pyproject.toml: the LLMs are not served on the Space, so vLLM, flash-attn, deepspeed etc. are not needed.
 # torch comes from PyPI (not the +cpu build): ZeroGPU only accepts its supported torch versions (2.8.0 is one of them).
-# A Gradio Space installs only a requirements.txt, which .github/workflows/deploy_space.yml generates from this file:
-#   uv pip compile hf_space/pyproject.toml -o requirements.txt
+# A Gradio Space installs only a requirements.txt, which .github/workflows/deploy_space.yml generates from this file
+# (direct dependencies without gradio and spaces, which the Space build installs itself):
+#   python hf_space/make_requirements.py > requirements.txt
 #
 # local test environment of the Space:
 #   uv venv .venv-space --python 3.12 && uv pip install --python .venv-space -r hf_space/pyproject.toml

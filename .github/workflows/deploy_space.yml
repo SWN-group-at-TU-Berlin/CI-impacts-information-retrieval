@@ -27,8 +27,9 @@ jobs:
         mkdir -p space_repo/docs && cp docs/extracted_features.md space_repo/docs/
         # README with the Space config (frontmatter) and requirements.txt must be at the root of the Space repository
         cp hf_space/README.md space_repo/README.md
-        uv pip compile hf_space/pyproject.toml --python-version 3.12 --python-platform x86_64-manylinux_2_28 --no-header \
-          -o space_repo/requirements.txt
+        # direct dependencies only, without gradio/spaces: the Space build installs these itself with its own pins
+        python3 hf_space/make_requirements.py > space_repo/requirements.txt
+        cat space_repo/requirements.txt
         find space_repo -name "__pycache__" -prune -exec rm -rf {} +
     - name: Upload to the Space
       shell: bash
