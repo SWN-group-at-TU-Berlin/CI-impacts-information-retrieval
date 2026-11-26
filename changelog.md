@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 
 ## [Unreleased]
+### Changed
+- "LLM 1" is now called **LLM-extractor** (docs, docstrings, log messages and the judge prompt)
+- **Breaking:** the settings `LLM1_BASE_URL` and `LLM1_MODEL` are renamed to `LLM_EXTRACTOR_BASE_URL` and `LLM_EXTRACTOR_MODEL`;
+  rename them in your `.env` / own config files
+- README split into `docs/` (installation, configuration, extracted features, troubleshooting); the feature tables
+  in `docs/extracted_features.md` are generated from the extraction schemas (`docs/generate_extracted_features.py`)
+
 <!-- ### Added -->
 <!-- - Re-implement developed postgres database for document storage and RAG -->
 
