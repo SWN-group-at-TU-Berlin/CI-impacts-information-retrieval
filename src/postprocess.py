@@ -119,8 +119,7 @@ def describe_damage_categories() -> str:
 
 
 def map_damage_to_category(damage):
-    """Map a detailed damage keyword (or several, separated by ',', ';' or ' or ') to its general damage category,
-    e.g. "severely damaged" -> "structural_damage". Several keywords give the most severe category.
+    """Map a detailed damage keyword to its general damage category, e.g. "severely damaged" -> "structural_damage".
     Values that are already a category are returned unchanged, unknown values and NaN give None.
     """
     if damage is None or (isinstance(damage, float) and pd.isna(damage)):
@@ -128,13 +127,7 @@ def map_damage_to_category(damage):
     damage = str(damage).strip().lower()
     if damage in DAMAGE_CATEGORIES:
         return damage
-
-    # TODO FIXME not most severe category should be returned but rather the one that occurs most often, adapt also asset_information_prompt
-    parts = [p.strip() for p in re.split(r",|;|\bor\b|\band\b", damage) if p.strip()]
-    categories = {_DAMAGE_KEYWORD_TO_CATEGORY.get(p, p if p in DAMAGE_CATEGORIES else None) for p in parts} - {None}
-    if not categories:
-        return None
-    return min(categories, key=list(DAMAGE_CATEGORIES).index)  # most severe
+    return _DAMAGE_KEYWORD_TO_CATEGORY.get(damage)
 
 
 def keep_ci_types(ci_list: list, ci_patterns) -> list:
