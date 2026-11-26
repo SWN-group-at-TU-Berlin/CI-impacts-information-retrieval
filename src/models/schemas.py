@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Output schemas (pydantic) of LLM 1 (CI impact extraction), the state of the LangGraph workflow, and the mapping of
+"""Output schemas (pydantic) of LLM-extractor (CI impact extraction), the state of the LangGraph workflow, and the mapping of
 the record columns to these schemas for the LLM-as-a-judge (JUDGE_FIELD_SCHEMA)
 """
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""LLM 1: extraction of CI impacts from text chunks with a LangGraph workflow (gpt-oss, served by vLLM, see LlmExtract),
+"""LLM-extractor: extraction of CI impacts from text chunks with a LangGraph workflow (gpt-oss, served by vLLM, see LlmExtract),
 the conversion of the graph results into records (impacts_to_dataframe), and the former HF decoder model (DecoderModelCaching)
 """
 
@@ -21,14 +21,14 @@ class LengthLimitError(RuntimeError):
 
 
 class LlmExtract:
-    """LLM 1 (e.g. gpt-oss served by vLLM, see scripts/serve_vllm_gptoss.sbatch) for the extraction of CI impacts.
+    """LLM-extractor (e.g. gpt-oss served by vLLM, see scripts/serve_vllm_gptoss.sbatch) for the extraction of CI impacts.
 
     Holds the chat model, the model with bound tools (NER tool) and the compiled LangGraph workflow.
     The graph nodes, prompts and output schemas are defined in the workflow (notebooks/extract_ciimpacts.py)
     and use .structured(schema) and .llm_tool of this class.
 
     usage:
-        llm_extract = LlmExtract(s.LLM1_MODEL, s.LLM1_BASE_URL, s.VLLM_API_KEY, tools=[get_infrastructure_entities])
+        llm_extract = LlmExtract(s.LLM_EXTRACTOR_MODEL, s.LLM_EXTRACTOR_BASE_URL, s.VLLM_API_KEY, tools=[get_infrastructure_entities])
         ...  # define graph nodes with llm_extract.structured(schema) / llm_extract.llm_tool
         llm_extract.compile(builder)
         result = llm_extract.extract(chunk_text)
@@ -140,7 +140,7 @@ class LlmExtract:
             print(self.structured(schema).invoke(messages))
 
 
-##########################  LLM 1 response -> records (one row per infrastructure case)
+##########################  LLM-extractor response -> records (one row per infrastructure case)
 
 
 def normalize_asset(asset):
