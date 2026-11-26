@@ -1,0 +1,59 @@
+# CPU-only dependencies of the web demo (hf_space/app.py) on a Hugging Face Space.
+#
+# Not the project's pyproject.toml: the LLMs are not served on the Space, so vLLM, flash-attn, deepspeed, CUDA torch etc.
+# are not needed. A Gradio Space installs only a requirements.txt, which .github/workflows/deploy_space.yml generates
+# from this file:
+#   uv pip compile hf_space/pyproject.toml -o requirements.txt
+#
+# local test environment of the Space:
+#   uv venv .venv-space --python 3.12 && uv pip install --python .venv-space -r hf_space/pyproject.toml
+
+[project]
+name = "ci-impacts-space"
+version = "0.2.0"
+description = "Web demo (Hugging Face Space) of the CI impact extraction pipeline"
+requires-python = "==3.12.*"
+license = "AGPL-3.0-or-later"
+dependencies = [
+    # web app
+    "gradio[oauth]==6.17.3",
+    "huggingface-hub>=0.36",
+    # document cleaning (PDF OCR, language detection, translation to English)
+    "docling>=2.34.0",
+    "docling-core[chunking]>=2.75.0",
+    "easyocr>=1.7.2",
+    "pypdfium2>=4.30",
+    "haystack-ai>=2.30.0",
+    "lxml",
+    "nltk>=3.9.4",
+    "lingua-language-detector>=2.2.0",
+    "langdetect>=1.0.9",
+    "urllib3>=2.7.0",
+    "torch==2.8.0",
+    "transformers==4.57.1",
+    "sentencepiece>=0.2.1",
+    "sacremoses>=0.1.1",
+    # NER pre-filter
+    "spacy>=3.8.11,<3.9",
+    "spacy-curated-transformers>=0.3.1",
+    "en_core_web_trf @ https://github.com/explosion/spacy-models/releases/download/en_core_web_trf-3.8.0/en_core_web_trf-3.8.0-py3-none-any.whl",
+    # LLM-extractor and LLM-as-a-judge (OpenAI-compatible API)
+    "langchain-core>=1.0",
+    "langchain-openai>=1.1.9",
+    "langgraph>=1.0",
+    "openai",
+    # settings, data
+    "pandas>=3.0.2",
+    "pydantic>=2.0",
+    "pydantic-settings[yaml]>=2.11.0",
+    "python-dotenv>=1.2.3",
+]
+
+# CPU wheels of torch (the CUDA wheels of PyPI are ~2 GB larger and useless on a CPU Space)
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }

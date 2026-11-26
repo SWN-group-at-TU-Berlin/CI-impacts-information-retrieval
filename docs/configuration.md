@@ -59,3 +59,22 @@ At the top of [`examples/extract_ci_impacts.py`](../examples/extract_ci_impacts.
 |---|---|---|
 | `SAMPLE_DOCUMENTS` | `None` | `None`: all documents, or a list of document names, e.g. `["Koks 2022 - Brief communication"]` |
 | `PROCESS_HTML` | `False` | `True`: also fetch and clean the web pages of `text_sources_html.csv` |
+
+## Web demo (Hugging Face Space)
+The web demo [`hf_space/app.py`](../hf_space/app.py) reads [`configs/config_space.yaml`](../configs/config_space.yaml)
+(selected via `CI_IMPACTS_CONFIG`): temporary paths under `/tmp/ci_impacts/` and the LLMs via Hugging Face Inference Providers
+(`https://router.huggingface.co/v1`). The Space variables and secrets are listed in [`hf_space/README.md`](../hf_space/README.md):
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `LLM_EXTRACTOR_MODEL`, `JUDGE_MODEL` | `openai/gpt-oss-20b`, `google/gemma-4-31B-it` | models on Inference Providers |
+| `ALLOW_SPACE_TOKEN` | `0` | `1`: visitors who are not signed in use the Space secret `HF_TOKEN` (billed to the Space owner) |
+| `MAX_PDF_PAGES`, `MAX_CHUNKS` | `15`, `30` | limits per run |
+| `LLM_EXTRACTOR_BASE_URL`, `JUDGE_BASE_URL`, `VLLM_API_KEY` | HF router | own vLLM servers instead of Inference Providers |
+
+Local run (uses the environment variable `HF_TOKEN` if you are not logged in with `hf auth login`):
+```bash
+HF_TOKEN=<your token> uv run --with "gradio[oauth]" python hf_space/app.py
+```
+Deployment: push to the branch `hf-space` runs [`.github/workflows/deploy_space.yml`](../.github/workflows/deploy_space.yml)
+(repository secret `HF_DEPLOY_TOKEN`, repository variable `HF_SPACE_ID`).

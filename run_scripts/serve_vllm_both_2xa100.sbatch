@@ -6,7 +6,7 @@
 #                       talks to the servers via http://localhost:<port>/v1
 # usage (from the project root, VLLM_API_KEY is read from .env):
 #   sbatch run_scripts/serve_vllm_both_2xa100.sbatch
-#   GEMMA_MEM=0.96 GEMMA_MAX_LEN=12288 GEMMA_EXTRA_ARGS='--enforce-eager --limit-mm-per-prompt {"image":0,"video":0}' sbatch run_scripts/serve_vllm_both_2xa100.sbatch
+#   GEMMA_MAX_LEN=12288 GEMMA_ENFORCE_EAGER=0 GEMMA_MAX_NUM_SEQS=8 sbatch run_scripts/serve_vllm_both_2xa100.sbatch
 # NOTE gemma FP8 weights (~32 GB) leave only a few GB KV cache on a 40 GB GPU, check the "GPU KV cache size" line in the log;
 #      if gemma does not start, lower GEMMA_MAX_LEN or use a 4-bit checkpoint (GEMMA_REPO=<4-bit repo>)
 # NOTE llm_judge max_tokens: prompt + max_tokens must be <= GEMMA_MAX_LEN, otherwise vLLM rejects the request
@@ -42,12 +42,21 @@ set +a
 GPTOSS_PORT=${GPTOSS_PORT:-8000}
 GEMMA_PORT=${GEMMA_PORT:-8001}
 GPTOSS_MEM=${GPTOSS_MEM:-0.85}  # gpt-oss alone on GPU 0
-GEMMA_MEM=${GEMMA_MEM:-0.94}    # gemma alone on GPU 1, as much as possible for the KV cache
+GEMMA_MEM=${GEMMA_MEM:-0.97}    # gemma alone on GPU 1, as much as possible for the KV cache
 GEMMA_REPO=${GEMMA_REPO:-RedHatAI/gemma-4-31B-it-FP8-dynamic}
 GEMMA_SERVED_NAME=${GEMMA_SERVED_NAME:-google/gemma-4-31B-it}   # = JUDGE_MODEL in src/settings.py, keep it when GEMMA_REPO changes
-GEMMA_MAX_LEN=${GEMMA_MAX_LEN:-16384}   # context length; lower (e.g. 8192) if the KV cache is too small, then also decrease max_tokens in llm_judge
-# extra flags to save memory on GPU 1, e.g. "--enforce-eager --max-num-seqs 4" (no CUDA graphs, fewer parallel requests)
-GEMMA_EXTRA_ARGS=${GEMMA_EXTRA_ARGS:-}
+GEMMA_MAX_LEN=${GEMMA_MAX_LEN:-8192}   # context length; lower if the KV cache is too small, then also decrease max_tokens in llm_judge
+# memory savers on GPU 1 (FP8 weights ~32 GB leave only a few GB for the KV cache)
+GEMMA_ENFORCE_EAGER=${GEMMA_ENFORCE_EAGER:-1}       # 1 = no CUDA graphs (~0.7 GiB more KV cache, slightly slower), 0 = CUDA graphs
+GEMMA_MAX_NUM_SEQS=${GEMMA_MAX_NUM_SEQS:-4}         # max parallel requests (less activation memory)
+GEMMA_LIMIT_MM=${GEMMA_LIMIT_MM-'{"image":0,"video":0}'}    # text only, no memory reserved for the vision encoder; GEMMA_LIMIT_MM= (empty) = vLLM default
+GEMMA_EXTRA_ARGS=${GEMMA_EXTRA_ARGS:-}              # any further flags, split on spaces
+
+GEMMA_ARGS=(--max-num-seqs "$GEMMA_MAX_NUM_SEQS")
+[[ "$GEMMA_ENFORCE_EAGER" == 1 ]] && GEMMA_ARGS+=(--enforce-eager)
+[[ -n "$GEMMA_LIMIT_MM" ]] && GEMMA_ARGS+=(--limit-mm-per-prompt "$GEMMA_LIMIT_MM")
+# shellcheck disable=SC2206  # GEMMA_EXTRA_ARGS is split into separate flags on purpose
+GEMMA_ARGS+=($GEMMA_EXTRA_ARGS)
 
 export HF_HOME=${HF_HOME:-$HOME/.cache/huggingface}   # set HF_HOME in .env to use another cache
 : "${VLLM_API_KEY:?set VLLM_API_KEY, same value as in the .env of the project}"
@@ -77,7 +86,7 @@ nvidia-smi --query-gpu=index,name,memory.total --format=csv
 GPTOSS_LOG="$LOG_DIR/vllm-gptoss-${SLURM_JOB_ID:-local}.log"
 GEMMA_LOG="$LOG_DIR/vllm-gemma-${SLURM_JOB_ID:-local}.log"
 echo "vLLM gpt-oss-20b on $NODE:$GPTOSS_PORT, GPU $GPU_GPTOSS, mem share $GPTOSS_MEM (log: $GPTOSS_LOG)"
-echo "vLLM $GEMMA_REPO (served as $GEMMA_SERVED_NAME) on $NODE:$GEMMA_PORT, GPU $GPU_GEMMA, mem share $GEMMA_MEM, max len $GEMMA_MAX_LEN (log: $GEMMA_LOG)"
+echo "vLLM $GEMMA_REPO (served as $GEMMA_SERVED_NAME) on $NODE:$GEMMA_PORT, GPU $GPU_GEMMA, mem share $GEMMA_MEM, max len $GEMMA_MAX_LEN, args: ${GEMMA_ARGS[*]} (log: $GEMMA_LOG)"
 
 # stop both servers when the job ends, fails or is cancelled
 PIDS=()
@@ -116,7 +125,6 @@ PIDS+=($!)
 
 # 2) gemma-4-31B (judge) on GPU 1, starts in parallel (own GPU, no competition for memory)
 # --reasoning-parser gemma4: puts the reasoning into a separate field, so the judge answer (response.content) contains only the JSON list
-# shellcheck disable=SC2086  # GEMMA_EXTRA_ARGS is split into separate flags on purpose
 CUDA_VISIBLE_DEVICES=$GPU_GEMMA vllm serve "$GEMMA_REPO" \
     --served-model-name "$GEMMA_SERVED_NAME" \
     --host 0.0.0.0 --port "$GEMMA_PORT" \
@@ -124,7 +132,7 @@ CUDA_VISIBLE_DEVICES=$GPU_GEMMA vllm serve "$GEMMA_REPO" \
     --max-model-len "$GEMMA_MAX_LEN" \
     --gpu-memory-utilization "$GEMMA_MEM" \
     --api-key "$VLLM_API_KEY" \
-    $GEMMA_EXTRA_ARGS \
+    "${GEMMA_ARGS[@]}" \
     >"$GEMMA_LOG" 2>&1 &
 PIDS+=($!)
 

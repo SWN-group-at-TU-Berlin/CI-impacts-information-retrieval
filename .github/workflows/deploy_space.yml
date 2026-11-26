@@ -1,0 +1,41 @@
+name: Deploy Hugging Face Space
+
+# Pushes the web demo (hf_space/) and the pipeline code to the Hugging Face Space repository.
+# Repository settings needed:
+#   - secret   HF_DEPLOY_TOKEN : Hugging Face token with write access to the Space
+#   - variable HF_SPACE_ID     : id of the Space, e.g. <user or org>/ci-impacts-extraction
+on:
+  push:
+    branches:
+    - hf-space
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+    - name: Set up uv
+      uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+    - name: Assemble the Space repository
+      shell: bash
+      run: |
+        mkdir space_repo
+        cp -r src configs ner_patterns.jsonl examples hf_space LICENSE.md space_repo/
+        mkdir -p space_repo/docs && cp docs/extracted_features.md space_repo/docs/
+        # README with the Space config (frontmatter) and requirements.txt must be at the root of the Space repository
+        cp hf_space/README.md space_repo/README.md
+        {
+          echo "--extra-index-url https://download.pytorch.org/whl/cpu"
+          uv pip compile hf_space/pyproject.toml --python-version 3.12 --python-platform x86_64-manylinux_2_28 --no-header
+        } > space_repo/requirements.txt
+        find space_repo -name "__pycache__" -prune -exec rm -rf {} +
+    - name: Upload to the Space
+      shell: bash
+      env:
+        HF_TOKEN: ${{ secrets.HF_DEPLOY_TOKEN }}
+        HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
+      run: |
+        uvx --from "huggingface_hub[cli]" hf upload "$HF_SPACE_ID" space_repo . \
+          --repo-type space --delete "*" --commit-message "deploy ${GITHUB_SHA::7}"

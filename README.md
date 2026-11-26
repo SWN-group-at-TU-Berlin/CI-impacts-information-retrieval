@@ -34,6 +34,13 @@ sbatch run_scripts/serve_vllm_both_h200.sbatch   # start both LLM servers and ru
 Each step is explained in [docs/installation.md](docs/installation.md).
 
 
+## Web demo
+[`hf_space/`](hf_space/) contains a web demo for a Hugging Face Space: paste a text or upload a PDF, run the pipeline and
+download the results as a small SQLite database ([`src/results_db.py`](src/results_db.py), example:
+[`examples/example_results.sqlite`](examples/example_results.sqlite)). No GPU is needed: the LLMs are called via
+Hugging Face Inference Providers on the quota of the signed-in visitor. Settings and deployment: [docs/configuration.md](docs/configuration.md#web-demo-hugging-face-space).
+
+
 ## Documentation
 | Page | Content |
 |---|---|

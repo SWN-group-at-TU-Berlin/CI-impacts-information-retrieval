@@ -1,0 +1,24 @@
+# Configuration of the web demo on a Hugging Face Space (hf_space/app.py), read by src/settings.py
+# selected via the environment variable CI_IMPACTS_CONFIG=configs/config_space.yaml (set by hf_space/app.py)
+#
+# - The LLMs are not served on the Space itself but called via Hugging Face Inference Providers (OpenAI-compatible API).
+#   The API key is the Hugging Face token of the signed-in visitor (or the Space secret HF_TOKEN), see hf_space/README.md.
+# - To use your own vLLM servers instead, set the Space secrets LLM_EXTRACTOR_BASE_URL, JUDGE_BASE_URL and VLLM_API_KEY.
+# - The model names can be overwritten by the Space variables LLM_EXTRACTOR_MODEL and JUDGE_MODEL, e.g. if a model is
+#   not offered by any provider: check https://huggingface.co/models?inference_provider=all&other=conversational
+
+# --- Data (temporary storage of the Space, lost on restart) -------------------------------------------------------
+PATH_DATA: /tmp/ci_impacts/data
+PATH_RESULTS: /tmp/ci_impacts/results
+PATH_LOGS: /tmp/ci_impacts/logs
+
+# --- Models stored on disk --------------------------------------------------------------------------------------
+DOCLING_ARTIFACTS: /tmp/ci_impacts/docling_artifacts   # downloaded on the first PDF upload
+SPACY_MODEL_PIPELINE: /tmp/ci_impacts/spacy_model_pipeline   # created on first use
+HF_CACHE_DIR: null
+
+# --- LLMs via Hugging Face Inference Providers ----------------------------------------------------------------------
+LLM_EXTRACTOR_BASE_URL: https://router.huggingface.co/v1
+JUDGE_BASE_URL: https://router.huggingface.co/v1
+LLM_EXTRACTOR_MODEL: openai/gpt-oss-20b
+JUDGE_MODEL: google/gemma-4-31B-it

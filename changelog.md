@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - README split into `docs/` (installation, configuration, extracted features, troubleshooting); the feature tables
   in `docs/extracted_features.md` are generated from the extraction schemas (`docs/generate_extracted_features.py`)
 
+### Added
+- Web demo for a Hugging Face Space (`hf_space/`): paste a text or upload a PDF and run the pipeline; the LLMs are called via
+  Hugging Face Inference Providers with the token of the signed-in visitor (`configs/config_space.yaml`)
+- Relational results database (SQLite) of the extracted records: `src/results_db.py`, example in `examples/example_results.sqlite`
+  (illustrative records, built by `examples/build_example_db.py`)
+- Workflow `.github/workflows/deploy_space.yml` to deploy the web demo to the Space
+
 <!-- ### Added -->
 <!-- - Re-implement developed postgres database for document storage and RAG -->
 
