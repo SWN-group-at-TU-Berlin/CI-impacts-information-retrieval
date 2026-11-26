@@ -166,6 +166,19 @@ def resolve_api_key(oauth_token: gr.OAuthToken | None) -> str | None:
     return os.getenv("HF_TOKEN") if ALLOW_SPACE_TOKEN else None
 
 
+def api_error_hint(error: str) -> str | None:
+    """Explanation of LLM API errors that would occur for every chunk (authentication, quota, model), else None"""
+    hints = {
+        "401": "the API key was rejected. Sign out and sign in with Hugging Face again.",
+        "402": "your monthly Inference Providers credit is used up (free accounts: small monthly quota).",
+        "403": "your Hugging Face login/token is not allowed to call Inference Providers. Sign out and sign in again and "
+        "allow the 'inference' permission; a token in HF_TOKEN needs the permission 'Make calls to Inference Providers'.",
+        "404": f"the model is not available on Inference Providers: check LLM_EXTRACTOR_MODEL ({s.LLM_EXTRACTOR_MODEL}) and JUDGE_MODEL ({s.JUDGE_MODEL}).",
+        "429": "too many requests or quota exceeded. Try again later.",
+    }
+    return next((f"LLM API error {code}: {hint}" for code, hint in hints.items() if f"Error code: {code}" in error), None)
+
+
 # --- Documents -----------------------------------------------------------------------------------------------------
 
 
@@ -275,14 +288,23 @@ def run_pipeline(text: str, pdf_file, use_judge: bool, max_chunks: int, oauth_to
     for i, chunk in enumerate(to_llm):
         log.append(f"- Chunk {i + 1}/{len(to_llm)}: {', '.join(chunk['ner_entities'][:5])} …")
         yield update(pd.concat(records, ignore_index=True)[[c for c in RESULT_COLUMNS if c in records[0]]] if records else None)
+        n_errors = len(pipeline.errors)
         df = pipeline.extract_chunk(chunk["text"], citation, chunk["chunk_id"])
-        if df is not None:
+        if len(pipeline.errors) > n_errors:
+            error = pipeline.errors[-1]["error"]
+            log[-1] = log[-1].removesuffix(" …") + f" → ⚠ **LLM error:** `{error[:400]}`"
+            hint = api_error_hint(error)
+            if hint:  # the same error would occur for every chunk: stop instead of skipping all chunks
+                log.append(f"- ⛔ **Stopped:** {hint}")
+                gr.Warning(hint)
+                break
+        elif df is not None:
             records.append(df)
             log[-1] = log[-1].removesuffix(" …") + f" → {len(df)} record(s)"
         else:
             log[-1] = log[-1].removesuffix(" …") + " → no CI impacts"
-    for error in pipeline.errors:
-        log.append(f"- ⚠ chunk {error['chunk_id']} skipped: {error['error'][:300]}")
+    if not to_llm:
+        log.append("- ⚠ No chunk mentions an infrastructure asset (NER pre-filter), so nothing was sent to the LLMs.")
 
     # 5. results database
     df_all = pd.concat(records, ignore_index=True) if records else pd.DataFrame()
