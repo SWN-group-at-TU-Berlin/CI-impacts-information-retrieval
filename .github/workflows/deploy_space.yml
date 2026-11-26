@@ -35,5 +35,13 @@ jobs:
         HF_TOKEN: ${{ secrets.HF_DEPLOY_TOKEN }}
         HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
       run: |
+        if [ -z "$HF_SPACE_ID" ]; then
+          echo "::error::Repository variable HF_SPACE_ID is empty: set it under Settings > Secrets and variables > Actions > Variables (not Secrets), e.g. <owner>/ci-impacts-extraction"
+          exit 1
+        fi
+        if [ -z "$HF_TOKEN" ]; then
+          echo "::error::Repository secret HF_DEPLOY_TOKEN is empty: set it under Settings > Secrets and variables > Actions > Secrets"
+          exit 1
+        fi
         uvx --from "huggingface_hub[cli]" hf upload "$HF_SPACE_ID" space_repo . \
           --repo-type space --delete "*" --commit-message "deploy ${GITHUB_SHA::7}"
