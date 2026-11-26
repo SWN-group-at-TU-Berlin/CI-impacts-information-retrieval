@@ -19,6 +19,32 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 <!-- - Re-implement developed postgres database for document storage and RAG -->
 
 
+## [0.2.0] - 2026-11-26
+Documentation split into `docs/`, renaming of LLM 1 to LLM-extractor, settings read from a config file
+
+### Added
+- Documentation in `docs/`: `installation.md` (step-by-step setup incl. vLLM on an HPC cluster and running the pipeline),
+  `configuration.md` (all settings), `extracted_features.md`, `troubleshooting.md`
+- Table of the extracted features (description, type, allowed values) in `docs/extracted_features.md`, generated from
+  the extraction schemas by `docs/generate_extracted_features.py` and kept up to date by the pre-commit hook `extracted-features-doc`
+- Config file `configs/config.yaml` for paths, LLM servers and models; another config file can be used via `CI_IMPACTS_CONFIG`
+- `.env_example`: optional entries `HF_TOKEN`, `HF_HOME` and examples for overriding config entries
+
+### Changed
+- **Breaking:** the settings `LLM1_BASE_URL` and `LLM1_MODEL` are renamed to `LLM_EXTRACTOR_BASE_URL` and `LLM_EXTRACTOR_MODEL`;
+  rename them in your `.env` / own config files
+- "LLM 1" is now called **LLM-extractor** (docs, docstrings, log messages and the judge prompt)
+- Settings are read from environment variables > `.env` > `configs/config.yaml` (highest priority first)
+- README shortened to overview, requirements, quickstart and links to the docs; tests and pre-commit instructions moved to `CONTRIBUTING.md`
+- Translation models are cached in `HF_CACHE_DIR` (default: Hugging Face cache) instead of a hard-coded local folder
+- The spaCy pipeline (`SPACY_MODEL_PIPELINE`) is created automatically on the first run if it does not exist
+- `DataHandler` gets the evaluation folder and file name as arguments instead of reading them from the settings
+
+### Removed
+- Hard-coded, machine-specific paths (hostname switch for `PATH_DATA`, local Hugging Face mirror)
+- Outdated notebooks (`notebooks/`, `examples/extract_ci_impacts.ipynb`) and Jupyter/old run scripts in `run_scripts/`
+
+
 ## [0.1.0] - 2026-11-16
 First public release: a software project for extracting damage on critical infrastructure (CI) and cascading impacts from text sources with LLMs, tested on around 300 manually extracted CI-damage cases, commit history since Nov. 2025
 

@@ -264,7 +264,8 @@ class SecondaryInfrastructureImpact(BaseModel):
         default=None,
         description=(
             "General category of the resulting damage, disruption or operational effect experienced by the target infrastructure asset or service. "
-            "If several categories apply, use the most severe one (the first one in this list):\n" + pp.describe_damage_categories()
+            "If the TEXT mentions several damages, use the one that refers directly to the target asset. "
+            "Only if several categories refer equally well to it, use the most severe one (the first one in this list):\n" + pp.describe_damage_categories()
         ),
     )
     # tool calling does not enforce the Literal: map free-text damage (e.g. "severely damaged") to its category, unknown -> None
@@ -312,7 +313,8 @@ class InfrastructureCase(BaseModel):
         default=None,
         description=(
             "General category of the damage, failure, disruption, or operational status explicitly associated with this infrastructure asset. "
-            "If several categories apply, use the most severe one (the first one in this list):\n" + pp.describe_damage_categories()
+            "If the TEXT mentions several damages, use the one that refers directly to this infrastructure asset (infrastructure_type), not damages of other assets. "
+            "Only if several categories refer equally well to it, use the most severe one (the first one in this list):\n" + pp.describe_damage_categories()
         ),
     )
 

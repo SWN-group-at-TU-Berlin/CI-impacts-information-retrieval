@@ -60,7 +60,7 @@ def feature_row(column: str, model, name: str) -> str:
     if categories:
         kind, allowed = "categorical", codes(categories)
         if set(categories) == set(pp.DAMAGE_CATEGORIES):
-            description = description.split(" If several categories apply")[0]  # the rule is explained in the damage table
+            description = description.split(" If the TEXT mentions several damages")[0]  # the rule is explained in the damage table
             allowed = "see [damage categories](#damage-categories)"
     elif normalised:
         kind, allowed = "categorical (mapped from free text)", codes(normalised)
@@ -95,7 +95,8 @@ def damage_table() -> list[str]:
     return [
         "### Damage categories",
         "",
-        "Allowed values of `damage`, ordered from most to least severe. If several categories apply, the most severe one is used. "
+        "Allowed values of `damage`, ordered from most to least severe. Each infrastructure case gets ONE category: if the text mentions several damages, "
+        "the one that refers directly to the `infrastructure_type` is used, and only if several refer equally well to it, the most severe one. "
         "Free-text damages of the LLM (e.g. 'severely damaged') are mapped to a category via the keywords, "
         "see `DAMAGE_CATEGORIES` in [`src/postprocess.py`](../src/postprocess.py).",
         "",

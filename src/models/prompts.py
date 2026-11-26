@@ -93,7 +93,7 @@ IMPORTANT:
 - **Only for transportation infrastructure:** When the specific name of an ASSET is mentioned (e.g. Juan Avenue, intersection to Maria Statue, highway A-1, B510, Berlusconi Airport) and no location information can be found, then consider the specific name of this asset as the location. But do not use road types as location names, such as "German highway", "national road", etc.
 - **Only for transportation infrastructure:** when an ASSET refers to two or more locations then extract the locations together. For instance: text:"There is much damage on the access roads from Juan Avenue to Plaza Manuel Azaña" --> location:["from Juan Avenue to Plaza Manuel Azaña"]
 - If no location is explicitly stated for an asset, return None for "location".
-- Assign ONE general damage category ("damage") to each infrastructure entity, based on the damage, failure, or disruption the TEXT reports for it. If several categories apply, use the most severe one (the first one in the following list). Damage categories:
+- Assign ONE general damage category ("damage") to each infrastructure entity, based on the damage, failure, or disruption the TEXT reports for it. If the TEXT mentions several damages, use the damage that refers directly to this infrastructure entity ("infrastructure_type"), e.g. the damage stated for it in the same phrase or sentence, and ignore damages of other assets. Only if several damage categories refer equally well to this entity, use the most severe one (the first one in the following list). Damage categories:
 """
             + pp.describe_damage_categories()
             + """
@@ -383,7 +383,7 @@ For every explicitly reported secondary infrastructure impact, extract:
    IMPORTANT: This must be different from source_asset.
 
 5. target_damage: The general damage category of the resulting condition or operational effect experienced by the affected asset or service (target_asset).
-   Use exactly one of the following categories. If several categories apply, use the most severe one (the first one in the list):
+   Use exactly one of the following categories. If the TEXT mentions several damages, use the one that refers directly to the target_asset. Only if several categories refer equally well to it, use the most severe one (the first one in the list):
 """
             + pp.describe_damage_categories()
             + """
@@ -807,7 +807,9 @@ JUDGE_EXTRA_RULES = {
         *location_rules,
     ],
     "damage": [
-        "Use the damage category whose definition matches the damage the TEXT reports for this infrastructure. If several categories apply, use the most severe one (the first one in the definition).",
+        "Use exactly ONE damage category whose definition matches the damage the TEXT reports for this infrastructure. "
+        "If the TEXT mentions several damages, use the one that refers directly to this infrastructure_type (e.g. stated for it in the same phrase or sentence), not damages of other assets. "
+        "Only if several categories refer equally well to it, use the most severe one (the first one in the definition).",
         "Use null if no damage or disruption is explicitly stated for this infrastructure.",
     ],
     "economic_impact_origin": [

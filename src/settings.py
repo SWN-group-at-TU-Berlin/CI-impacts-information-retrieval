@@ -30,26 +30,24 @@ os.environ.setdefault("CUDA_LAUNCH_BLOCKING", "1")
 
 
 class Settings(BaseSettings):
-    """Defaults of the settings, overwritten by configs/config.yaml, .env and environment variables (see module docstring)"""
+    """Settings of the project, the values and their description are in configs/config.yaml (see module docstring)"""
 
     model_config = SettingsConfigDict(env_file=PROJECT_ROOT / ".env", yaml_file=CONFIG_FILE, extra="ignore")
 
-    # data, results and logs
-    PATH_DATA: Path = Path("../data")
-    PATH_RESULTS: Path = Path("../results")
-    PATH_LOGS: Path = Path("../logs")
+    # set in configs/config.yaml
+    PATH_DATA: Path
+    PATH_RESULTS: Path
+    PATH_LOGS: Path
+    DOCLING_ARTIFACTS: Path
+    SPACY_MODEL_PIPELINE: Path  # TODO move outside project folder, see related git issue
+    HF_CACHE_DIR: Path | None
+    LLM_EXTRACTOR_BASE_URL: str
+    JUDGE_BASE_URL: str
+    LLM_EXTRACTOR_MODEL: str
+    JUDGE_MODEL: str
 
-    # models stored on disk
-    DOCLING_ARTIFACTS: Path = Path("../docling_artifacts")
-    SPACY_MODEL_PIPELINE: Path = Path("spacy_model_pipeline")  # TODO move outside project folder, see related git issue
-    HF_CACHE_DIR: Path | None = None  # None: default cache of Hugging Face
-
-    # self-hosted LLMs served by vLLM (OpenAI-compatible API), see run_scripts/serve_vllm_*.sbatch
-    LLM_EXTRACTOR_BASE_URL: str = "http://localhost:8000/v1"
-    JUDGE_BASE_URL: str = "http://localhost:8001/v1"
-    LLM_EXTRACTOR_MODEL: str = "openai/gpt-oss-20b"  # served model name, see `vllm serve --served-model-name`
-    JUDGE_MODEL: str = "google/gemma-4-31B-it"
-    VLLM_API_KEY: str | None = None  # secret: set in .env, same key as `vllm serve --api-key`
+    # secret, set in .env: same key as `vllm serve --api-key`
+    VLLM_API_KEY: str | None = None
 
     @field_validator("PATH_DATA", "PATH_RESULTS", "PATH_LOGS", "DOCLING_ARTIFACTS", "SPACY_MODEL_PIPELINE", "HF_CACHE_DIR")
     @classmethod

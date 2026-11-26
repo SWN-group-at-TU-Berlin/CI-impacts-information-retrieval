@@ -63,7 +63,7 @@ Schema: `SecondaryInfrastructureImpact` in [`src/models/schemas.py`](../src/mode
 
 ### Damage categories
 
-Allowed values of `damage`, ordered from most to least severe. If several categories apply, the most severe one is used. Free-text damages of the LLM (e.g. 'severely damaged') are mapped to a category via the keywords, see `DAMAGE_CATEGORIES` in [`src/postprocess.py`](../src/postprocess.py).
+Allowed values of `damage`, ordered from most to least severe. Each infrastructure case gets ONE category: if the text mentions several damages, the one that refers directly to the `infrastructure_type` is used, and only if several refer equally well to it, the most severe one. Free-text damages of the LLM (e.g. 'severely damaged') are mapped to a category via the keywords, see `DAMAGE_CATEGORIES` in [`src/postprocess.py`](../src/postprocess.py).
 
 | Category | Definition | Keywords mapped to this category |
 |---|---|---|

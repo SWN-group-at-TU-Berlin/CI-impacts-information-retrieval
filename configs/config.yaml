@@ -4,7 +4,7 @@
 #   "~" is expanded to the home directory.
 # - Every entry can be overwritten by an environment variable or an entry in the .env file of the project root
 #   with the same name, e.g. `LLM_EXTRACTOR_BASE_URL=http://gpu-node-07:8000/v1`.
-# - Secrets (VLLM_API_KEY, HUGGINGFACE_TOKEN) do not belong here, set them in .env (see .env_example).
+# - Secrets (VLLM_API_KEY, HF_TOKEN) do not belong here, set them in .env (see .env_example).
 # - To use another config file, set the environment variable CI_IMPACTS_CONFIG=<path to yaml file>.
 
 # --- Data -------------------------------------------------------------------------------------------------------
@@ -17,10 +17,10 @@ PATH_RESULTS: ../results
 PATH_LOGS: ../logs
 
 # --- Models stored on disk --------------------------------------------------------------------------------------
-# Docling models (layout, OCR) for the PDF processing, see README "Docling models"
+# Docling models (layout, OCR) for the PDF processing, see docs/installation.md, step 3 "Docling models"
 DOCLING_ARTIFACTS: ../docling_artifacts
 # spaCy pipeline (en_core_web_trf + merge_entities + merge_noun_chunks) for the NER pre-filter,
-# created automatically on first use if it does not exist, see README "spaCy model pipeline"
+# created automatically on first use if it does not exist, see docs/installation.md, step 4 "spaCy model pipeline"
 SPACY_MODEL_PIPELINE: spacy_model_pipeline
 # Hugging Face cache for the translation models (Helsinki-NLP/opus-mt-*-en),
 # null: default cache of Hugging Face (~/.cache/huggingface/hub or $HF_HOME/hub)
