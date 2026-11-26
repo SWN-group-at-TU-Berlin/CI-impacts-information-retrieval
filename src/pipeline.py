@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""CI impact extraction pipeline per chunk and document: NER pre-filter -> LLM 1 (LlmExtract) -> postprocessing -> LLM-as-a-judge (LlmJudge)"""
+"""CI impact extraction pipeline per chunk and document: NER pre-filter -> LLM-extractor (LlmExtract) -> postprocessing -> LLM-as-a-judge (LlmJudge)"""
 
 __author__ = "Anna Buch, TU Berlin"
 __email__ = "anna.buch@tu-berlin.de"
@@ -34,7 +34,7 @@ def get_citation(name: str) -> str:
 class CiImpactPipeline:
     """Extraction of CI impacts from cleaned documents (DoclingDocument, see dc.PdfProcess, dc.HtmlProcess).
 
-    Per chunk: NER pre-filter (only chunks mentioning infrastructure are passed to the LLMs) -> LLM 1 (llm_extract)
+    Per chunk: NER pre-filter (only chunks mentioning infrastructure are passed to the LLMs) -> LLM-extractor (llm_extract)
     -> records -> grouping of the CI types (records which are not about CI are removed) and cleaning of the locations
     -> LLM-as-a-judge (llm_judge, optional).
 
@@ -65,7 +65,7 @@ class CiImpactPipeline:
         self.max_retries = max_retries
         self.retry_wait = retry_wait
         self.verbose = verbose
-        self.errors: list[dict] = []  # chunks skipped due to errors of LLM 1 (e.g. LengthLimitError)
+        self.errors: list[dict] = []  # chunks skipped due to errors of LLM-extractor (e.g. LengthLimitError)
         self.not_grouped = pd.DataFrame()  # records whose infrastructure type is no CI type
 
     def postprocess(self, df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -73,16 +73,16 @@ class CiImpactPipeline:
         return pp.postprocess_response(df, self.ci_patterns)
 
     def extract_chunk(self, text: str, citation: str, chunk_no: int) -> pd.DataFrame | None:
-        """Records of one chunk: LLM 1 -> postprocessing -> LLM-as-a-judge. None if the chunk contains no CI impacts."""
+        """Records of one chunk: LLM-extractor -> postprocessing -> LLM-as-a-judge. None if the chunk contains no CI impacts."""
         # NER pre-filter: only chunks which mention infrastructure are passed to the LLMs
         if not get_infrastructure_entities.invoke({"text": text}):
             return None
 
-        # LLM 1
+        # LLM-extractor
         try:
             result = self.llm_extract.extract(text, max_retries=self.max_retries, retry_wait=self.retry_wait)
         except Exception as e:
-            print(f"! LLM 1 failed for chunk {chunk_no} of {citation}: {type(e).__name__}: {e}")
+            print(f"! LLM-extractor failed for chunk {chunk_no} of {citation}: {type(e).__name__}: {e}")
             self.errors.append(
                 {
                     "citation_id": citation,
@@ -98,7 +98,7 @@ class CiImpactPipeline:
         try:
             df = le.result_to_dataframe(result)
         except Exception as e:
-            print(f"! Cannot convert LLM 1 response of chunk {chunk_no} of {citation}: {e}")
+            print(f"! Cannot convert LLM-extractor response of chunk {chunk_no} of {citation}: {e}")
             self.errors.append(
                 {
                     "citation_id": citation,

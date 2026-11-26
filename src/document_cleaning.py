@@ -29,7 +29,7 @@ class DocumentParser:
     def __init__(self):
         # OCR pipeline configs
         self.artifacts_path = settings.DOCLING_ARTIFACTS
-        self.artifacts_path.mkdir(exist_ok=True)
+        self.artifacts_path.mkdir(parents=True, exist_ok=True)
 
         # EASY-OCR and pipeline options
         ocr_options = EasyOcrOptions(

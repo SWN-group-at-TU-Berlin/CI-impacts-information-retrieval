@@ -6,7 +6,6 @@ __email__ = "anna.buch@tu-berlin.de"
 
 
 import gc
-import os
 import re
 
 import langdetect
@@ -19,7 +18,7 @@ from transformers import (
     BitsAndBytesConfig,
 )
 
-from src.settings import init_logger
+from src.settings import init_logger, settings
 
 logger = init_logger(__name__)
 
@@ -45,9 +44,8 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
     # construct our model name
     model_name = f"Helsinki-NLP/opus-mt-{src_language}-{dst_language}"
 
-    base_dir = "/home/a-buch/Documents/TUB_DWN/_PROJECTS/CI-impacts-information-retrieval/notebooks/huggingface_mirror/hub"  # s.HF_HOME_DIR
-    model_dir = base_dir
-    logger.info(model_dir)
+    model_dir = settings.HF_CACHE_DIR  # None: default cache of Hugging Face
+    logger.info(f"Loading {model_name} (cache: {model_dir or 'Hugging Face default'})")
 
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
@@ -60,33 +58,14 @@ def init_helsinki_nlp(src_language, dst_language) -> tuple[torch.nn.Module, torc
     if device != "cuda":
         logger.info(f"Using device: {device}")
 
-    # Model and Tokenizer initialization
-    if not os.path.exists(model_dir):
-        logger.warning("Model directory not found. Downloading model...")
-        os.makedirs(model_dir, exist_ok=True)
-
-        model = AutoModelForSeq2SeqLM.from_pretrained(
-            model_name,
-            dtype="auto",
-            quantization_config=bnb_config,
-        )
-        model.save_pretrained(model_dir)
-
-        tokenizer = AutoTokenizer.from_pretrained(
-            model_name,
-            use_fast=True,
-        )
-        tokenizer.save_pretrained(model_dir)
-
-    else:
-        model = AutoModelForSeq2SeqLM.from_pretrained(
-            model_name,
-            cache_dir=model_dir,
-            local_files_only=False,  # set to False to enable downloading if model is not found locally, even when it exists
-            dtype="auto",
-            quantization_config=bnb_config,
-        )
-        tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True, cache_dir=model_dir, backend="sentencepiece")
+    # Model and Tokenizer initialization, downloaded into the cache on first use
+    model = AutoModelForSeq2SeqLM.from_pretrained(
+        model_name,
+        cache_dir=model_dir,
+        dtype="auto",
+        quantization_config=bnb_config,
+    )
+    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True, cache_dir=model_dir, backend="sentencepiece")
 
     ## reduce further memory usage
     model = model.to(device)

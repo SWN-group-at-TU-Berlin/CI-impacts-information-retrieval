@@ -84,7 +84,7 @@ def make_pipeline(monkeypatch, result, texts, tmp_path=None):
     )
 
 
-def test_pipeline_runs_ner_filter_llm1_and_judge(monkeypatch, tmp_path, fake_nlp_model):
+def test_pipeline_runs_ner_filter_llm_extractor_and_judge(monkeypatch, tmp_path, fake_nlp_model):
     pipeline = make_pipeline(
         monkeypatch,
         {"is_infrastructure_case": True},

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""LangGraph workflow of LLM 1: nodes, routing and graph structure for the extraction of CI impacts.
+"""LangGraph workflow of LLM-extractor: nodes, routing and graph structure for the extraction of CI impacts.
 The graph is built for a LlmExtract (src/models/llm_extract.py) with build_graph(llm_extract).
 """
 
@@ -9,7 +9,6 @@ __email__ = "anna.buch@tu-berlin.de"
 import ast
 from typing import Literal
 
-import pandas as pd
 from langchain_core.messages import HumanMessage
 from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
@@ -18,18 +17,19 @@ from pydantic import BaseModel
 
 from src.models.prompts import *  # noqa: F403  prompts of the graph nodes
 from src.models.schemas import *  # noqa: F403  output schemas and GraphState
+from src.tools.ner import load_ci_patterns
 
-# LLM 1 used by the graph nodes, set by build_graph()
+# LLM-extractor used by the graph nodes, set by build_graph()
 _llm_extract = None
 
 
 def structured_llm(schema):
-    """LLM 1 with structured output (see LlmExtract.structured)"""
+    """LLM-extractor with structured output (see LlmExtract.structured)"""
     return _llm_extract.structured(schema)
 
 
 def llm_tool():
-    """LLM 1 with the bound NER tool (see LlmExtract.llm_tool)"""
+    """LLM-extractor with the bound NER tool (see LlmExtract.llm_tool)"""
     return _llm_extract.llm_tool
 
 
@@ -73,7 +73,7 @@ def extract_asset_information(state: GraphState) -> GraphState:
     assets_list = ast.literal_eval(tool_message.content)  # str -> list
 
     # remove non-CI types
-    ci_patterns = pd.read_json("./ner_patterns.jsonl/patterns", lines=True)
+    ci_patterns = load_ci_patterns()
     assets_list = pp.keep_ci_types(assets_list, ci_patterns)  # (e.g. "24Rhein")
     print("tool_message.content", assets_list)
 
@@ -313,7 +313,7 @@ def route_cascading_impacts(state: GraphState):
 
 
 def build_graph(llm_extract):
-    """Build and compile the LangGraph workflow of LLM 1 for the given LlmExtract (src/models/llm_extract.py).
+    """Build and compile the LangGraph workflow of LLM-extractor for the given LlmExtract (src/models/llm_extract.py).
     The graph is also stored as llm_extract.graph, run it with llm_extract.extract(text).
 
     NOTE NIviDiA API LIMIT: dont do parallel specialist calls, or parallel nodes

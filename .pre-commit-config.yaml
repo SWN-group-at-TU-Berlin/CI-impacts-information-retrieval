@@ -45,3 +45,13 @@ repos: #  definitions see: https://pre-commit.com/hooks.html
         exclude_types:
           - jupyter
     -   id: mixed-line-ending  # consistent line endings
+
+# regenerate the feature tables of docs/extracted_features.md from the extraction schemas
+-   repo: local
+    hooks:
+    -   id: extracted-features-doc
+        name: extracted features doc
+        entry: uv run python docs/generate_extracted_features.py
+        language: system
+        files: ^(src/models/schemas\.py|src/postprocess\.py|ner_patterns\.jsonl/patterns|docs/generate_extracted_features\.py)$
+        pass_filenames: false

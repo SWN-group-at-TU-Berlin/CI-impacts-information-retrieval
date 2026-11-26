@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""NER model (spaCy pipeline + CI patterns) and the NER tools of LLM 1 and the LLM-as-a-judge"""
+"""NER model (spaCy pipeline + CI patterns) and the NER tools of LLM-extractor and the LLM-as-a-judge"""
 
 __author__ = "Anna Buch, TU Berlin"
 __email__ = "anna.buch@tu-berlin.de"
@@ -11,9 +11,13 @@ import pandas as pd
 import spacy
 from langchain_core.tools import tool
 
-# spaCy pipeline and CI patterns are stored in the project root
-PROJECT_ROOT = Path(__file__).resolve().parents[2]  # src/tools/ner.py -> project root
-SPACY_MODEL_PIPELINE_DIR = PROJECT_ROOT / "spacy_model_pipeline"
+from src.settings import PROJECT_ROOT, init_logger, settings
+
+logger = init_logger(__name__)
+
+# spaCy pipeline: path set in configs/config.yaml (SPACY_MODEL_PIPELINE), CI patterns are part of the repository
+SPACY_MODEL_PIPELINE_DIR = settings.SPACY_MODEL_PIPELINE
+SPACY_BASE_MODEL = "en_core_web_trf"  # English transformer pipeline (RoBERTa), https://spacy.io/models/en#en_core_web_trf
 NER_PATTERNS_DIR = PROJECT_ROOT / "ner_patterns.jsonl"
 
 
@@ -22,7 +26,20 @@ def load_ci_patterns() -> pd.DataFrame:
     return pd.read_json(NER_PATTERNS_DIR / "patterns", lines=True)
 
 
-#
+def create_spacy_model_pipeline(output_dir: Path = SPACY_MODEL_PIPELINE_DIR, base_model: str = SPACY_BASE_MODEL) -> Path:
+    """Create the spaCy pipeline of the NER model: base_model (downloaded if not installed) + merge_entities + merge_noun_chunks,
+    saved to output_dir. The CI patterns (span_ruler) are added when the pipeline is loaded, see NERModel.
+    """
+    if not spacy.util.is_package(base_model):
+        logger.info(f"Downloading spaCy model {base_model}")
+        spacy.cli.download(base_model)
+    nlp = spacy.load(base_model)
+    nlp.add_pipe("merge_entities")
+    nlp.add_pipe("merge_noun_chunks")
+    nlp.to_disk(output_dir)
+    logger.info(f"Saved spaCy model pipeline to {output_dir}")
+    return Path(output_dir)
+
 
 # ## NER model
 
@@ -37,7 +54,10 @@ class NERModel:
         dir_model_pipeline = SPACY_MODEL_PIPELINE_DIR
         dir_ci_patterns = NER_PATTERNS_DIR
 
-        # LOAD spacy pipeline
+        # LOAD spacy pipeline, created on first use
+        if not Path(dir_model_pipeline).exists():
+            logger.warning(f"spaCy model pipeline not found at {dir_model_pipeline}, creating it from {SPACY_BASE_MODEL}")
+            create_spacy_model_pipeline(dir_model_pipeline)
         nlp = spacy.load(dir_model_pipeline)
 
         # add CI_TYPE patterns to spacy nlp model pipeline

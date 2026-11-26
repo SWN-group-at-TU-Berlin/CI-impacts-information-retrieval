@@ -5,13 +5,13 @@
 # 1. **Document cleaning** – PDF (OCR) and HTML sources → cleaned DoclingDocuments (`src.document_cleaning`)
 # 2. **Chunking** – HybridChunker (max. 256 tokens)
 # 3. **NER pre-filter** – only chunks with infrastructure entities are passed to the LLMs (`src.tools.ner`)
-# 4. **LLM 1** – LangGraph workflow (gpt-oss): infrastructure cases + cascading impacts (`src.models.llm_extract`, `src.models.graph`)
+# 4. **LLM-extractor** – LangGraph workflow (gpt-oss): infrastructure cases + cascading impacts (`src.models.llm_extract`, `src.models.graph`)
 # 5. **Postprocessing** – grouping of the CI types, cleaning of the locations (`src.postprocess`)
 # 6. **LLM-as-a-judge** – plausibility check of each record against the chunk text (`src.models.llm_judge`)
 #
 # Steps 3-6 per chunk and document are run by `CiImpactPipeline` (`src/pipeline.py`).
 #
-# Requirements: the vLLM servers of LLM 1 and the judge are running and reachable (`LLM1_BASE_URL`, `JUDGE_BASE_URL`, `VLLM_API_KEY` in `.env`), see `run_scripts/serve_vllm_*.sbatch`.
+# Requirements: the vLLM servers of LLM-extractor and the judge are running and reachable (`LLM_EXTRACTOR_BASE_URL`, `JUDGE_BASE_URL`, `VLLM_API_KEY` in `.env`), see `run_scripts/serve_vllm_*.sbatch`.
 
 # ## Setup
 import os
@@ -44,7 +44,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 DOCS_DIR = Path(s.PATH_DATA / "text_sources")
 PARSED_TEXT_DIR = Path(s.PATH_DATA / "parsed_documents")
-OUTPUT_DIR = Path("../interim_results_example")
+OUTPUT_DIR = s.PATH_RESULTS
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -75,12 +75,12 @@ tokenizer = HuggingFaceTokenizer(
 # hierarchical chunker which also considers the max. token length and merges smaller chunks (merge_peers=True)
 chunker = HybridChunker(tokenizer=tokenizer, merge_peers=True)
 
-# ## 3. LLM 1 (CI impact extraction) and LLM-as-a-judge
+# ## 3. LLM-extractor (CI impact extraction) and LLM-as-a-judge
 
-# LLM 1 (gpt-oss) incl. the NER tool, the graph (nodes, prompts, output schemas) is defined in src/models/graph.py
+# LLM-extractor (gpt-oss) incl. the NER tool, the graph (nodes, prompts, output schemas) is defined in src/models/graph.py
 llm_extract = le.LlmExtract(
-    model=s.LLM1_MODEL,
-    base_url=s.LLM1_BASE_URL,
+    model=s.LLM_EXTRACTOR_MODEL,
+    base_url=s.LLM_EXTRACTOR_BASE_URL,
     api_key=s.VLLM_API_KEY,
     tools=[get_infrastructure_entities],
     max_tokens=8192,  # reasoning + answer: prompt + max_tokens must be <= vLLM --max-model-len
@@ -88,7 +88,7 @@ llm_extract = le.LlmExtract(
 )
 graph = lg.build_graph(llm_extract)
 
-# LLM-as-a-judge: uses the same field definitions (output schemas), keyword lists and NER entities as LLM 1
+# LLM-as-a-judge: uses the same field definitions (output schemas), keyword lists and NER entities as LLM-extractor
 llm_judge = lj.LlmJudge(
     model=s.JUDGE_MODEL,
     base_url=s.JUDGE_BASE_URL,
@@ -108,7 +108,7 @@ llm_judge.smoke_test()
 # graph  # structure of the LangGraph workflow
 
 # ## 4. Pipeline
-# Per chunk: NER pre-filter → LLM 1 → grouping of the CI types + cleaning of the locations → LLM-as-a-judge, see `src/pipeline.py`.
+# Per chunk: NER pre-filter → LLM-extractor → grouping of the CI types + cleaning of the locations → LLM-as-a-judge, see `src/pipeline.py`.
 
 pipeline = CiImpactPipeline(chunker, llm_extract, llm_judge, output_dir=OUTPUT_DIR)
 

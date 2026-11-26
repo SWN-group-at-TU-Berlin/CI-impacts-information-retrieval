@@ -1,6 +1,6 @@
 #!/bin/bash
 # both vLLM servers + the Python workflow in ONE job on TWO A100 40 GB (one server per GPU, everything on the compute node):
-#   LLM 1 (extraction): openai/gpt-oss-20b              on port 8000, GPU 0
+#   LLM-extractor (extraction): openai/gpt-oss-20b              on port 8000, GPU 0
 #   judge:              google/gemma-4-31B-it (FP8)     on port 8001, GPU 1
 #   workflow:           $SCRIPT (default examples/extract_ci_impacts.py), started once both servers are ready,
 #                       talks to the servers via http://localhost:<port>/v1
@@ -17,7 +17,7 @@
 #SBATCH --mail-type=END,FAIL
 #SBATCH --gres=gpu:a100:2
 #SBATCH --cpus-per-task=4    # 2 per GPU
-#SBATCH --time=00:30:00        # server startups + the workflow
+#SBATCH --time=01:00:00        # server startups + the workflow
 #SBATCH --output=../logs/a100-%j.out
 #SBATCH --error=../logs/a100-%j.%N.err
 
@@ -147,9 +147,9 @@ cd "$PROJECTROOT"
 
 # the workflow runs on this node -> reach the servers via localhost
 # (exported after sourcing .env, so these values win; settings.py reads them from the environment)
-export LLM1_BASE_URL="http://localhost:$GPTOSS_PORT/v1"
+export LLM_EXTRACTOR_BASE_URL="http://localhost:$GPTOSS_PORT/v1"
 export JUDGE_BASE_URL="http://localhost:$GEMMA_PORT/v1"
-echo "LLM1_BASE_URL=$LLM1_BASE_URL  JUDGE_BASE_URL=$JUDGE_BASE_URL"
+echo "LLM_EXTRACTOR_BASE_URL=$LLM_EXTRACTOR_BASE_URL  JUDGE_BASE_URL=$JUDGE_BASE_URL"
 
 rc=0
 source $PYTHON_ENV/bin/activate
